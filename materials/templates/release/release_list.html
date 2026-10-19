@@ -1194,7 +1194,7 @@
                 </div>
                 {% for tc in group.tax_certs %}
                 <div class="form-check">
-                  <input class="form-check-input" type="checkbox" name="send_certs" value="{{ tc.type }}" form="taxIssueForm-{{ group.institution.id }}-{{ group.order_month }}"
+                  <input class="form-check-input" type="checkbox" name="send_certs" value="{{ tc.type }}" data-label="{{ tc.label }}" form="taxIssueForm-{{ group.institution.id }}-{{ group.order_month }}"
                          id="cert-{{ tc.type }}-{{ group.institution.id }}-{{ group.order_month }}" {% if tc.cert and not tc.cert.is_expired %}checked{% else %}disabled{% endif %}>
                   <label class="form-check-label small" for="cert-{{ tc.type }}-{{ group.institution.id }}-{{ group.order_month }}">
                     {{ tc.label }}
@@ -1202,6 +1202,18 @@
                   </label>
                 </div>
                 {% endfor %}
+                <details class="mt-2 tax-mail-edit"
+                         data-inst="{{ group.institution.name }}" data-month="{{ group.order_month }}"
+                         data-key="{{ group.institution.id }}-{{ group.order_month }}">
+                  <summary class="small fw-bold" style="cursor:pointer;"><i class="bi bi-pencil-square"></i> 메일 제목·내용 미리보기 / 수정</summary>
+                  <div class="mt-2">
+                    <input type="text" class="form-control form-control-sm mb-2 tax-mail-subject" name="mail_subject"
+                           form="taxIssueForm-{{ group.institution.id }}-{{ group.order_month }}" maxlength="200">
+                    <textarea class="form-control form-control-sm tax-mail-body" name="mail_body" rows="8"
+                              form="taxIssueForm-{{ group.institution.id }}-{{ group.order_month }}"></textarea>
+                    <div class="text-muted small mt-1">첨부서류 항목은 체크박스를 바꾸면 자동 반영됩니다. (직접 수정하면 자동 반영이 멈춥니다)</div>
+                  </div>
+                </details>
                 <div class="text-muted small mt-2">
                   체크된 서류는 "발행 완료로 표시" 시 {{ group.institution.name }} 담당자·행정실 이메일로 발송됩니다.
                   {% if not group.institution.contact_email and not group.institution.admin_email %}<span class="text-danger">(등록된 이메일 없음)</span>{% endif %}
@@ -2216,6 +2228,36 @@ document.body.addEventListener('click', function (e) {
       cell.style.background = '';
       cell.style.transition = '';
     }, 800);
+  });
+});
+</script>
+<script>
+// 세금계산서 증빙서류 메일 제목/내용 미리보기: 체크된 서류를 반영해 자동 작성(직접 수정하면 자동 반영 중지)
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('.tax-mail-edit').forEach(function (box) {
+    var inst = box.dataset.inst, month = box.dataset.month, key = box.dataset.key;
+    var subject = box.querySelector('.tax-mail-subject');
+    var body = box.querySelector('.tax-mail-body');
+    var boxes = document.querySelectorAll('input[name="send_certs"][form="taxIssueForm-' + key + '"]');
+    var dirty = false;
+
+    function names() {
+      return Array.from(boxes).filter(function (b) { return b.checked && !b.disabled; })
+        .map(function (b) { return b.dataset.label; }).join(', ');
+    }
+    function build() {
+      var nl = String.fromCharCode(10);
+      return inst + ' 담당자님께,' + nl + nl +
+        '안녕하세요. ' + month + ' 전자세금계산서 발행과 관련하여 아래 증빙서류를 송부드립니다.' + nl + nl +
+        '- 첨부서류 : ' + names() + nl + nl +
+        '확인 부탁드립니다. 감사합니다.';
+    }
+    subject.value = '[서류 송부] ' + inst + ' - ' + month + ' 세금계산서 발행 관련 증빙서류';
+    body.value = build();
+    body.addEventListener('input', function () { dirty = true; });
+    boxes.forEach(function (b) {
+      b.addEventListener('change', function () { if (!dirty) body.value = build(); });
+    });
   });
 });
 </script>

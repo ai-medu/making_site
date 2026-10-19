@@ -3313,14 +3313,19 @@ def tax_invoice_issue(request, institution_id, order_month):
             return redirect_with_filters(request, "release_list")
 
         names = ", ".join(c.get_cert_type_display() for c in attachments)
+        default_subject = f"[서류 송부] {institution.name} - {order_month} 세금계산서 발행 관련 증빙서류"
+        default_body = (
+            f"{institution.name} 담당자님께,\n\n"
+            f"안녕하세요. {order_month} 전자세금계산서 발행과 관련하여 아래 증빙서류를 송부드립니다.\n\n"
+            f"- 첨부서류 : {names}\n\n"
+            "확인 부탁드립니다. 감사합니다."
+        )
+        # 모달에서 미리보기/수정한 제목·내용 사용 (비어 있으면 기본 문구)
+        mail_subject = " ".join((request.POST.get("mail_subject") or "").split())[:200] or default_subject
+        mail_body = (request.POST.get("mail_body") or "").strip()[:5000] or default_body
         email = EmailMessage(
-            subject=f"[서류 송부] {institution.name} - {order_month} 세금계산서 발행 관련 증빙서류",
-            body=(
-                f"{institution.name} 담당자님께,\n\n"
-                f"안녕하세요. {order_month} 전자세금계산서 발행과 관련하여 아래 증빙서류를 송부드립니다.\n\n"
-                f"- 첨부서류 : {names}\n\n"
-                "확인 부탁드립니다. 감사합니다."
-            ),
+            subject=mail_subject,
+            body=mail_body,
             from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
             to=recipients,
         )
