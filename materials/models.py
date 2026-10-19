@@ -314,3 +314,25 @@ class MaterialHistory(models.Model):
 
     def __str__(self):
         return f"[{self.change_type}] {self.material.name} {self.old_value} → {self.new_value}"
+
+
+class TaxCertificate(models.Model):
+    """세금계산서 발행 시 메일에 첨부할 월별 증빙서류 (관리자가 매월 업로드)"""
+    TYPE_CHOICES = [
+        ("insurance", "4대보험완납증명서"),
+        ("national_tax", "국세납세증명서"),
+        ("local_tax", "지방세납세증명서"),
+    ]
+
+    cert_type = models.CharField("서류 종류", max_length=20, choices=TYPE_CHOICES)
+    month = models.CharField("해당 월", max_length=7, help_text="예: 2026-10")
+    file = models.FileField("파일", upload_to="tax_certificates/%Y/%m/")
+    uploaded_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("cert_type", "month")
+        ordering = ["-month", "cert_type"]
+        verbose_name = "세금계산서 첨부서류"
+
+    def __str__(self):
+        return f"{self.get_cert_type_display()} ({self.month})"

@@ -79,6 +79,7 @@ urlpatterns = [
     
     # 세금계산서 발행 URL
     path("releases/tax-invoice/<int:institution_id>/<str:order_month>/", views.tax_invoice_issue, name="tax_invoice_issue"),
+    path("releases/tax-certificates/", views.tax_certificate_manage, name="tax_certificate_manage"),
     # 교구재 순서 저장
     path("materials/reorder/", views.material_reorder, name="reorder_materials"), 
     

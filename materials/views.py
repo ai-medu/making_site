@@ -670,7 +670,11 @@ def release_list(request):
     teacher_unpaid_counts = {tid: len(keys) for tid, keys in teacher_unpaid_groups.items()}
     institution_unpaid_counts = {iid: len(keys) for iid, keys in institution_unpaid_groups.items()}
 
+    tax_cert_cache = {}
     for data in grouped_data.values():
+        if data["order_month"] not in tax_cert_cache:
+            tax_cert_cache[data["order_month"]] = _tax_certs_for_month(data["order_month"])
+        data["tax_certs"] = tax_cert_cache[data["order_month"]]
         data["materials_summary"] = dict(sorted(data["materials_summary"].items()))
         data["is_new"] = data["payment_status"] == "unpaid"
         grouped_list.append(data)
@@ -3260,18 +3264,115 @@ def delete_group_orders(request, grouper):
     messages.success(request, f"{grouper} 주문 그룹이 전체 삭제되었습니다.")
     return redirect("order_list")
 
+def _resolve_tax_cert(cert_type, order_month):
+    """해당 월 서류가 있으면 그것을, 없으면 가장 최근에 올린 서류를 반환"""
+    from .models import TaxCertificate
+    qs = TaxCertificate.objects.filter(cert_type=cert_type)
+    return qs.filter(month=order_month).first() or qs.order_by("-month").first()
+
+
+def _tax_certs_for_month(order_month):
+    from .models import TaxCertificate
+    return [
+        {"type": value, "label": label, "cert": _resolve_tax_cert(value, order_month)}
+        for value, label in TaxCertificate.TYPE_CHOICES
+    ]
+
+
 @login_required
+@require_POST
 def tax_invoice_issue(request, institution_id, order_month):
+    from .utils import redirect_with_filters
+    from .models import TaxCertificate
+
+    selected_types = [t for t in request.POST.getlist("send_certs") if t in dict(TaxCertificate.TYPE_CHOICES)]
+
+    if selected_types:
+        institution = get_object_or_404(TeachingInstitution, id=institution_id)
+        recipients = [e for e in [institution.contact_email, institution.admin_email] if e]
+        if not recipients:
+            messages.error(request, "해당 학교의 담당자/행정실 이메일이 등록되어 있지 않아 서류를 발송하지 못했습니다. (발행 완료 처리 안 됨)")
+            return redirect_with_filters(request, "release_list")
+
+        attachments = []
+        missing = []
+        for cert_type in selected_types:
+            cert = _resolve_tax_cert(cert_type, order_month)
+            if cert and cert.file:
+                attachments.append(cert)
+            else:
+                missing.append(dict(TaxCertificate.TYPE_CHOICES)[cert_type])
+        if missing:
+            messages.error(request, f"첨부된 서류가 없습니다: {', '.join(missing)} (관리자가 서류를 먼저 등록해주세요. 발행 완료 처리 안 됨)")
+            return redirect_with_filters(request, "release_list")
+
+        names = ", ".join(c.get_cert_type_display() for c in attachments)
+        email = EmailMessage(
+            subject=f"[서류 송부] {institution.name} - {order_month} 세금계산서 발행 관련 증빙서류",
+            body=(
+                f"{institution.name} 담당자님께,\n\n"
+                f"안녕하세요. {order_month} 전자세금계산서 발행과 관련하여 아래 증빙서류를 송부드립니다.\n\n"
+                f"- 첨부서류 : {names}\n\n"
+                "확인 부탁드립니다. 감사합니다."
+            ),
+            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+            to=recipients,
+        )
+        for cert in attachments:
+            cert.file.open("rb")
+            try:
+                ext = os.path.splitext(cert.file.name)[1]
+                email.attach(f"{cert.get_cert_type_display()}_{cert.month}{ext}", cert.file.read())
+            finally:
+                cert.file.close()
+        try:
+            email.send(fail_silently=False)
+        except Exception as e:
+            messages.error(request, f"서류 이메일 발송 중 오류가 발생했습니다: {e} (발행 완료 처리 안 됨)")
+            return redirect_with_filters(request, "release_list")
+
+        messages.success(request, f"{', '.join(recipients)} 로 증빙서류({names})를 발송했습니다.")
+
     MaterialRelease.objects.filter(
         institution_id=institution_id,
         order_month=order_month
     ).update(tax_invoice_sent=True)
 
     messages.success(request, f"{order_month} 세금계산서 발행 처리 완료!")
-
-    # 🔹 공통 유틸 함수로 redirect
-    from .utils import redirect_with_filters
     return redirect_with_filters(request, "release_list")
+
+
+@login_required
+@user_passes_test(is_admin)
+def tax_certificate_manage(request):
+    """세금계산서 첨부서류(4대보험/국세/지방세) 월별 등록·삭제 (관리자 전용)"""
+    from .models import TaxCertificate
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "delete":
+            TaxCertificate.objects.filter(id=request.POST.get("cert_id")).delete()
+            messages.success(request, "서류를 삭제했습니다.")
+        else:
+            cert_type = request.POST.get("cert_type")
+            month = (request.POST.get("month") or "").strip()
+            upload = request.FILES.get("file")
+            if cert_type not in dict(TaxCertificate.TYPE_CHOICES) or not re.fullmatch(r"\d{4}-\d{2}", month) or not upload:
+                messages.error(request, "서류 종류, 해당 월, 파일을 모두 입력해주세요.")
+            else:
+                obj, _ = TaxCertificate.objects.get_or_create(cert_type=cert_type, month=month)
+                if obj.file:
+                    obj.file.delete(save=False)
+                obj.file = upload
+                obj.save()
+                messages.success(request, f"{obj.get_cert_type_display()} ({month}) 서류를 등록했습니다.")
+        return redirect("tax_certificate_manage")
+
+    return render(request, "release/tax_certificate_manage.html", {
+        "certs": TaxCertificate.objects.all(),
+        "type_choices": TaxCertificate.TYPE_CHOICES,
+        "default_month": timezone.localdate().strftime("%Y-%m"),
+    })
 
 
 

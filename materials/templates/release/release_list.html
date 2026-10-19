@@ -1183,6 +1183,30 @@
                 <strong>발행 방법:</strong> 위 정보를 참고해 홈택스에서 전자세금계산서를 발행한 후, 아래 "발행 완료로 표시" 버튼을 클릭하세요.<br>
                 <span class="text-muted">홈택스 자동 연동은 지원되지 않습니다. 수동 발행 후 기록용으로 사용하세요.</span>
               </div>
+              <div class="border rounded p-3 mb-2">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <strong class="small"><i class="bi bi-envelope-paper"></i> 증빙서류 이메일 발송</strong>
+                  {% if request.user.is_staff %}
+                  <a href="{% url 'tax_certificate_manage' %}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-folder2-open"></i> 서류 관리
+                  </a>
+                  {% endif %}
+                </div>
+                {% for tc in group.tax_certs %}
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="send_certs" value="{{ tc.type }}" form="taxIssueForm-{{ group.institution.id }}-{{ group.order_month }}"
+                         id="cert-{{ tc.type }}-{{ group.institution.id }}-{{ group.order_month }}" {% if tc.cert %}checked{% else %}disabled{% endif %}>
+                  <label class="form-check-label small" for="cert-{{ tc.type }}-{{ group.institution.id }}-{{ group.order_month }}">
+                    {{ tc.label }}
+                    {% if tc.cert %}<span class="text-muted">({{ tc.cert.month }} 서류)</span>{% else %}<span class="text-danger">(등록된 서류 없음)</span>{% endif %}
+                  </label>
+                </div>
+                {% endfor %}
+                <div class="text-muted small mt-2">
+                  체크된 서류는 "발행 완료로 표시" 시 {{ group.institution.name }} 담당자·행정실 이메일로 발송됩니다.
+                  {% if not group.institution.contact_email and not group.institution.admin_email %}<span class="text-danger">(등록된 이메일 없음)</span>{% endif %}
+                </div>
+              </div>
             </div>
             <div class="modal-footer justify-content-between">
               <a href="https://www.hometax.go.kr" target="_blank" rel="noopener" class="btn btn-outline-success">
@@ -1190,7 +1214,7 @@
               </a>
               <div>
                 <button type="button" class="btn btn-light" data-bs-dismiss="modal">취소</button>
-                <form method="post" action="{% url 'tax_invoice_issue' group.institution.id group.order_month %}?teacher={{ selected_teacher_id|default_if_none:'' }}&institution={{ selected_institution_id|default_if_none:'' }}&order_month={{ selected_order_month|default_if_none:'' }}" class="d-inline">
+                <form method="post" action="{% url 'tax_invoice_issue' group.institution.id group.order_month %}?teacher={{ selected_teacher_id|default_if_none:'' }}&institution={{ selected_institution_id|default_if_none:'' }}&order_month={{ selected_order_month|default_if_none:'' }}" class="d-inline" id="taxIssueForm-{{ group.institution.id }}-{{ group.order_month }}">
                   {% csrf_token %}
                   <button type="submit" class="btn btn-primary">발행 완료로 표시</button>
                 </form>
