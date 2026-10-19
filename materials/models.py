@@ -1,3 +1,4 @@
+import os
 from django.db import models
 from django.contrib.auth.models import User
 from teachers.models import TeachingInstitution
@@ -327,12 +328,35 @@ class TaxCertificate(models.Model):
     cert_type = models.CharField("서류 종류", max_length=20, choices=TYPE_CHOICES)
     month = models.CharField("해당 월", max_length=7, help_text="예: 2026-10")
     file = models.FileField("파일", upload_to="tax_certificates/%Y/%m/")
+    expires_on = models.DateField("증명서 유효기간", null=True, blank=True, help_text="파일명 맨 앞 8자리(YYYYMMDD)에서 읽음")
     uploaded_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         unique_together = ("cert_type", "month")
         ordering = ["-month", "cert_type"]
         verbose_name = "세금계산서 첨부서류"
+
+    @staticmethod
+    def parse_expiry_from_name(filename):
+        """'20261113 메듀테크 4대보험 완납증명서 (PW-...).pdf' → date(2026, 11, 13). 형식이 아니면 None"""
+        import re
+        import datetime
+        m = re.match(r"^(\d{8})", os.path.basename(filename or ""))
+        if not m:
+            return None
+        try:
+            return datetime.datetime.strptime(m.group(1), "%Y%m%d").date()
+        except ValueError:
+            return None
+
+    @property
+    def expiry_date(self):
+        return self.expires_on or self.parse_expiry_from_name(self.file.name if self.file else "")
+
+    @property
+    def is_expired(self):
+        expiry = self.expiry_date
+        return bool(expiry and timezone.localdate() > expiry)
 
     def __str__(self):
         return f"{self.get_cert_type_display()} ({self.month})"

@@ -3296,12 +3296,18 @@ def tax_invoice_issue(request, institution_id, order_month):
 
         attachments = []
         missing = []
+        expired = []
         for cert_type in selected_types:
             cert = _resolve_tax_cert(cert_type, order_month)
-            if cert and cert.file:
-                attachments.append(cert)
-            else:
+            if not (cert and cert.file):
                 missing.append(dict(TaxCertificate.TYPE_CHOICES)[cert_type])
+            elif cert.is_expired:
+                expired.append(f"{cert.get_cert_type_display()}(유효기간 {cert.expiry_date:%Y-%m-%d} 만료)")
+            else:
+                attachments.append(cert)
+        if expired:
+            messages.error(request, f"유효기간이 지난 서류가 있어 메일을 보내지 않았습니다. 재발급 요청이 필요합니다: {', '.join(expired)} (발행 완료 처리 안 됨)")
+            return redirect_with_filters(request, "release_list")
         if missing:
             messages.error(request, f"첨부된 서류가 없습니다: {', '.join(missing)} (관리자가 서류를 먼저 등록해주세요. 발행 완료 처리 안 됨)")
             return redirect_with_filters(request, "release_list")
@@ -3321,8 +3327,7 @@ def tax_invoice_issue(request, institution_id, order_month):
         for cert in attachments:
             cert.file.open("rb")
             try:
-                ext = os.path.splitext(cert.file.name)[1]
-                email.attach(f"{cert.get_cert_type_display()}_{cert.month}{ext}", cert.file.read())
+                email.attach(os.path.basename(cert.file.name), cert.file.read())
             finally:
                 cert.file.close()
         try:
@@ -3359,11 +3364,14 @@ def tax_certificate_manage(request):
             upload = request.FILES.get("file")
             if cert_type not in dict(TaxCertificate.TYPE_CHOICES) or not re.fullmatch(r"\d{4}-\d{2}", month) or not upload:
                 messages.error(request, "서류 종류, 해당 월, 파일을 모두 입력해주세요.")
+            elif not TaxCertificate.parse_expiry_from_name(upload.name):
+                messages.error(request, "파일명 맨 앞에 증명서 유효기간(YYYYMMDD)을 넣어주세요. 예) 20261113 메듀테크 4대보험 완납증명서 (PW-4200301408).pdf")
             else:
                 obj, _ = TaxCertificate.objects.get_or_create(cert_type=cert_type, month=month)
                 if obj.file:
                     obj.file.delete(save=False)
                 obj.file = upload
+                obj.expires_on = TaxCertificate.parse_expiry_from_name(upload.name)
                 obj.save()
                 messages.success(request, f"{obj.get_cert_type_display()} ({month}) 서류를 등록했습니다.")
         return redirect("tax_certificate_manage")

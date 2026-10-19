@@ -1195,10 +1195,10 @@
                 {% for tc in group.tax_certs %}
                 <div class="form-check">
                   <input class="form-check-input" type="checkbox" name="send_certs" value="{{ tc.type }}" form="taxIssueForm-{{ group.institution.id }}-{{ group.order_month }}"
-                         id="cert-{{ tc.type }}-{{ group.institution.id }}-{{ group.order_month }}" {% if tc.cert %}checked{% else %}disabled{% endif %}>
+                         id="cert-{{ tc.type }}-{{ group.institution.id }}-{{ group.order_month }}" {% if tc.cert and not tc.cert.is_expired %}checked{% else %}disabled{% endif %}>
                   <label class="form-check-label small" for="cert-{{ tc.type }}-{{ group.institution.id }}-{{ group.order_month }}">
                     {{ tc.label }}
-                    {% if tc.cert %}<span class="text-muted">({{ tc.cert.month }} 서류)</span>{% else %}<span class="text-danger">(등록된 서류 없음)</span>{% endif %}
+                    {% if tc.cert and tc.cert.is_expired %}<span class="text-danger fw-bold">(유효기간 {{ tc.cert.expiry_date|date:"Y-m-d" }} 만료 - 재발급 요청 필요)</span>{% elif tc.cert %}<span class="text-muted">({{ tc.cert.month }} 서류{% if tc.cert.expiry_date %}, 유효기간 {{ tc.cert.expiry_date|date:"Y-m-d" }}까지{% endif %})</span>{% else %}<span class="text-danger">(등록된 서류 없음)</span>{% endif %}
                   </label>
                 </div>
                 {% endfor %}
