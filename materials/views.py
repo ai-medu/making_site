@@ -1029,16 +1029,17 @@ def order_list(request):
     def _loc(it):
         return it.real_location or it.order.release_location or ""
 
-    # 정렬 유지(주문일 내림차순) + 같은 날·강사 안에서는 출고장소순으로 정렬
-    raw_items.sort(key=lambda i: (-i.order.ordered_date.toordinal(), i.order.teacher_id or 0, _loc(i)))
+    # 정렬 유지(주문일 내림차순) + 같은 날 안에서는 출고장소순으로 정렬
+    raw_items.sort(key=lambda i: (-i.order.ordered_date.toordinal(), _loc(i)))
 
     table_rows = []
     total_qty = 0
     total_sum = 0
 
-    # 주문일자와 강사(주문자)를 기준으로 함께 그룹화 (출고장소가 달라도 같은 소계)
-    for (date_obj, teacher_obj), group in groupby(raw_items, key=lambda i: (i.order.ordered_date, i.order.teacher)):
+    # 주문일자 기준으로 그룹화 (강사·출고장소가 달라도 같은 날이면 같은 소계)
+    for date_obj, group in groupby(raw_items, key=lambda i: i.order.ordered_date):
         group_items = list(group)
+        teacher_obj = group_items[0].order.teacher
         sub_qty = sum(i.quantity for i in group_items if i.quantity)
         sub_sum = sum((i.material.supply_price or 0) * (i.quantity or 0) for i in group_items)
         
@@ -3437,10 +3438,7 @@ def _date_group_qs(date_str, teacher_id, vendor_id=None):
         order__ordered_date=date_obj,
         order__receive_type='order'
     )
-    if teacher_id > 0:
-        qs = qs.filter(order__teacher_id=teacher_id)
-    else:
-        qs = qs.filter(order__teacher__isnull=True)
+    # 목록 소계가 주문일자 기준이므로 강사와 무관하게 해당 날짜 전체를 대상으로 한다 (teacher_id는 URL 호환용)
     if vendor_id:
         qs = qs.filter(vendor_id=vendor_id)
     return qs
