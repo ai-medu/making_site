@@ -1029,15 +1029,15 @@ def order_list(request):
     def _loc(it):
         return it.real_location or it.order.release_location or ""
 
-    # 정렬 유지(주문일 내림차순) + 같은 날·강사 안에서는 출고장소별로 묶기
+    # 정렬 유지(주문일 내림차순) + 같은 날·강사 안에서는 출고장소순으로 정렬
     raw_items.sort(key=lambda i: (-i.order.ordered_date.toordinal(), i.order.teacher_id or 0, _loc(i)))
 
     table_rows = []
     total_qty = 0
     total_sum = 0
 
-    # 주문일자, 강사(주문자), 출고장소를 기준으로 함께 그룹화
-    for (date_obj, teacher_obj, _loc_name), group in groupby(raw_items, key=lambda i: (i.order.ordered_date, i.order.teacher, _loc(i))):
+    # 주문일자와 강사(주문자)를 기준으로 함께 그룹화 (출고장소가 달라도 같은 소계)
+    for (date_obj, teacher_obj), group in groupby(raw_items, key=lambda i: (i.order.ordered_date, i.order.teacher)):
         group_items = list(group)
         sub_qty = sum(i.quantity for i in group_items if i.quantity)
         sub_sum = sum((i.material.supply_price or 0) * (i.quantity or 0) for i in group_items)
