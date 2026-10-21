@@ -1009,13 +1009,35 @@ def order_list(request):
 
     from itertools import groupby
     raw_items = list(items_query)
-    
+
+    # 출고연동 아이템은 주문 헤더의 출고장소 대신, 연결된 출고품목의 실제 기관을 사용
+    # (같은 날 여러 학교 택배 출고가 한 주문에 묶여 첫 학교명으로 표시되던 문제 대응)
+    import re
+    link_ids = {}
+    for it in raw_items:
+        m = re.search(r'\[출고연동:(\d+)\]', it.notes or '')
+        if m:
+            link_ids[it.id] = int(m.group(1))
+    inst_by_release_item = {
+        ri_id: name for ri_id, name in
+        MaterialReleaseItem.objects.filter(id__in=set(link_ids.values()))
+        .values_list('id', 'release__institution__name')
+    }
+    for it in raw_items:
+        it.real_location = inst_by_release_item.get(link_ids.get(it.id)) or ""
+
+    def _loc(it):
+        return it.real_location or it.order.release_location or ""
+
+    # 정렬 유지(주문일 내림차순) + 같은 날·강사 안에서는 출고장소별로 묶기
+    raw_items.sort(key=lambda i: (-i.order.ordered_date.toordinal(), i.order.teacher_id or 0, _loc(i)))
+
     table_rows = []
     total_qty = 0
     total_sum = 0
-    
-    # 주문일자와 강사(주문자)를 기준으로 함께 그룹화
-    for (date_obj, teacher_obj), group in groupby(raw_items, key=lambda i: (i.order.ordered_date, i.order.teacher)):
+
+    # 주문일자, 강사(주문자), 출고장소를 기준으로 함께 그룹화
+    for (date_obj, teacher_obj, _loc_name), group in groupby(raw_items, key=lambda i: (i.order.ordered_date, i.order.teacher, _loc(i))):
         group_items = list(group)
         sub_qty = sum(i.quantity for i in group_items if i.quantity)
         sub_sum = sum((i.material.supply_price or 0) * (i.quantity or 0) for i in group_items)
@@ -1030,7 +1052,7 @@ def order_list(request):
                 item.display_notes = ""
             else:
                 # 사용자가 직접 입력한 출고장소나 비고 적용
-                item.release_location = item.order.release_location
+                item.release_location = item.real_location or item.order.release_location
                 item.display_notes = notes
                 
             item.is_auto_generated = bool(
@@ -2802,10 +2824,8 @@ def release_material_item(request, item_id):
                 teacher=teacher,
                 ordered_date=order_date,
                 receive_type='order',
-                defaults={
-                    'release_location': item.release.institution.name,
-                    'notes': ''
-                }
+                release_location=item.release.institution.name,
+                defaults={'notes': ''}
             )
             MaterialOrderItem.objects.create(
                 order=order,
@@ -3037,10 +3057,8 @@ def bulk_release_group(request, institution_id, order_month):
                     teacher=teacher,
                     ordered_date=order_date,
                     receive_type='order',
-                    defaults={
-                        'release_location': item.release.institution.name,
-                        'notes': ''
-                    }
+                    release_location=item.release.institution.name,
+                    defaults={'notes': ''}
                 )
                 MaterialOrderItem.objects.create(
                     order=order,
