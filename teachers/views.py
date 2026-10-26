@@ -13,6 +13,7 @@ from .models import TeachingInstitution, TeachingDay
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from .models import Certificate, Career, CertificateCatalogItem, Education, NuribomDraft
+from django.urls import reverse
 from django.http import HttpResponseForbidden, JsonResponse, FileResponse, Http404
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 from .forms import CertificateForm, CareerForm, EducationForm
@@ -827,17 +828,24 @@ PROOF_ALLOWED = {
 PROOF_MAX_BYTES = 10 * 1024 * 1024
 
 
+def _check_proof_file(f):
+    """증빙 파일 검사: 문제가 있으면 안내 문구, 없으면 None"""
+    ext = os.path.splitext(f.name)[1].lower().lstrip(".")
+    if ext not in PROOF_ALLOWED:
+        return "증빙 파일은 PDF 또는 이미지(JPG, PNG)만 올릴 수 있습니다."
+    if f.size > PROOF_MAX_BYTES:
+        return "증빙 파일이 너무 큽니다. 10MB 이하로 올려주세요."
+    return None
+
+
 def _proof_ok(request):
     """업로드된 증빙 파일 검사 (없으면 통과). 문제가 있으면 안내 메시지를 남기고 False"""
     f = request.FILES.get("proof_file")
     if not f:
         return True
-    ext = os.path.splitext(f.name)[1].lower().lstrip(".")
-    if ext not in PROOF_ALLOWED:
-        messages.error(request, "증빙 파일은 PDF 또는 이미지(JPG, PNG)만 올릴 수 있습니다.")
-        return False
-    if f.size > PROOF_MAX_BYTES:
-        messages.error(request, "증빙 파일이 너무 큽니다. 10MB 이하로 올려주세요.")
+    err = _check_proof_file(f)
+    if err:
+        messages.error(request, err)
         return False
     return True
 
@@ -912,3 +920,67 @@ def proof_delete(request, kind, pk):
         obj.save(update_fields=["proof_file", "proof_name"])
         messages.success(request, "증빙 파일을 삭제했습니다.")
     return redirect(PROOF_LIST_URL[kind])
+
+
+@login_required
+@require_POST
+def bulk_create_documents(request, kind):
+    """서류에서 읽은 여러 건(예: 끊어진 경력 여러 개)을 한 번에 등록. 증빙 파일은 각 건에 함께 저장(선택)."""
+    import json
+    from django.core.files.base import ContentFile
+
+    forms_map = {
+        "education": (EducationForm, "education_list", "학력"),
+        "certificate": (CertificateForm, "certificate_list", "자격증"),
+        "career": (CareerForm, "career_list", "경력"),
+    }
+    if kind not in forms_map:
+        return JsonResponse({"ok": False, "error": "지원하지 않는 종류입니다."}, status=400)
+    form_cls, list_name, label = forms_map[kind]
+
+    try:
+        items = json.loads(request.POST.get("items") or "[]")
+        if not isinstance(items, list):
+            raise ValueError
+    except ValueError:
+        return JsonResponse({"ok": False, "error": "등록할 항목을 읽지 못했습니다."}, status=400)
+    items = items[:30]
+    if not items:
+        return JsonResponse({"ok": False, "error": "등록할 항목을 선택해주세요."}, status=400)
+
+    f = request.FILES.get("file")
+    file_bytes = None
+    if f:
+        err = _check_proof_file(f)
+        if err:
+            return JsonResponse({"ok": False, "error": err}, status=400)
+        file_bytes = f.read()
+
+    created, skipped = 0, []
+    for i, it in enumerate(items, start=1):
+        if not isinstance(it, dict):
+            continue
+        data = {k: ("" if v is None else v) for k, v in it.items() if v is None or isinstance(v, (str, int, float))}
+        if kind == "career" and not data.get("end_date"):
+            data["is_current"] = "on"
+        form = form_cls(data)
+        if not form.is_valid():
+            fields = ", ".join(form.fields[k].label or k for k in form.errors if k in form.fields)
+            skipped.append(f"{i}번째 항목({fields or '입력 부족'})")
+            continue
+        obj = form.save(commit=False)
+        obj.teacher = request.user
+        obj.save()
+        if file_bytes is not None:
+            obj.proof_file.save(f.name, ContentFile(file_bytes), save=False)
+            obj.proof_name = os.path.basename(f.name)[:200]
+            obj.save(update_fields=["proof_file", "proof_name"])
+        created += 1
+
+    if created:
+        msg = f"{label} {created}건을 등록했습니다."
+        if skipped:
+            msg += " (입력이 부족해 제외: " + ", ".join(skipped) + ")"
+        messages.success(request, msg)
+        return JsonResponse({"ok": True, "created": created, "skipped": skipped, "redirect": reverse(list_name)})
+    return JsonResponse({"ok": False, "error": "등록하지 못했습니다. 입력이 부족한 항목입니다: " + ", ".join(skipped)}, status=400)

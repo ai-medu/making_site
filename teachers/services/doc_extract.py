@@ -3,6 +3,7 @@ import base64
 import json
 import mimetypes
 import time
+from datetime import date, timedelta
 
 import requests
 from django.conf import settings
@@ -94,7 +95,9 @@ KINDS = {
             "start_date: 근무 시작일 (YYYY-MM-DD)\n"
             "end_date: 근무 종료일 (YYYY-MM-DD, 현재 재직 중이면 null)\n"
             "description: 담당 업무·세부 내용 (짧게, 문서에 있을 때만)\n"
-            "※ 한 문서에 여러 기관/기간이 있으면 각각 별도 항목으로 만든다."
+            "※ 경력 표의 각 행(기간)을 빠짐없이 모두 읽어서 행마다 별도 항목으로 만든다. "
+            "같은 기관에서 학년도별로 행이 나뉘어 있어도(예: 2021.3.4~2022.2.28, 2022.3.7~2023.2.28 …) 행마다 각각 적는다. "
+            "'이하빈칸', 빈 행, 합계 행은 제외한다. 기간은 각 행에 적힌 시작일·종료일을 그대로 쓴다."
         ),
         "properties": {
             "organization": _str(),
@@ -172,6 +175,8 @@ def extract(kind, filename, content_type, data):
             _record(key_obj, None)
             if not isinstance(result.get("items"), list):
                 result["items"] = []
+            if kind == "career":
+                result["items"] = merge_careers(result["items"])
             return result
         # 이 키로는 쓸 수 없는 경우 → 다음 키로 넘어감
         _record(key_obj, _status_message(resp.status_code))
@@ -265,3 +270,62 @@ def test_key(key_obj):
     msg = _status_message(resp.status_code)
     _record(key_obj, msg)
     return False, f"사용할 수 없습니다: {msg}"
+
+
+GAP_DAYS = 62   # 이 일수보다 오래 쉬었으면 이어진 경력으로 보지 않고 나눈다 (학기 사이 방학 정도는 이어진 것으로 봄)
+
+
+def _to_date(v):
+    try:
+        y, m, d = (int(x) for x in str(v).split("-"))
+        return date(y, m, d)
+    except (ValueError, TypeError):
+        return None
+
+
+def merge_careers(items):
+    """같은 기관·프로그램의 기간이 이어져 있으면 하나로 합치고, 중간에 공백이 크면 나눠서 둔다.
+
+    예) 2021.3.4~2022.2.28 / 2022.3.7~2023.2.28 / 2024.3.6~2025.2.26
+        → 2021.3.4~2023.2.28 , 2024.3.6~2025.2.26
+    """
+    def key(it):
+        return ((it.get("organization") or "").strip(), (it.get("position") or "").strip())
+
+    groups, order = {}, []
+    loose = []                       # 시작일을 읽지 못한 항목은 합치지 않고 그대로 둠
+    for it in items:
+        if _to_date(it.get("start_date")) is None:
+            loose.append(it)
+            continue
+        k = key(it)
+        if k not in groups:
+            groups[k] = []
+            order.append(k)
+        groups[k].append(dict(it))
+
+    merged = []
+    for k in order:
+        rows = sorted(groups[k], key=lambda r: _to_date(r["start_date"]))
+        cur = None
+        for r in rows:
+            start, end = _to_date(r["start_date"]), _to_date(r.get("end_date"))
+            if cur is None:
+                cur = r
+                continue
+            cur_end = _to_date(cur.get("end_date"))
+            if cur_end is None or start <= cur_end + timedelta(days=GAP_DAYS):
+                # 이어짐 → 합침 (종료일은 더 늦은 쪽, 한쪽이 '현재'면 현재)
+                if cur_end is None or end is None:
+                    cur["end_date"] = None
+                elif end > cur_end:
+                    cur["end_date"] = r.get("end_date")
+                if not cur.get("description") and r.get("description"):
+                    cur["description"] = r["description"]
+            else:
+                merged.append(cur)
+                cur = r
+        if cur is not None:
+            merged.append(cur)
+    merged.sort(key=lambda r: _to_date(r["start_date"]))
+    return merged + loose
