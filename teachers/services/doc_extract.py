@@ -2,6 +2,7 @@
 import base64
 import json
 import mimetypes
+import time
 
 import requests
 from django.conf import settings
@@ -12,6 +13,10 @@ PDF_TYPE = "application/pdf"
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 FALLBACK_MODELS = ["gemini-3.8-flash", "gemini-3.5-flash-lite"]
+# 서버(gunicorn) 작업 제한이 30초라서, AI 호출 전체를 그 안에 끝내야 500 오류 없이 안내 문구를 보여줄 수 있다.
+TOTAL_BUDGET = 24      # 한 번의 읽기에 쓸 수 있는 전체 시간(초)
+CALL_TIMEOUT = 15      # 호출 1회 최대 대기 시간(초)
+MIN_REMAINING = 3      # 이보다 적게 남으면 더 시도하지 않음
 # 모델별로 지원하는 생각 수준이 달라서 확인된 모델만 지정 (그 외 모델은 기본값)
 THINKING_LEVEL = {"gemini-3.5-flash": "minimal", "gemini-3.8-flash": "low"}
 
@@ -140,10 +145,17 @@ def extract(kind, filename, content_type, data):
     if not keys:
         raise ExtractError("서류 자동 읽기 설정(API 키)이 아직 되어 있지 않습니다. 관리자에게 문의해주세요.")
 
+    deadline = time.monotonic() + TOTAL_BUDGET
     last_error = None
     for key_obj, key in keys:
+        if deadline - time.monotonic() < MIN_REMAINING:
+            break
         try:
-            resp = _post_with_model_fallback(key, body, timeout=90)
+            resp = _post_with_model_fallback(key, body, deadline=deadline)
+        except requests.Timeout:
+            _record(key_obj, "응답 지연(시간 초과)")
+            last_error = ExtractError("AI 서비스가 지금 혼잡해서 응답이 늦습니다. 잠시 후 다시 시도하거나 직접 입력해주세요.")
+            continue
         except requests.RequestException:
             _record(key_obj, "연결 실패")
             last_error = ExtractError("AI 서비스에 연결하지 못했습니다. 잠시 후 다시 시도해주세요.")
@@ -167,7 +179,7 @@ def extract(kind, filename, content_type, data):
             last_error = ExtractError("AI 서비스 설정(API 키)에 문제가 있습니다. 관리자에게 문의해주세요.")
         else:
             last_error = ExtractError("서류를 읽는 중 오류가 발생했습니다. 잠시 후 다시 시도하거나 직접 입력해주세요.")
-    raise last_error
+    raise last_error or ExtractError("AI 서비스가 지금 혼잡해서 응답이 늦습니다. 잠시 후 다시 시도하거나 직접 입력해주세요.")
 
 
 def _models():
@@ -180,9 +192,17 @@ def _models():
     return out
 
 
-def _post_with_model_fallback(key, body, timeout):
+def _post_with_model_fallback(key, body, deadline=None, timeout=CALL_TIMEOUT):
     resp = None
     for model in _models():
+        call_timeout = timeout
+        if deadline is not None:
+            remaining = deadline - time.monotonic()
+            if remaining < MIN_REMAINING:
+                if resp is not None:
+                    return resp
+                raise requests.Timeout("time budget exhausted")
+            call_timeout = min(timeout, remaining)
         level = THINKING_LEVEL.get(model)
         if level:   # 서류 읽기는 깊은 추론이 필요 없어서 '생각' 단계를 줄여 속도를 높임 (기본값은 1~2분 걸림)
             b = json.loads(json.dumps(body))
@@ -190,7 +210,7 @@ def _post_with_model_fallback(key, body, timeout):
         else:
             b = body
         resp = requests.post(GEMINI_URL.format(model=model), json=b,
-                             headers={"x-goog-api-key": key}, timeout=timeout)
+                             headers={"x-goog-api-key": key}, timeout=call_timeout)
         if resp.status_code not in (404, 503):   # 모델 없음 / 일시 과부하만 다음 모델로 넘김
             return resp
     return resp
@@ -233,7 +253,7 @@ def test_key(key_obj):
     """등록된 키가 동작하는지 확인 (짧은 요청 1회). (성공여부, 메시지)"""
     body = {"contents": [{"parts": [{"text": "OK 라고만 답해주세요."}]}]}
     try:
-        resp = _post_with_model_fallback(key_obj.api_key, body, timeout=30)
+        resp = _post_with_model_fallback(key_obj.api_key, body, deadline=time.monotonic() + TOTAL_BUDGET)
     except requests.RequestException:
         _record(key_obj, "연결 실패")
         return False, "AI 서비스에 연결하지 못했습니다."
