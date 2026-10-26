@@ -91,7 +91,17 @@ class TeachingDay(models.Model):
         return self.name
 
 class Certificate(ProofMixin, models.Model):
+    TYPE_CHOICES = [
+        ("national", "국가자격"),
+        ("national_private", "국가공인민간자격"),
+        ("private", "민간자격"),
+    ]
+
     teacher = models.ForeignKey(User, on_delete=models.CASCADE, related_name="certificates")
+    cert_type = models.CharField(
+        "자격 종류", max_length=20, choices=TYPE_CHOICES, blank=True, default="",
+        help_text="민간자격은 민간자격정보서비스(pqi.or.kr)에 등록된 자격만 인정됩니다.",
+    )
     name = models.CharField("자격증명", max_length=200)
     issued_by = models.CharField("발급기관", max_length=200, blank=True)
     issued_date = models.DateField("발급일", null=True, blank=True)

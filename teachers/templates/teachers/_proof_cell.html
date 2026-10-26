@@ -9,7 +9,7 @@
     <a class="btn btn-sm btn-outline-success" href="{% url 'proof_file' kind obj.id %}?download=1" title="다운로드">
       <i class="bi bi-download"></i>
     </a>
-    <form method="post" action="{% url 'proof_delete' kind obj.id %}" class="d-inline">
+    <form method="post" action="{% url 'proof_delete' kind obj.id %}" class="d-flex m-0">
       {% csrf_token %}
       <button type="submit" class="btn btn-sm btn-outline-danger" title="파일 삭제"
               onclick="return confirm('증빙 파일만 삭제할까요? (기록은 그대로 남습니다)');">

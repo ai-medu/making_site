@@ -14,6 +14,19 @@
                 {% csrf_token %}
 
                 <div class="row g-3">
+                    <div class="col-12">
+                        <div class="form-floating">
+                            {{ form.cert_type|add_class:"form-select" }}
+                            <label for="{{ form.cert_type.id_for_label }}">
+                                <i class="bi bi-patch-check me-1"></i> 자격 종류
+                            </label>
+                        </div>
+                        {% if form.cert_type.errors %}<div class="text-danger small mt-1">자격 종류를 선택해주세요.</div>{% endif %}
+                        <div class="form-text">
+                            국가자격 / 국가공인민간자격 / 민간자격 중 선택하세요.
+                            <b>민간자격은 <a href="https://www.pqi.or.kr/" target="_blank" rel="noopener">민간자격정보서비스(pqi.or.kr)</a>에 등록된 자격만 인정</b>됩니다.
+                        </div>
+                    </div>
                     <div class="col-md-6 form-floating">
                         {{ form.name|add_class:"form-control" }}
                         <label for="{{ form.name.id_for_label }}">

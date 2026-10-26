@@ -62,12 +62,16 @@ KINDS = {
         "label": "자격증",
         "docs": "자격증, 자격취득사항확인서, 수료증, 합격증, 자격 인증서 등",
         "fields": (
+            "cert_type: national(국가자격) / national_private(국가공인민간자격) / private(민간자격) 중 하나. "
+            "한국산업인력공단 국가기술자격(정보처리기사 등)·평생교육사·교원자격 등 법률에 따른 국가자격이면 national, "
+            "정부가 공인한 민간자격이면 national_private, 그 외 민간단체가 발급한 자격이면 private. 문서만으로 판단이 어려우면 null.\n"
             "name: 자격증명(급수가 있으면 급수 포함. 예: 로봇지도사 1급)\n"
             "issued_by: 발급기관 (예: 한국산업인력공단, 교육부, STEAM교육협회)\n"
             "issued_date: 취득일 또는 발급일 (YYYY-MM-DD)\n"
             "expires_date: 유효기간 만료일 (문서에 있을 때만, YYYY-MM-DD)"
         ),
         "properties": {
+            "cert_type": _str(["national", "national_private", "private"]),
             "name": _str(),
             "issued_by": _str(),
             "issued_date": _str(),

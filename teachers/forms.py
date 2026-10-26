@@ -64,11 +64,18 @@ class TeachingInstitutionForm(forms.ModelForm):
 class CertificateForm(forms.ModelForm):
     class Meta:
         model = Certificate
-        fields = ['name', 'issued_by', 'issued_date', 'expires_date']
+        fields = ['cert_type', 'name', 'issued_by', 'issued_date', 'expires_date']
         widgets = {
             'issued_date': forms.DateInput(attrs={'type': 'date'}),
             'expires_date': forms.DateInput(attrs={'type': 'date'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # 새로 등록·수정할 때는 자격 종류를 반드시 고르게 함 (이전에 등록된 자격증은 비어 있을 수 있음)
+        f = self.fields['cert_type']
+        f.required = True
+        f.choices = [('', '선택하세요')] + list(Certificate.TYPE_CHOICES)
 
 class CareerForm(forms.ModelForm):
     class Meta:
