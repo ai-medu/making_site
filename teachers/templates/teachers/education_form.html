@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% load widget_tweaks %}
+{% block content %}
+<div class="container mt-4" style="max-width: 800px;">
+    <div class="card shadow-sm border-0 rounded-3">
+        <div class="card-header bg-success text-white">
+            <h4 class="mb-0">
+                <i class="bi bi-mortarboard-fill me-2"></i> 학력 {% if is_edit %}수정{% else %}등록{% endif %}
+            </h4>
+        </div>
+        <div class="card-body">
+            <form method="post" novalidate>
+                {% csrf_token %}
+
+                <div class="row g-3">
+                    <div class="col-md-8 form-floating">
+                        {{ form.school_name|add_class:"form-control" }}
+                        <label for="{{ form.school_name.id_for_label }}">
+                            <i class="bi bi-bank me-1"></i> 학교명
+                        </label>
+                    </div>
+                    <div class="col-md-4 form-floating">
+                        {{ form.status|add_class:"form-select" }}
+                        <label for="{{ form.status.id_for_label }}">
+                            <i class="bi bi-check2-circle me-1"></i> 상태
+                        </label>
+                    </div>
+                    <div class="col-md-8 form-floating">
+                        {{ form.major|add_class:"form-control" }}
+                        <label for="{{ form.major.id_for_label }}">
+                            <i class="bi bi-book me-1"></i> 전공 분야
+                        </label>
+                    </div>
+                    <div class="col-md-4 form-floating">
+                        {{ form.degree|add_class:"form-select" }}
+                        <label for="{{ form.degree.id_for_label }}">
+                            <i class="bi bi-award me-1"></i> 학위 구분
+                        </label>
+                    </div>
+                    <div class="col-md-6 form-floating">
+                        {{ form.start_date|add_class:"form-control" }}
+                        <label for="{{ form.start_date.id_for_label }}">
+                            <i class="bi bi-calendar-date me-1"></i> 입학일
+                        </label>
+                    </div>
+                    <div class="col-md-6 form-floating">
+                        {{ form.end_date|add_class:"form-control" }}
+                        <label for="{{ form.end_date.id_for_label }}">
+                            <i class="bi bi-calendar-date me-1"></i> 졸업일
+                        </label>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-end mt-4">
+                    <button type="submit" class="btn btn-success me-2">
+                        <i class="bi bi-check-circle me-1"></i> 저장
+                    </button>
+                    <a href="{% url 'education_list' %}" class="btn btn-secondary">
+                        <i class="bi bi-x-circle me-1"></i> 취소
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

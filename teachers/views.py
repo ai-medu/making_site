@@ -11,9 +11,9 @@ from django.contrib.auth.models import User
 from .models import TeachingInstitution, TeachingDay
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
-from .models import Certificate, Career, CertificateCatalogItem
-from django.http import HttpResponseForbidden
-from .forms import CertificateForm, CareerForm
+from .models import Certificate, Career, CertificateCatalogItem, Education, NuribomDraft
+from django.http import HttpResponseForbidden, JsonResponse
+from .forms import CertificateForm, CareerForm, EducationForm
 from collections import OrderedDict
 
 
@@ -678,12 +678,85 @@ def career_delete(request, pk):
 
 
 @login_required
+def education_list(request):
+    educations = Education.objects.filter(teacher=request.user)
+    return render(request, 'teachers/education_list.html', {'educations': educations})
+
+
+@login_required
+def education_create(request):
+    if request.method == 'POST':
+        form = EducationForm(request.POST)
+        if form.is_valid():
+            edu = form.save(commit=False)
+            edu.teacher = request.user
+            edu.save()
+            return redirect('education_list')
+    else:
+        form = EducationForm()
+    return render(request, 'teachers/education_form.html', {'form': form, 'is_edit': False})
+
+
+@login_required
+def education_update(request, pk):
+    edu = get_object_or_404(Education, pk=pk, teacher=request.user)
+    if request.method == "POST":
+        form = EducationForm(request.POST, instance=edu)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "학력이 수정되었습니다.")
+            return redirect("education_list")
+    else:
+        form = EducationForm(instance=edu)
+    return render(request, "teachers/education_form.html", {"form": form, 'is_edit': True})
+
+
+@login_required
+def education_delete(request, pk):
+    edu = get_object_or_404(Education, pk=pk, teacher=request.user)
+    if request.method == "POST":
+        edu.delete()
+        messages.success(request, "학력이 삭제되었습니다.")
+    return redirect("education_list")
+
+
+def _hub_teacher(request):
+    teacher_id = request.GET.get("teacher") or request.POST.get("teacher")
+    if teacher_id and request.user.is_staff:
+        return get_object_or_404(User, id=teacher_id)
+    return request.user
+
+
+@login_required
+@require_POST
+def nuribom_save(request):
+    """늘봄허브 서류 작성 내용 저장"""
+    teacher = _hub_teacher(request)
+    html = request.POST.get("html", "")
+    if len(html) > 3_000_000:
+        return JsonResponse({"ok": False, "error": "저장할 내용이 너무 큽니다."}, status=400)
+    draft, _ = NuribomDraft.objects.update_or_create(teacher=teacher, defaults={"html": html})
+    return JsonResponse({"ok": True, "updated": timezone.localtime(draft.updated_at).strftime("%Y-%m-%d %H:%M")})
+
+
+@login_required
+def nuribom_load(request):
+    """저장된 늘봄허브 서류 불러오기"""
+    teacher = _hub_teacher(request)
+    draft = NuribomDraft.objects.filter(teacher=teacher).first()
+    if not draft:
+        return JsonResponse({"ok": False, "error": "저장된 내용이 없습니다."})
+    return JsonResponse({
+        "ok": True,
+        "html": draft.html,
+        "updated": timezone.localtime(draft.updated_at).strftime("%Y-%m-%d %H:%M"),
+    })
+
+
+@login_required
 def nuribom_hub(request):
     """늘봄허브 등록 서류 작성 페이지 (강사 제출 서류 양식을 그대로 편집)"""
-    teacher = request.user
-    teacher_id = request.GET.get("teacher")
-    if teacher_id and request.user.is_staff:
-        teacher = get_object_or_404(User, id=teacher_id)
+    teacher = _hub_teacher(request)
 
     profile = getattr(teacher, "profile", None)
     birth = getattr(profile, "birth_date", None)
@@ -694,6 +767,12 @@ def nuribom_hub(request):
     data = {
         "name": f"{teacher.last_name}{teacher.first_name}".strip() or teacher.username,
         "birth": d(birth),
+        "educations": [
+            {"period": e.period_display(),
+             "school": e.school_name + (f"({e.status})" if e.status else ""),
+             "major": e.major, "degree": e.degree}
+            for e in Education.objects.filter(teacher=teacher)
+        ],
         "certificates": [
             {"date": d(c.issued_date), "name": c.name, "issuer": c.issued_by}
             for c in Certificate.objects.filter(teacher=teacher).order_by("-issued_date", "name")
@@ -704,4 +783,7 @@ def nuribom_hub(request):
         ],
         "today": d(timezone.localdate()),
     }
+    draft = NuribomDraft.objects.filter(teacher=teacher).first()
+    data["saved"] = timezone.localtime(draft.updated_at).strftime("%Y-%m-%d %H:%M") if draft else ""
+    data["teacher_id"] = teacher.id if teacher != request.user else ""
     return render(request, "teachers/nuribom_hub.html", {"teacher": teacher, "hub_data": data})

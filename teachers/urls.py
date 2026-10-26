@@ -10,6 +10,13 @@ urlpatterns = [
     path('institutions/<int:pk>/close/', views.institution_close, name='institution_close'),
     path('dashboard/', views.teacher_dashboard, name='teacher_dashboard'),
     path('nuribom-hub/', views.nuribom_hub, name='nuribom_hub'),
+    path('nuribom-hub/save/', views.nuribom_save, name='nuribom_save'),
+    path('nuribom-hub/load/', views.nuribom_load, name='nuribom_load'),
+
+    path('educations/', views.education_list, name='education_list'),
+    path('educations/new/', views.education_create, name='education_create'),
+    path('education/<int:pk>/edit/', views.education_update, name='education_update'),
+    path('education/<int:pk>/delete/', views.education_delete, name='education_delete'),
     
     path('certificates/', views.certificate_list, name='certificate_list'),
     path('certificate-catalog/', views.certificate_catalog, name='certificate_catalog'),

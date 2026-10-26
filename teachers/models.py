@@ -189,3 +189,50 @@ class Career(models.Model):
 
         return y, m, d
 
+
+
+class Education(models.Model):
+    """강사 학력 (최근 학력 순으로 늘봄허브 서류에 사용)"""
+    STATUS_CHOICES = [
+        ("졸업", "졸업"),
+        ("수료", "수료"),
+        ("재학", "재학"),
+        ("휴학", "휴학"),
+        ("중퇴", "중퇴"),
+    ]
+    DEGREE_CHOICES = [
+        ("박사", "박사"),
+        ("석사", "석사"),
+        ("학사", "학사"),
+        ("전문학사", "전문학사"),
+        ("해당없음", "해당없음"),
+    ]
+
+    teacher = models.ForeignKey(User, on_delete=models.CASCADE, related_name="educations", verbose_name="강사")
+    school_name = models.CharField("학교명", max_length=200)
+    status = models.CharField("상태", max_length=10, choices=STATUS_CHOICES, default="졸업", blank=True)
+    major = models.CharField("전공 분야", max_length=200, blank=True)
+    degree = models.CharField("학위 구분", max_length=10, choices=DEGREE_CHOICES, default="학사", blank=True)
+    start_date = models.DateField("입학일", null=True, blank=True)
+    end_date = models.DateField("졸업일", null=True, blank=True)
+
+    class Meta:
+        ordering = ["-end_date", "-start_date", "-id"]
+
+    def __str__(self):
+        return f"{self.school_name} - {self.teacher.first_name}"
+
+    def period_display(self):
+        s = self.start_date.strftime("%Y.%m.%d.") if self.start_date else ""
+        e = self.end_date.strftime("%Y.%m.%d.") if self.end_date else ""
+        return f"{s}∼{e}" if (s or e) else ""
+
+
+class NuribomDraft(models.Model):
+    """늘봄허브 등록 서류 작성 내용(강사별 1개) 저장"""
+    teacher = models.OneToOneField(User, on_delete=models.CASCADE, related_name="nuribom_draft")
+    html = models.TextField(blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"늘봄허브 서류 - {self.teacher.first_name}"

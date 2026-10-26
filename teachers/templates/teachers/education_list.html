@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4" style="max-width: 1100px;">
+    <div class="card shadow-sm border-0 rounded-3">
+        <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+            <h4 class="mb-0">
+                <i class="bi bi-mortarboard-fill me-2"></i> 학력 관리
+            </h4>
+            <a href="{% url 'education_create' %}" class="btn btn-light btn-sm">
+                <i class="bi bi-plus-circle me-1"></i> 학력 추가
+            </a>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-hover table-striped mb-0 align-middle text-center">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:24%"><i class="bi bi-calendar-range"></i> 기간</th>
+                        <th style="width:24%"><i class="bi bi-bank"></i> 학교명(상태)</th>
+                        <th style="width:22%"><i class="bi bi-book"></i> 전공 분야</th>
+                        <th style="width:12%"><i class="bi bi-award"></i> 학위 구분</th>
+                        <th style="width:18%"><i class="bi bi-gear"></i> 관리</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for edu in educations %}
+                    <tr>
+                        <td class="text-nowrap">{{ edu.period_display|default:"-" }}</td>
+                        <td>{{ edu.school_name }}{% if edu.status %}({{ edu.status }}){% endif %}</td>
+                        <td>{{ edu.major|default:"-" }}</td>
+                        <td class="text-nowrap">{{ edu.degree|default:"-" }}</td>
+                        <td class="text-center">
+                            <a href="{% url 'education_update' edu.id %}" class="btn btn-sm btn-outline-primary me-1">
+                                <i class="bi bi-pencil-square"></i>
+                            </a>
+                            <form method="post" action="{% url 'education_delete' edu.id %}" style="display:inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-outline-danger"
+                                        onclick="return confirm('정말 삭제하시겠습니까?');">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-4">
+                            <i class="bi bi-info-circle me-1"></i> 등록된 학력이 없습니다.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

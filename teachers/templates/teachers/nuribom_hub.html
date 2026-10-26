@@ -2,17 +2,35 @@
 {% load static %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=6">
+<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=7">
 <style>
   body { background: #e9ecef; }
   .nb-bar {
     position: sticky; top: var(--nb-top, 70px); z-index: 900;
     background: #fff; border-bottom: 1px solid #ced4da; box-shadow: 0 2px 6px rgba(0,0,0,.08);
   }
-  .nb-bar .inner { max-width: 860px; margin: 0 auto; padding: 8px 12px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-  .nb-bar .title { font-weight: 700; margin-right: 8px; white-space: nowrap; }
+  .nb-bar .inner { max-width: 794px; margin: 0 auto; padding: 8px 12px 8px; }
+  .nb-bar .row1 { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .nb-bar .title { font-weight: 700; white-space: nowrap; }
+  .nb-bar .actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+  .nb-bar .saved { font-size: .78rem; color: #6c757d; white-space: nowrap; }
+  .nb-bar .row2 { display: flex; gap: 6px; flex-wrap: nowrap; overflow-x: auto; }
   .nb-bar .btn { white-space: nowrap; }
+  .nb-bar .row2 .btn { padding: .2rem .55rem; font-size: .8rem; }
   .nb-bar .btn.active { background: #0d6efd; color: #fff; }
+  .nb-name-label { position: absolute; left: 0; top: 0; }
+  @media print {
+    @page { size: A4; margin: 10mm 8mm; }
+    html, body { background: #fff !important; }
+    nav, .nb-bar, .nb-hint, footer, .navbar { display: none !important; }
+    body { padding: 0 !important; margin: 0 !important; }
+    .nb-wrap { padding: 0 !important; overflow: visible !important; }
+    .nb-paper { box-shadow: none !important; width: auto !important; margin: 0 !important; padding: 0 !important; }
+    .nb-paper tr { break-inside: avoid; }
+    .nb-paper .cell:focus { background: none !important; }
+    #nb-sec2, #nb-sec3, #nb-sec4, #nb-sec5 { break-before: page; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
   .nb-wrap { overflow-x: auto; padding: 16px 8px 80px; }
   .nb-paper {
     width: 794px; margin: 0 auto; background: #fff; padding: 48px 75.6px 60px;
@@ -31,17 +49,27 @@
 {% block content %}
 <div class="nb-bar" id="nbBar">
   <div class="inner">
-    <span class="title"><i class="bi bi-file-earmark-text me-1"></i>늘봄허브 등록 서류</span>
-    <button type="button" class="btn btn-outline-primary btn-sm" data-target="nb-sec1">강사 기본 정보</button>
-    <button type="button" class="btn btn-outline-primary btn-sm" data-target="nb-sec2">프로그램 운영 계획서</button>
-    <button type="button" class="btn btn-outline-primary btn-sm" data-target="nb-sec3">연간 활동 지도 계획안</button>
-    <button type="button" class="btn btn-outline-primary btn-sm" data-target="nb-sec4">자기소개서</button>
-    <button type="button" class="btn btn-outline-primary btn-sm" data-target="nb-sec5">민간자격증 증빙</button>
+    <div class="row1">
+      <span class="title"><i class="bi bi-file-earmark-text me-1"></i>늘봄허브 등록 서류</span>
+      <div class="actions">
+        <span class="saved" id="nbSaved"></span>
+        <button type="button" class="btn btn-success btn-sm" id="nbSave"><i class="bi bi-save me-1"></i>저장</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="nbLoad"><i class="bi bi-folder2-open me-1"></i>불러오기</button>
+        <button type="button" class="btn btn-danger btn-sm" id="nbPdf"><i class="bi bi-file-earmark-pdf me-1"></i>PDF 저장</button>
+      </div>
+    </div>
+    <div class="row2">
+      <button type="button" class="btn btn-outline-primary btn-sm" data-target="nb-sec1">강사 기본 정보</button>
+      <button type="button" class="btn btn-outline-primary btn-sm" data-target="nb-sec2">프로그램 운영 계획서</button>
+      <button type="button" class="btn btn-outline-primary btn-sm" data-target="nb-sec3">연간 활동 지도 계획안</button>
+      <button type="button" class="btn btn-outline-primary btn-sm" data-target="nb-sec4">자기소개서</button>
+      <button type="button" class="btn btn-outline-primary btn-sm" data-target="nb-sec5">민간자격증 증빙</button>
+    </div>
   </div>
 </div>
 
 <div class="nb-wrap">
-  <div class="nb-hint">칸을 직접 클릭해서 수정할 수 있습니다. 강사 기본 정보는 등록된 자격증·경력이 자동으로 채워집니다.</div>
+  <div class="nb-hint">칸을 직접 클릭해서 수정할 수 있습니다. 강사 기본 정보는 등록된 학력·자격증·경력이 자동으로 채워집니다. 수정 후 [저장]을 눌러야 보관됩니다.</div>
   <div class="nb-paper" id="nbDoc">
     {% include "teachers/_nuribom_doc.html" %}
   </div>
@@ -103,6 +131,70 @@
   window.addEventListener('scroll', onScroll, {passive: true});
   onScroll();
 
+  // ---------- 저장 / 불러오기 / PDF ----------
+  function csrf() {
+    var m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? decodeURIComponent(m[1]) : '';
+  }
+  var qs = data.teacher_id ? '?teacher=' + data.teacher_id : '';
+  var savedEl = document.getElementById('nbSaved');
+  function showSaved(t) { savedEl.textContent = t ? '저장됨 ' + t : ''; }
+  showSaved(data.saved);
+
+  function cleanForSave() {
+    var clone = doc.cloneNode(true);
+    clone.querySelectorAll('.cell').forEach(function (c) { c.removeAttribute('data-x'); });
+    return clone.innerHTML;
+  }
+  // 불러온 HTML에서 스크립트·이벤트 속성 제거
+  function sanitize(html) {
+    var t = document.createElement('template');
+    t.innerHTML = html;
+    t.content.querySelectorAll('script,iframe,object,embed,link,style,meta,form').forEach(function (e) { e.remove(); });
+    t.content.querySelectorAll('*').forEach(function (e) {
+      Array.prototype.slice.call(e.attributes).forEach(function (a) {
+        var n = a.name.toLowerCase(), v = (a.value || '').trim().toLowerCase();
+        if (n.indexOf('on') === 0 || ((n === 'href' || n === 'src') && v.indexOf('javascript:') === 0)) e.removeAttribute(a.name);
+      });
+    });
+    return t.innerHTML;
+  }
+
+  document.getElementById('nbSave').addEventListener('click', function () {
+    var btn = this; btn.disabled = true;
+    var body = new URLSearchParams();
+    body.set('html', cleanForSave());
+    if (data.teacher_id) body.set('teacher', data.teacher_id);
+    fetch("{% url 'nuribom_save' %}", {
+      method: 'POST', credentials: 'same-origin',
+      headers: {'X-CSRFToken': csrf(), 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'},
+      body: body.toString()
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      if (j.ok) { showSaved(j.updated); alert('저장했습니다.'); }
+      else alert(j.error || '저장하지 못했습니다.');
+    }).catch(function () { alert('저장하지 못했습니다. 잠시 후 다시 시도해주세요.'); })
+      .then(function () { btn.disabled = false; });
+  });
+
+  document.getElementById('nbLoad').addEventListener('click', function () {
+    fetch("{% url 'nuribom_load' %}" + qs, {credentials: 'same-origin'})
+      .then(function (r) { return r.json(); }).then(function (j) {
+        if (!j.ok) { alert(j.error || '불러오지 못했습니다.'); return; }
+        if (!confirm('저장된 내용(' + j.updated + ')을 불러옵니다.\n지금 화면의 수정 내용은 사라집니다. 계속할까요?')) return;
+        doc.innerHTML = sanitize(j.html);
+        showSaved(j.updated);
+        onScroll();
+      }).catch(function () { alert('불러오지 못했습니다.'); });
+  });
+
+  document.getElementById('nbPdf').addEventListener('click', function () {
+    var old = document.title;
+    document.title = '늘봄허브등록서류_' + (data.name || '');
+    var restore = function () { document.title = old; window.removeEventListener('afterprint', restore); };
+    window.addEventListener('afterprint', restore);
+    window.print();
+  });
+
   // ---------- 강사 기본 정보 자동 입력 ----------
   if (!basic) return;
 
@@ -145,7 +237,18 @@
   Array.prototype.forEach.call(basic.querySelectorAll('td'), function (td) {
     var t = td.textContent.trim();
     if (/^\(한글\)/.test(t) && data.name) {
-      setCell(td, '(한글) ' + data.name.split('').join(' '));
+      var p = td.querySelector('.hp');
+      var sps = p.querySelectorAll('span');
+      for (var i = 1; i < sps.length; i++) sps[i].remove();
+      sps[0].textContent = '';
+      p.style.position = 'relative';
+      p.style.textAlign = 'center';
+      var lab = document.createElement('span');
+      lab.className = sps[0].className + ' nb-name-label';
+      lab.textContent = '(한글)';
+      lab.setAttribute('contenteditable', 'false');
+      p.insertBefore(lab, sps[0]);
+      sps[0].textContent = data.name.split('').join(' ');
     } else if (/^\d{4}년\s*\d{1,2}월$/.test(t)) {
       if (data.birth) {
         var b = parseD(data.birth);
@@ -195,8 +298,11 @@
     return dataRows;
   }
 
-  // 최종 학력: 등록 정보가 없으므로 비워 둠 (직접 입력)
-  if (edu) fillRows(edu, 1, 2, [], 4);
+  // 최종 학력 (이력 > 학력관리)
+  if (edu) {
+    var eitems = data.educations.map(function (e) { return [e.period, e.school, e.major, e.degree]; });
+    fillRows(edu, 1, 2, eitems, 4);
+  }
 
   // 자격 (취득일시 / 자격명 / 발급기관 / 비고)
   if (cert) {

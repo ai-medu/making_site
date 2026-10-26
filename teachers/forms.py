@@ -2,7 +2,7 @@
 
 from django import forms
 from django.contrib.auth.models import User
-from .models import TeachingInstitution, TeachingDay, Certificate, Career
+from .models import TeachingInstitution, TeachingDay, Certificate, Career, Education
 from schools.models import School
 
 class TeachingInstitutionForm(forms.ModelForm):
@@ -74,6 +74,15 @@ class CareerForm(forms.ModelForm):
     class Meta:
         model = Career
         fields = ['organization', 'position', 'start_date', 'end_date', 'description']
+        widgets = {
+            'start_date': forms.DateInput(attrs={'type': 'date'}),
+            'end_date': forms.DateInput(attrs={'type': 'date'}),
+        }
+
+class EducationForm(forms.ModelForm):
+    class Meta:
+        model = Education
+        fields = ['school_name', 'status', 'major', 'degree', 'start_date', 'end_date']
         widgets = {
             'start_date': forms.DateInput(attrs={'type': 'date'}),
             'end_date': forms.DateInput(attrs={'type': 'date'}),
