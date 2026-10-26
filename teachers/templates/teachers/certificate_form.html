@@ -9,6 +9,7 @@
             </h4>
         </div>
         <div class="card-body">
+            {% include "teachers/_doc_extract.html" with kind="certificate" label="자격증 · 자격취득사항확인서 · 수료증 · 합격증" %}
             <form method="post" novalidate>
                 {% csrf_token %}
 

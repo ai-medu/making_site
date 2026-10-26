@@ -787,3 +787,19 @@ def nuribom_hub(request):
     data["saved"] = timezone.localtime(draft.updated_at).strftime("%Y-%m-%d %H:%M") if draft else ""
     data["teacher_id"] = teacher.id if teacher != request.user else ""
     return render(request, "teachers/nuribom_hub.html", {"teacher": teacher, "hub_data": data})
+
+
+@login_required
+@require_POST
+def extract_document(request, kind):
+    """증빙 서류 파일(졸업증명서·자격증·경력증명서 등)을 읽어 등록 항목을 돌려준다. (저장은 하지 않음)"""
+    from .services.doc_extract import extract, ExtractError
+
+    f = request.FILES.get("file")
+    if not f:
+        return JsonResponse({"ok": False, "error": "파일을 선택해주세요."}, status=400)
+    try:
+        result = extract(kind, f.name, f.content_type, f.read())
+    except ExtractError as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True, "items": result.get("items", []), "note": result.get("note", "")})

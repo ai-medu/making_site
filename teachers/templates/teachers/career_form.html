@@ -9,6 +9,7 @@
             </h4>
         </div>
         <div class="card-body">
+            {% include "teachers/_doc_extract.html" with kind="career" label="경력증명서 · 재직증명서 · 위촉증명서 · 근무확인서" %}
             <form method="post" novalidate>
                 {% csrf_token %}
 

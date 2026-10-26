@@ -116,6 +116,10 @@ CRONJOBS = [
 # 🔐 API 키는 .env로 빼는 걸 추천
 OPENAI_API_KEY = env("OPENAI_API_KEY")
 
+# 증빙 서류(졸업증명서·자격증·경력증명서) 자동 읽기 - Google Gemini (AI Studio 무료 키)
+GEMINI_API_KEY = env("GEMINI_API_KEY", default="")
+DOC_EXTRACT_MODEL = env("DOC_EXTRACT_MODEL", default="gemini-2.5-flash")
+
 # medutech.kr(making_attendance) 학생 목록 연동
 MEDUTECH_API_BASE_URL = env("MEDUTECH_API_BASE_URL", default="https://api.medutech.kr")
 

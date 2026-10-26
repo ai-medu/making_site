@@ -1,11 +1,13 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.views.decorators.http import require_POST
+from django.utils import timezone
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib import messages
 from django.db.models import Max
 from django.http import JsonResponse
 from teachers.models import TeachingInstitution
-from .models import MenuItem
+from .models import MenuItem, AIApiKey
 from collections import OrderedDict
 
 
@@ -92,3 +94,93 @@ def menu_management(request):
         'top_menus': top_menus,
         'access_choices': MenuItem.ACCESS_LEVELS
     })
+
+
+# ==========================================
+# AI 관리 (API 키 등록·수정·삭제) - 최고관리자만
+# ==========================================
+def _is_superuser(user):
+    return user.is_authenticated and user.is_superuser
+
+
+ai_admin_required = user_passes_test(_is_superuser, login_url="/accounts/login/")
+
+
+@ai_admin_required
+def ai_manage(request):
+    keys = AIApiKey.objects.all()
+    return render(request, "main/ai_manage.html", {"keys": keys})
+
+
+@ai_admin_required
+def ai_key_form(request, pk=None):
+    key = get_object_or_404(AIApiKey, pk=pk) if pk else None
+    if request.method == "POST":
+        name = (request.POST.get("name") or "").strip()
+        provider = request.POST.get("provider") or "gemini"
+        api_key = (request.POST.get("api_key") or "").strip()
+        memo = (request.POST.get("memo") or "").strip()
+        is_active = request.POST.get("is_active") == "on"
+        try:
+            order = int(request.POST.get("order") or 0)
+        except ValueError:
+            order = 0
+        errors = []
+        if not name:
+            errors.append("이름을 입력해주세요.")
+        if provider not in dict(AIApiKey.PROVIDER_CHOICES):
+            errors.append("서비스를 선택해주세요.")
+        if not key and not api_key:
+            errors.append("API 키를 입력해주세요.")
+        if errors:
+            for e in errors:
+                messages.error(request, e)
+            return render(request, "main/ai_key_form.html", {
+                "key": key, "form": request.POST,
+                "providers": AIApiKey.PROVIDER_CHOICES,
+            })
+        if not key:
+            key = AIApiKey()
+        key.name = name
+        key.provider = provider
+        if api_key:                      # 수정 시 비워두면 기존 키 유지
+            key.api_key = api_key
+        key.memo = memo
+        key.is_active = is_active
+        key.order = order
+        key.save()
+        messages.success(request, "API 키를 저장했습니다.")
+        return redirect("ai_manage")
+    return render(request, "main/ai_key_form.html", {
+        "key": key, "form": None, "providers": AIApiKey.PROVIDER_CHOICES,
+        "next_order": (AIApiKey.objects.aggregate(m=Max("order"))["m"] or 0) + 1,
+    })
+
+
+@ai_admin_required
+@require_POST
+def ai_key_delete(request, pk):
+    key = get_object_or_404(AIApiKey, pk=pk)
+    key.delete()
+    messages.success(request, "API 키를 삭제했습니다.")
+    return redirect("ai_manage")
+
+
+@ai_admin_required
+@require_POST
+def ai_key_toggle(request, pk):
+    key = get_object_or_404(AIApiKey, pk=pk)
+    key.is_active = not key.is_active
+    key.save(update_fields=["is_active"])
+    messages.success(request, f"'{key.name}' 키를 {'사용' if key.is_active else '사용 안 함'}으로 바꿨습니다.")
+    return redirect("ai_manage")
+
+
+@ai_admin_required
+@require_POST
+def ai_key_test(request, pk):
+    from teachers.services.doc_extract import test_key
+    key = get_object_or_404(AIApiKey, pk=pk)
+    ok, msg = test_key(key)
+    (messages.success if ok else messages.error)(request, f"[{key.name}] {msg}")
+    return redirect("ai_manage")

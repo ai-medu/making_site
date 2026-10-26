@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4" style="max-width: 1100px;">
+    {% if messages %}
+    {% for m in messages %}
+    <div class="alert alert-{% if m.tags == 'error' %}danger{% else %}{{ m.tags|default:'info' }}{% endif %} py-2">{{ m }}</div>
+    {% endfor %}
+    {% endif %}
+    <div class="card shadow-sm border-0 rounded-3">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+            <h4 class="mb-0"><i class="bi bi-robot me-2"></i> AI 관리</h4>
+            <a href="{% url 'ai_key_create' %}" class="btn btn-light btn-sm">
+                <i class="bi bi-plus-circle me-1"></i> API 키 추가
+            </a>
+        </div>
+        <div class="card-body">
+            <div class="text-muted small mb-3">
+                학력·자격증·경력 등록 화면의 <b>서류 파일 자동 입력</b>에 사용하는 AI(Google Gemini) API 키입니다.
+                <b>사용</b>으로 켜 둔 키를 <b>사용 순서</b>대로 쓰고, 사용량 초과나 오류가 나면 다음 키로 자동으로 넘어갑니다.
+                키는 <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>에서 무료로 발급받을 수 있습니다.
+            </div>
+            <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr class="text-center">
+                        <th style="width:7%">순서</th>
+                        <th class="text-start">이름 / 메모</th>
+                        <th>서비스</th>
+                        <th>API 키</th>
+                        <th style="width:9%">상태</th>
+                        <th>사용 현황</th>
+                        <th style="width:24%">관리</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for k in keys %}
+                    <tr class="text-center">
+                        <td>{{ k.order }}</td>
+                        <td class="text-start">
+                            <div class="fw-semibold">{{ k.name }}</div>
+                            {% if k.memo %}<div class="text-muted small">{{ k.memo }}</div>{% endif %}
+                        </td>
+                        <td class="text-nowrap">{{ k.get_provider_display }}</td>
+                        <td><code>{{ k.masked_key }}</code></td>
+                        <td>
+                            {% if k.is_active %}<span class="badge bg-success">사용</span>
+                            {% else %}<span class="badge bg-secondary">사용 안 함</span>{% endif %}
+                        </td>
+                        <td class="small text-start">
+                            성공 {{ k.success_count }} · 실패 {{ k.fail_count }}<br>
+                            {% if k.last_used_at %}<span class="text-muted">최근 {{ k.last_used_at|date:"m-d H:i" }}</span>{% else %}<span class="text-muted">사용 기록 없음</span>{% endif %}
+                            {% if k.last_error %}<br><span class="text-danger">{{ k.last_error }}</span>{% endif %}
+                        </td>
+                        <td class="text-nowrap">
+                            <form method="post" action="{% url 'ai_key_test' k.id %}" class="d-inline">{% csrf_token %}
+                                <button class="btn btn-sm btn-outline-success" title="연결 테스트"><i class="bi bi-plug"></i></button>
+                            </form>
+                            <form method="post" action="{% url 'ai_key_toggle' k.id %}" class="d-inline">{% csrf_token %}
+                                <button class="btn btn-sm btn-outline-secondary" title="{% if k.is_active %}사용 안 함으로{% else %}사용으로{% endif %}">
+                                    <i class="bi bi-{% if k.is_active %}toggle-on{% else %}toggle-off{% endif %}"></i>
+                                </button>
+                            </form>
+                            <a href="{% url 'ai_key_edit' k.id %}" class="btn btn-sm btn-outline-primary" title="수정"><i class="bi bi-pencil-square"></i></a>
+                            <form method="post" action="{% url 'ai_key_delete' k.id %}" class="d-inline">{% csrf_token %}
+                                <button class="btn btn-sm btn-outline-danger" title="삭제"
+                                        onclick="return confirm('이 API 키를 삭제할까요?');"><i class="bi bi-trash"></i></button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="7" class="text-center text-muted py-4">
+                        <i class="bi bi-info-circle me-1"></i> 등록된 API 키가 없습니다. [API 키 추가]로 등록해주세요.
+                    </td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

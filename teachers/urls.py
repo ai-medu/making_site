@@ -13,6 +13,8 @@ urlpatterns = [
     path('nuribom-hub/save/', views.nuribom_save, name='nuribom_save'),
     path('nuribom-hub/load/', views.nuribom_load, name='nuribom_load'),
 
+    path('extract-document/<str:kind>/', views.extract_document, name='extract_document'),
+
     path('educations/', views.education_list, name='education_list'),
     path('educations/new/', views.education_create, name='education_create'),
     path('education/<int:pk>/edit/', views.education_update, name='education_update'),

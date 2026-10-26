@@ -1,0 +1,92 @@
+{# 증빙 서류 파일로 자동 입력: kind = education | certificate | career, label = 서류 예시 문구 #}
+<div class="border rounded-3 p-3 mb-4 bg-light" id="docExtractBox" data-kind="{{ kind }}" data-url="{% url 'extract_document' kind %}">
+  <div class="d-flex align-items-center flex-wrap gap-2">
+    <div class="fw-bold"><i class="bi bi-magic me-1 text-primary"></i> 서류 파일로 자동 입력</div>
+    <span class="text-muted small">{{ label }}</span>
+  </div>
+  <div class="d-flex align-items-center flex-wrap gap-2 mt-2">
+    <input type="file" class="form-control form-control-sm" id="docExtractFile" accept="application/pdf,image/*" style="max-width:360px;">
+    <button type="button" class="btn btn-primary btn-sm" id="docExtractBtn">
+      <i class="bi bi-search me-1"></i> 파일 읽어서 입력
+    </button>
+    <span class="small" id="docExtractStatus"></span>
+  </div>
+  <div class="mt-2 d-none" id="docExtractPickWrap">
+    <label class="small text-muted me-1" for="docExtractPick">여러 건이 있습니다. 입력할 항목을 고르세요.</label>
+    <select class="form-select form-select-sm d-inline-block w-auto" id="docExtractPick"></select>
+  </div>
+  <div class="text-muted small mt-2">
+    PDF·이미지(JPG, PNG) 10MB 이하. 읽은 내용은 아래 칸에 채워지며, <b>내용을 확인하고 수정한 뒤 [저장]</b>을 눌러주세요.
+    파일은 서버에 보관하지 않고, 내용을 읽기 위해 AI 분석 서비스(Google Gemini)로 전송됩니다.
+  </div>
+</div>
+<script>
+(function () {
+  var box = document.getElementById('docExtractBox');
+  var fileEl = document.getElementById('docExtractFile');
+  var btn = document.getElementById('docExtractBtn');
+  var statusEl = document.getElementById('docExtractStatus');
+  var pickWrap = document.getElementById('docExtractPickWrap');
+  var pick = document.getElementById('docExtractPick');
+  var items = [];
+
+  function csrf() {
+    var m = document.cookie.match(/csrftoken=([^;]+)/);
+    if (m) return decodeURIComponent(m[1]);
+    var i = document.querySelector('input[name=csrfmiddlewaretoken]');
+    return i ? i.value : '';
+  }
+  function say(msg, cls) { statusEl.className = 'small ' + (cls || 'text-muted'); statusEl.textContent = msg; }
+
+  function fill(item) {
+    Object.keys(item).forEach(function (k) {
+      var el = document.getElementById('id_' + k);
+      if (!el) return;
+      var v = item[k];
+      if (v === null || v === undefined || v === '') return;   // 읽지 못한 항목은 기존 입력을 유지
+      if (el.tagName === 'SELECT') {
+        var ok = Array.prototype.some.call(el.options, function (o) { return o.value === v; });
+        if (ok) el.value = v;
+      } else {
+        el.value = v;
+      }
+      el.classList.add('is-valid');
+      setTimeout(function () { el.classList.remove('is-valid'); }, 4000);
+    });
+  }
+  function label(it) {
+    return [it.school_name || it.name || it.organization, it.start_date, it.end_date || it.issued_date]
+      .filter(Boolean).join(' / ') || '항목';
+  }
+
+  btn.addEventListener('click', function () {
+    var f = fileEl.files[0];
+    if (!f) { say('파일을 먼저 선택해주세요.', 'text-danger'); return; }
+    if (f.size > 10 * 1024 * 1024) { say('파일이 너무 큽니다. 10MB 이하로 올려주세요.', 'text-danger'); return; }
+    var fd = new FormData();
+    fd.append('file', f);
+    btn.disabled = true;
+    pickWrap.classList.add('d-none');
+    say('서류를 읽는 중입니다… (10~30초 걸릴 수 있습니다)');
+    fetch(box.dataset.url, {method: 'POST', credentials: 'same-origin', headers: {'X-CSRFToken': csrf()}, body: fd})
+      .then(function (r) { return r.json().catch(function () { return {ok: false, error: '서버 응답을 읽지 못했습니다.'}; }); })
+      .then(function (j) {
+        if (!j.ok) { say(j.error || '읽지 못했습니다.', 'text-danger'); return; }
+        items = j.items || [];
+        if (!items.length) { say(j.note || '서류에서 내용을 찾지 못했습니다. 직접 입력해주세요.', 'text-danger'); return; }
+        fill(items[0]);
+        if (items.length > 1) {
+          pick.innerHTML = '';
+          items.forEach(function (it, i) {
+            var o = document.createElement('option'); o.value = i; o.textContent = (i + 1) + '. ' + label(it); pick.appendChild(o);
+          });
+          pickWrap.classList.remove('d-none');
+        }
+        say('입력했습니다. 내용을 확인한 뒤 저장해주세요.' + (j.note ? ' (' + j.note + ')' : ''), 'text-success');
+      })
+      .catch(function () { say('읽는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', 'text-danger'); })
+      .then(function () { btn.disabled = false; });
+  });
+  pick.addEventListener('change', function () { fill(items[+pick.value]); });
+})();
+</script>
