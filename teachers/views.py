@@ -4,7 +4,7 @@ from django import forms
 from .forms import TeachingInstitutionForm
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.shortcuts import render
-from django.db.models import Q, Count, Max
+from django.db.models import Q, Count, Max, F
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from datetime import datetime, date, timedelta
@@ -642,7 +642,10 @@ def certificate_delete(request, pk):
 
 @login_required
 def career_list(request):
-    careers = Career.objects.filter(teacher=request.user)
+    # 기간 내림차순: 현재 재직 중(종료일 없음)을 맨 위에, 그다음은 종료일·시작일이 늦은 순
+    careers = Career.objects.filter(teacher=request.user).order_by(
+        F("end_date").desc(nulls_first=True), "-start_date", "-id"
+    )
     return render(request, 'teachers/career_list.html', {'careers': careers})
 
 @login_required

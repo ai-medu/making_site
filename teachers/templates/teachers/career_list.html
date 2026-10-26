@@ -30,7 +30,16 @@
                         <td class="text-nowrap">{{ career.period_display }}</td> <!-- ✅ 기간 줄바꿈 방지 -->
                         <td class="text-nowrap">{{ career.duration_display }}</td> <!-- ✅ 경력 줄바꿈 방지 -->
                         <td class="text-nowrap">{{ career.position }}</td> <!-- ✅ 프로그램명 줄바꿈 방지 -->
-                        <td class="text-start text-break">{{ career.description|default:"-" }}</td> <!-- ✅ 단어단위 개행 -->
+                        <td class="text-center">
+                            {% if career.description %}
+                            <button type="button" class="btn btn-sm btn-outline-secondary career-detail"
+                                    data-org="{{ career.organization }}" data-program="{{ career.position }}"
+                                    data-period="{{ career.period_display }} ({{ career.duration_display }})"
+                                    data-desc="{{ career.description }}">
+                                <i class="bi bi-card-text me-1"></i>상세
+                            </button>
+                            {% else %}<span class="text-muted">-</span>{% endif %}
+                        </td>
                         <td class="text-center">{% include "teachers/_proof_cell.html" with obj=career kind="career" %}</td>
                         <td class="text-center">
                             <a href="{% url 'career_update' career.id %}" class="btn btn-sm btn-outline-primary me-1">
@@ -71,4 +80,38 @@
 }
 </style>
 {% include "teachers/_proof_modal.html" %}
+
+<div class="modal fade" id="careerDetailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="bi bi-card-text me-1"></i> 경력 상세</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+      </div>
+      <div class="modal-body">
+        <dl class="row mb-3 small">
+          <dt class="col-sm-3 text-muted">기관명</dt><dd class="col-sm-9 mb-1" id="cdOrg"></dd>
+          <dt class="col-sm-3 text-muted">프로그램명</dt><dd class="col-sm-9 mb-1" id="cdProgram"></dd>
+          <dt class="col-sm-3 text-muted">기간</dt><dd class="col-sm-9 mb-0" id="cdPeriod"></dd>
+        </dl>
+        <div class="fw-semibold small mb-1">세부내용</div>
+        <div class="border rounded p-3 bg-light" id="cdDesc" style="white-space:pre-wrap; word-break:break-word;"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">닫기</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+document.addEventListener('click', function (e) {
+  var b = e.target.closest('.career-detail');
+  if (!b) return;
+  document.getElementById('cdOrg').textContent = b.dataset.org || '-';
+  document.getElementById('cdProgram').textContent = b.dataset.program || '-';
+  document.getElementById('cdPeriod').textContent = b.dataset.period || '-';
+  document.getElementById('cdDesc').textContent = b.dataset.desc || '-';
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('careerDetailModal')).show();
+});
+</script>
 {% endblock %}
