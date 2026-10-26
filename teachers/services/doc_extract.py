@@ -11,6 +11,7 @@ IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 PDF_TYPE = "application/pdf"
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+FALLBACK_MODELS = ["gemini-3.8-flash", "gemini-3.5-flash-lite"]
 
 
 def _str(enum=None):
@@ -129,8 +130,6 @@ def extract(kind, filename, content_type, data):
             "responseSchema": _schema(spec["properties"]),
         },
     }
-    model = getattr(settings, "DOC_EXTRACT_MODEL", "gemini-2.5-flash")
-
     keys = _active_keys()
     if not keys:
         raise ExtractError("서류 자동 읽기 설정(API 키)이 아직 되어 있지 않습니다. 관리자에게 문의해주세요.")
@@ -138,8 +137,7 @@ def extract(kind, filename, content_type, data):
     last_error = None
     for key_obj, key in keys:
         try:
-            resp = requests.post(GEMINI_URL.format(model=model), json=body,
-                                 headers={"x-goog-api-key": key}, timeout=90)
+            resp = _post_with_model_fallback(key, body, timeout=90)
         except requests.RequestException:
             _record(key_obj, "연결 실패")
             last_error = ExtractError("AI 서비스에 연결하지 못했습니다. 잠시 후 다시 시도해주세요.")
@@ -164,6 +162,26 @@ def extract(kind, filename, content_type, data):
         else:
             last_error = ExtractError("서류를 읽는 중 오류가 발생했습니다. 잠시 후 다시 시도하거나 직접 입력해주세요.")
     raise last_error
+
+
+def _models():
+    """사용할 모델 순서: 설정 모델 → 예비 모델 (모델이 종료되었거나 과부하일 때 다음 모델로)"""
+    first = getattr(settings, "DOC_EXTRACT_MODEL", "") or "gemini-3.5-flash"
+    out = [first]
+    for m in FALLBACK_MODELS:
+        if m not in out:
+            out.append(m)
+    return out
+
+
+def _post_with_model_fallback(key, body, timeout):
+    resp = None
+    for model in _models():
+        resp = requests.post(GEMINI_URL.format(model=model), json=body,
+                             headers={"x-goog-api-key": key}, timeout=timeout)
+        if resp.status_code not in (404, 503):   # 모델 없음 / 일시 과부하만 다음 모델로 넘김
+            return resp
+    return resp
 
 
 def _status_message(code):
@@ -201,11 +219,9 @@ def _record(key_obj, error):
 
 def test_key(key_obj):
     """등록된 키가 동작하는지 확인 (짧은 요청 1회). (성공여부, 메시지)"""
-    model = getattr(settings, "DOC_EXTRACT_MODEL", "gemini-2.5-flash")
     body = {"contents": [{"parts": [{"text": "OK 라고만 답해주세요."}]}]}
     try:
-        resp = requests.post(GEMINI_URL.format(model=model), json=body,
-                             headers={"x-goog-api-key": key_obj.api_key}, timeout=30)
+        resp = _post_with_model_fallback(key_obj.api_key, body, timeout=30)
     except requests.RequestException:
         _record(key_obj, "연결 실패")
         return False, "AI 서비스에 연결하지 못했습니다."
