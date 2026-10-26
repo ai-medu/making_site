@@ -97,6 +97,12 @@
   function say(msg, cls) { statusEl.className = 'small ' + (cls || 'text-muted'); statusEl.textContent = msg; }
 
   function fill(item) {
+    // 경력: 종료일이 없으면(재직 중) '현재' 체크, 있으면 체크 해제
+    var curEl = document.getElementById('id_is_current');
+    if (curEl && Object.prototype.hasOwnProperty.call(item, 'end_date')) {
+      curEl.checked = !item.end_date;
+      curEl.dispatchEvent(new Event('change'));
+    }
     Object.keys(item).forEach(function (k) {
       var el = document.getElementById('id_' + k);
       if (!el) return;

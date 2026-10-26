@@ -23,7 +23,7 @@
                     <div class="col-md-6 form-floating">
                         {{ form.position|add_class:"form-control" }}
                         <label for="{{ form.position.id_for_label }}">
-                            <i class="bi bi-person-badge me-1"></i> 직책
+                            <i class="bi bi-journal-text me-1"></i> 프로그램명
                         </label>
                     </div>
                     <div class="col-md-6 form-floating">
@@ -32,11 +32,18 @@
                             <i class="bi bi-calendar-date me-1"></i> 시작일
                         </label>
                     </div>
-                    <div class="col-md-6 form-floating">
-                        {{ form.end_date|add_class:"form-control" }}
-                        <label for="{{ form.end_date.id_for_label }}">
-                            <i class="bi bi-calendar-date me-1"></i> 종료일
-                        </label>
+                    <div class="col-md-6">
+                        <div class="form-floating">
+                            {{ form.end_date|add_class:"form-control" }}
+                            <label for="{{ form.end_date.id_for_label }}">
+                                <i class="bi bi-calendar-date me-1"></i> 종료일
+                            </label>
+                        </div>
+                        {% if form.end_date.errors %}<div class="text-danger small mt-1">{{ form.end_date.errors.0 }}</div>{% endif %}
+                        <div class="form-check mt-2">
+                            {{ form.is_current|add_class:"form-check-input" }}
+                            <label class="form-check-label" for="{{ form.is_current.id_for_label }}">현재 (재직 중)</label>
+                        </div>
                     </div>
                     <div class="col-12 form-floating">
                         {{ form.description|add_class:"form-control" }}
@@ -60,4 +67,25 @@
         </div>
     </div>
 </div>
+<script>
+(function () {
+  var cur = document.getElementById('id_is_current');
+  var end = document.getElementById('id_end_date');
+  if (!cur || !end) return;
+  var saved = end.value;
+  function apply() {
+    if (cur.checked) {
+      if (end.value) saved = end.value;
+      end.value = '';
+      end.disabled = true;
+      end.placeholder = '현재';
+    } else {
+      end.disabled = false;
+      if (!end.value && saved) end.value = saved;
+    }
+  }
+  cur.addEventListener('change', apply);
+  apply();
+})();
+</script>
 {% endblock %}

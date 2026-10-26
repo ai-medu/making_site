@@ -173,7 +173,7 @@ class Career(ProofMixin, models.Model):
     )
     position = models.CharField(
         max_length=100,
-        verbose_name="직책",
+        verbose_name="프로그램명",
         default="직책 미입력"     # ✅ 기본값 추가
     )
     start_date = models.DateField(
