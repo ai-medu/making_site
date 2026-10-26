@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=7">
+<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=8">
 <style>
   body { background: #e9ecef; }
   .nb-bar {
@@ -53,6 +53,7 @@
       <span class="title"><i class="bi bi-file-earmark-text me-1"></i>늘봄허브 등록 서류</span>
       <div class="actions">
         <span class="saved" id="nbSaved"></span>
+        <button type="button" class="btn btn-outline-primary btn-sm" id="nbCareerPick"><i class="bi bi-briefcase me-1"></i>경력 선택 <span id="nbCareerCount"></span></button>
         <button type="button" class="btn btn-success btn-sm" id="nbSave"><i class="bi bi-save me-1"></i>저장</button>
         <button type="button" class="btn btn-outline-secondary btn-sm" id="nbLoad"><i class="bi bi-folder2-open me-1"></i>불러오기</button>
         <button type="button" class="btn btn-danger btn-sm" id="nbPdf"><i class="bi bi-file-earmark-pdf me-1"></i>PDF 저장</button>
@@ -72,6 +73,29 @@
   <div class="nb-hint">칸을 직접 클릭해서 수정할 수 있습니다. 강사 기본 정보는 등록된 학력·자격증·경력이 자동으로 채워집니다. 수정 후 [저장]을 눌러야 보관됩니다.</div>
   <div class="nb-paper" id="nbDoc">
     {% include "teachers/_nuribom_doc.html" %}
+  </div>
+</div>
+
+<div class="modal fade" id="nbCareerModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="bi bi-briefcase me-1"></i> 서류에 넣을 경력 선택</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+      </div>
+      <div class="modal-body">
+        <div class="small text-muted mb-2">등록한 경력 중 늘봄허브 서류의 경력 표에 넣을 것만 체크하세요. 총 기간도 선택한 경력으로 다시 계산됩니다.</div>
+        <div class="d-flex gap-2 mb-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="nbCareerAll">전체 선택</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="nbCareerNone">전체 해제</button>
+        </div>
+        <div id="nbCareerList"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">취소</button>
+        <button type="button" class="btn btn-primary btn-sm" id="nbCareerApply">적용</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -312,17 +336,54 @@
     fillRows(cert, 1, 2, items, 4);
   }
 
-  // 경력 (기관 / 기간 / 프로그램명) + 총 기간
-  if (career) {
-    var today = parseD(data.today);
-    var list = data.careers.map(function (c) {
-      return {org: c.org, program: c.program, s: parseD(c.start), e: c.end ? parseD(c.end) : today};
+  // 경력 (기관 / 기간 / 프로그램명) + 총 기간 — 등록한 경력 중 선택한 것만 표시
+  var allCareers = data.careers.map(function (c) {
+    var s = parseD(c.start), e = c.end ? parseD(c.end) : parseD(data.today);
+    return {id: c.id, org: c.org, program: c.program, s: s, e: e, ongoing: !c.end, months: monthsBetween(s, e)};
+  });
+  var selKey = 'nb-careers-' + (data.teacher_id || 'me');
+  var selected = allCareers.map(function (c) { return c.id; });   // 기본: 전체
+  (function restoreSelection() {
+    try {
+      var st = JSON.parse(localStorage.getItem(selKey) || 'null');
+      if (st && Array.isArray(st.sel) && Array.isArray(st.known)) {
+        // 이전에 선택을 저장한 뒤 새로 등록한 경력은 기본으로 포함
+        selected = allCareers.map(function (c) { return c.id; }).filter(function (id) {
+          return st.sel.indexOf(id) >= 0 || st.known.indexOf(id) < 0;
+        });
+      }
+    } catch (e) { /* 저장소를 못 쓰면 전체 선택 */ }
+  })();
+  function saveSelection() {
+    try {
+      localStorage.setItem(selKey, JSON.stringify({sel: selected, known: allCareers.map(function (c) { return c.id; })}));
+    } catch (e) { /* 무시 */ }
+  }
+
+  function renderCareers() {
+    var tbl = basic.querySelectorAll('table.hwp-tbl')[2];   // 불러오기로 문서가 바뀌어도 그때그때 찾음
+    if (!tbl) return;
+    var list = allCareers.filter(function (c) { return selected.indexOf(c.id) >= 0; });
+    var body = tbl.querySelector(':scope > tbody');
+    var rows = Array.prototype.slice.call(body.children);
+    var totalRow = rows[rows.length - 1];
+    var dataRows = rows.slice(1, rows.length - 1);
+    var target = Math.max(5, list.length);
+    while (dataRows.length < target) {
+      var clone = dataRows[dataRows.length - 1].cloneNode(true);
+      body.insertBefore(clone, totalRow);
+      dataRows.push(clone);
+    }
+    while (dataRows.length > target) dataRows.pop().remove();
+    var label = tbl.querySelector('td[rowspan]');
+    if (label) label.setAttribute('rowspan', body.children.length);
+    dataRows.forEach(function (tr, i) {
+      var cells = Array.prototype.slice.call(tr.children);
+      cells = cells.slice(cells.length - 3);
+      var c = list[i];
+      var vals = c ? [c.org, fmtD(c.s) + '~' + fmtD(c.e) + '(' + ym(c.months) + ')', c.program] : ['', '', ''];
+      cells.forEach(function (td, k) { setCell(td, vals[k]); });
     });
-    var rowsData = list.map(function (c) {
-      var m = monthsBetween(c.s, c.e);
-      return [c.org, fmtD(c.s) + '~' + fmtD(c.e) + '(' + ym(m) + ')', c.program];
-    });
-    fillRows(career, 1, 5, rowsData, 3);
 
     // 총 기간 (겹치는 기간은 한 번만 인정)
     var sorted = list.slice().sort(function (a, b) { return a.s - b.s; });
@@ -333,14 +394,51 @@
       if (s <= c.e) total += monthsBetween(s, c.e);
       if (!prevEnd || c.e > prevEnd) prevEnd = c.e;
     });
-    var trs = career.querySelectorAll(':scope > tbody > tr');
-    var totalRow = trs[trs.length - 1];
     var tcells = totalRow.children;
     if (tcells.length >= 2) {
       var y = Math.floor(total / 12), mo = total % 12;
       setCell(tcells[tcells.length - 2], list.length ? (y + '년 ' + mo + '개월') : '년      개월');
     }
+    var cnt = document.getElementById('nbCareerCount');
+    if (cnt) cnt.textContent = '(' + list.length + '/' + allCareers.length + ')';
   }
+  renderCareers();
+
+  // 경력 선택 창
+  var pickBtn = document.getElementById('nbCareerPick');
+  var pickList = document.getElementById('nbCareerList');
+  if (!allCareers.length) { pickBtn.disabled = true; }
+  pickBtn.addEventListener('click', function () {
+    pickList.innerHTML = '';
+    allCareers.forEach(function (c) {
+      var row = document.createElement('label');
+      row.className = 'd-flex align-items-start gap-2 py-2 border-bottom';
+      row.style.cursor = 'pointer';
+      var cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.className = 'form-check-input mt-1'; cb.value = c.id;
+      cb.checked = selected.indexOf(c.id) >= 0;
+      var txt = document.createElement('div');
+      txt.className = 'small';
+      var t1 = document.createElement('div'); t1.className = 'fw-semibold';
+      t1.textContent = c.org + (c.program ? ' · ' + c.program : '');
+      var t2 = document.createElement('div'); t2.className = 'text-muted';
+      t2.textContent = fmtD(c.s) + ' ~ ' + (c.ongoing ? '현재' : fmtD(c.e)) + ' (' + ym(c.months) + ')';
+      txt.appendChild(t1); txt.appendChild(t2);
+      row.appendChild(cb); row.appendChild(txt);
+      pickList.appendChild(row);
+    });
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('nbCareerModal')).show();
+  });
+  function setAll(v) { pickList.querySelectorAll('input[type=checkbox]').forEach(function (cb) { cb.checked = v; }); }
+  document.getElementById('nbCareerAll').addEventListener('click', function () { setAll(true); });
+  document.getElementById('nbCareerNone').addEventListener('click', function () { setAll(false); });
+  document.getElementById('nbCareerApply').addEventListener('click', function () {
+    selected = Array.prototype.filter.call(pickList.querySelectorAll('input[type=checkbox]'), function (cb) { return cb.checked; })
+      .map(function (cb) { return +cb.value; });
+    saveSelection();
+    renderCareers();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('nbCareerModal')).hide();
+  });
 })();
 </script>
 {% endblock %}

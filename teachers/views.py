@@ -599,7 +599,10 @@ def certificate_catalog_delete(request, item_id):
 
 @login_required
 def certificate_list(request):
-    certificates = Certificate.objects.filter(teacher=request.user)
+    # 최근에 취득한 자격증이 위로 (취득일 내림차순, 취득일 없는 항목은 맨 아래)
+    certificates = Certificate.objects.filter(teacher=request.user).order_by(
+        F("issued_date").desc(nulls_last=True), "-id"
+    )
     return render(request, 'teachers/certificate_list.html', {'certificates': certificates})
 
 @login_required
@@ -790,7 +793,7 @@ def nuribom_hub(request):
             for c in Certificate.objects.filter(teacher=teacher).exclude(cert_type="private").order_by("-issued_date", "name")
         ],
         "careers": [
-            {"org": c.organization, "start": d(c.start_date), "end": d(c.end_date), "program": c.position}
+            {"id": c.id, "org": c.organization, "start": d(c.start_date), "end": d(c.end_date), "program": c.position}
             for c in Career.objects.filter(teacher=teacher).order_by("-start_date")
         ],
         "today": d(timezone.localdate()),
