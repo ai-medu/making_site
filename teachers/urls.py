@@ -9,6 +9,7 @@ urlpatterns = [
     path('institutions/<int:pk>/delete/', views.institution_delete, name='institution_delete'),
     path('institutions/<int:pk>/close/', views.institution_close, name='institution_close'),
     path('dashboard/', views.teacher_dashboard, name='teacher_dashboard'),
+    path('nuribom-hub/', views.nuribom_hub, name='nuribom_hub'),
     
     path('certificates/', views.certificate_list, name='certificate_list'),
     path('certificate-catalog/', views.certificate_catalog, name='certificate_catalog'),

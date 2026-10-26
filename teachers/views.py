@@ -675,3 +675,33 @@ def career_delete(request, pk):
         career.delete()
         messages.success(request, "경력이 삭제되었습니다.")
     return redirect("career_list")
+
+
+@login_required
+def nuribom_hub(request):
+    """늘봄허브 등록 서류 작성 페이지 (강사 제출 서류 양식을 그대로 편집)"""
+    teacher = request.user
+    teacher_id = request.GET.get("teacher")
+    if teacher_id and request.user.is_staff:
+        teacher = get_object_or_404(User, id=teacher_id)
+
+    profile = getattr(teacher, "profile", None)
+    birth = getattr(profile, "birth_date", None)
+
+    def d(v):
+        return v.strftime("%Y-%m-%d") if v else ""
+
+    data = {
+        "name": f"{teacher.last_name}{teacher.first_name}".strip() or teacher.username,
+        "birth": d(birth),
+        "certificates": [
+            {"date": d(c.issued_date), "name": c.name, "issuer": c.issued_by}
+            for c in Certificate.objects.filter(teacher=teacher).order_by("-issued_date", "name")
+        ],
+        "careers": [
+            {"org": c.organization, "start": d(c.start_date), "end": d(c.end_date), "program": c.position}
+            for c in Career.objects.filter(teacher=teacher).order_by("-start_date")
+        ],
+        "today": d(timezone.localdate()),
+    }
+    return render(request, "teachers/nuribom_hub.html", {"teacher": teacher, "hub_data": data})

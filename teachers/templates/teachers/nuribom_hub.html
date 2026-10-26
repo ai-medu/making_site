@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=6">
+<style>
+  body { background: #e9ecef; }
+  .nb-bar {
+    position: sticky; top: var(--nb-top, 70px); z-index: 900;
+    background: #fff; border-bottom: 1px solid #ced4da; box-shadow: 0 2px 6px rgba(0,0,0,.08);
+  }
+  .nb-bar .inner { max-width: 860px; margin: 0 auto; padding: 8px 12px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .nb-bar .title { font-weight: 700; margin-right: 8px; white-space: nowrap; }
+  .nb-bar .btn { white-space: nowrap; }
+  .nb-bar .btn.active { background: #0d6efd; color: #fff; }
+  .nb-wrap { overflow-x: auto; padding: 16px 8px 80px; }
+  .nb-paper {
+    width: 794px; margin: 0 auto; background: #fff; padding: 48px 75.6px 60px;
+    box-sizing: border-box; box-shadow: 0 2px 12px rgba(0,0,0,.18);
+  }
+  .nb-paper .hwp-tbl { border-collapse: collapse; table-layout: fixed; }
+  .nb-paper .hwp-tbl td { overflow: hidden; }
+  .nb-paper .cell { outline: none; min-height: 1em; }
+  .nb-paper .cell:focus { background: rgba(255, 244, 179, .45); }
+  .nb-paper .hwp-pic { display: block; max-width: 100%; }
+  .nb-anchor { scroll-margin-top: calc(var(--nb-top, 70px) + var(--nb-bar, 56px) + 8px); }
+  .nb-hint { max-width: 794px; margin: 0 auto 8px; font-size: .85rem; color: #6c757d; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="nb-bar" id="nbBar">
+  <div class="inner">
+    <span class="title"><i class="bi bi-file-earmark-text me-1"></i>늘봄허브 등록 서류</span>
+    <button type="button" class="btn btn-outline-primary btn-sm" data-target="nb-sec1">강사 기본 정보</button>
+    <button type="button" class="btn btn-outline-primary btn-sm" data-target="nb-sec2">프로그램 운영 계획서</button>
+    <button type="button" class="btn btn-outline-primary btn-sm" data-target="nb-sec3">연간 활동 지도 계획안</button>
+    <button type="button" class="btn btn-outline-primary btn-sm" data-target="nb-sec4">자기소개서</button>
+    <button type="button" class="btn btn-outline-primary btn-sm" data-target="nb-sec5">민간자격증 증빙</button>
+  </div>
+</div>
+
+<div class="nb-wrap">
+  <div class="nb-hint">칸을 직접 클릭해서 수정할 수 있습니다. 강사 기본 정보는 등록된 자격증·경력이 자동으로 채워집니다.</div>
+  <div class="nb-paper" id="nbDoc">
+    {% include "teachers/_nuribom_doc.html" %}
+  </div>
+</div>
+
+{{ hub_data|json_script:"nb-data" }}
+<script>
+(function () {
+  var data = JSON.parse(document.getElementById('nb-data').textContent);
+  var doc = document.getElementById('nbDoc');
+
+  // ---------- 상단 고정바 위치 (고정 네비게이션 높이만큼 아래) ----------
+  function placeBar() {
+    var nav = document.querySelector('nav.fixed-top');
+    var h = nav ? nav.getBoundingClientRect().height : 0;
+    document.documentElement.style.setProperty('--nb-top', h + 'px');
+    var bar = document.getElementById('nbBar');
+    document.documentElement.style.setProperty('--nb-bar', (bar ? bar.getBoundingClientRect().height : 56) + 'px');
+  }
+  placeBar();
+  window.addEventListener('resize', placeBar);
+
+  // ---------- 섹션 앵커 ----------
+  var tables = Array.prototype.filter.call(doc.querySelectorAll('table.hwp-tbl'), function (t) {
+    return !t.parentElement.closest('table');
+  });
+  function firstText(t) { return (t.querySelector('td') || {textContent: ''}).textContent.replace(/\s+/g, ' '); }
+  var anchors = [
+    ['nb-sec1', /1\.\s*강사\s*기본\s*정보/],
+    ['nb-sec2', /2\.\s*프로그램\s*운영\s*계획서/],
+    ['nb-sec3', /3\.\s*\(?.*연간\s*활동\s*지도\s*계획안/],
+    ['nb-sec4', /4\.\s*자기소개서/],
+    ['nb-sec5', /민간자격증\s*증빙/]
+  ];
+  tables.forEach(function (t) {
+    var txt = firstText(t);
+    anchors.forEach(function (a) {
+      if (a[1].test(txt)) { t.id = a[0]; t.classList.add('nb-anchor'); }
+    });
+  });
+  var basic = document.getElementById('nb-sec1');
+
+  document.querySelectorAll('#nbBar [data-target]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var el = document.getElementById(b.dataset.target);
+      if (el) el.scrollIntoView({behavior: 'smooth', block: 'start'});
+    });
+  });
+  // 현재 위치 버튼 강조
+  var btns = Array.prototype.slice.call(document.querySelectorAll('#nbBar [data-target]'));
+  function onScroll() {
+    var cur = null, limit = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nb-top')) + (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nb-bar')) || 56) + 12;
+    btns.forEach(function (b) {
+      var el = document.getElementById(b.dataset.target);
+      if (el && el.getBoundingClientRect().top <= limit) cur = b;
+    });
+    btns.forEach(function (b) { b.classList.toggle('active', b === cur); });
+  }
+  window.addEventListener('scroll', onScroll, {passive: true});
+  onScroll();
+
+  // ---------- 강사 기본 정보 자동 입력 ----------
+  if (!basic) return;
+
+  function setCell(td, text) {
+    var p = td.querySelector('.hp');
+    if (!p) return;
+    var spans = p.querySelectorAll('span');
+    var sp = spans[0];
+    if (!sp) { sp = document.createElement('span'); p.appendChild(sp); }
+    for (var i = 1; i < spans.length; i++) spans[i].remove();
+    sp.textContent = text === '' ? '​' : text;
+  }
+  function parseD(s) { var a = s.split('-'); return new Date(+a[0], +a[1] - 1, +a[2]); }
+  function two(n) { return (n < 10 ? '0' : '') + n; }
+  function fmtD(d) { return d.getFullYear() + '.' + two(d.getMonth() + 1) + '.' + two(d.getDate()) + '.'; }
+  function addMonths(d, m) {
+    var r = new Date(d.getFullYear(), d.getMonth() + m, 1);
+    var last = new Date(r.getFullYear(), r.getMonth() + 1, 0).getDate();
+    r.setDate(Math.min(d.getDate(), last));
+    return r;
+  }
+  // 개월 수 (15일 이상 남는 일수는 1개월로 인정)
+  function monthsBetween(start, end) {
+    var endP = new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1);
+    var m = (endP.getFullYear() - start.getFullYear()) * 12 + (endP.getMonth() - start.getMonth());
+    var anchor = addMonths(start, m);
+    while (anchor > endP) { m--; anchor = addMonths(start, m); }
+    var days = Math.round((endP - anchor) / 86400000);
+    if (days >= 15) m++;
+    return m;
+  }
+  function ym(m) {
+    var y = Math.floor(m / 12), mo = m % 12;
+    if (y && mo) return y + '년 ' + mo + '개월';
+    if (y) return y + '년';
+    return mo + '개월';
+  }
+
+  // 성명 / 생년월
+  Array.prototype.forEach.call(basic.querySelectorAll('td'), function (td) {
+    var t = td.textContent.trim();
+    if (/^\(한글\)/.test(t) && data.name) {
+      setCell(td, '(한글) ' + data.name.split('').join(' '));
+    } else if (/^\d{4}년\s*\d{1,2}월$/.test(t)) {
+      if (data.birth) {
+        var b = parseD(data.birth);
+        setCell(td, b.getFullYear() + '년 ' + (b.getMonth() + 1) + '월');
+      } else {
+        setCell(td, '');
+      }
+    }
+  });
+
+  // 자기소개서 하단 서명란: 신청자 이름 / 작성일
+  var sec4 = document.getElementById('nb-sec4');
+  if (sec4) {
+    var td4 = new Date();
+    var spans4 = sec4.querySelectorAll('span');
+    Array.prototype.forEach.call(spans4, function (sp) {
+      var t = sp.textContent;
+      if (/신\s*청\s*자/.test(t) && data.name) {
+        sp.textContent = t.replace(/(신\s*청\s*자\s+)[^\(]*?(\s*\()/, '$1' + data.name.split('').join(' ') + ' $2');
+      } else if (/^\s*\d{4}년\s*\d{1,2}월\s*\d{1,2}일\s*$/.test(t)) {
+        sp.textContent = td4.getFullYear() + '년 ' + (td4.getMonth() + 1) + '월 ' + td4.getDate() + '일';
+      }
+    });
+  }
+
+  var inner = basic.querySelectorAll('table.hwp-tbl');
+  var edu = inner[0], cert = inner[1], career = inner[2];
+
+  function fillRows(tbl, headRows, count, items, cols, labelRowspanExtra) {
+    // tbl: 표, headRows: 머리글 행 수, count: 비어있는 데이터 행 포함 기본 데이터 행 수
+    var rows = Array.prototype.slice.call(tbl.querySelectorAll(':scope > tbody > tr'));
+    var dataRows = rows.slice(headRows, headRows + count);
+    var tail = rows[headRows + count] || null;   // 합계 등 마지막 행
+    while (dataRows.length < items.length) {
+      var clone = dataRows[dataRows.length - 1].cloneNode(true);
+      (tail ? tail.parentNode : dataRows[0].parentNode).insertBefore(clone, tail);
+      dataRows.push(clone);
+    }
+    var label = tbl.querySelector('td[rowspan]');
+    if (label) label.setAttribute('rowspan', (tbl.querySelectorAll(':scope > tbody > tr').length));
+    dataRows.forEach(function (tr, i) {
+      var cells = Array.prototype.slice.call(tr.children);
+      cells = cells.slice(cells.length - cols);
+      var it = items[i];
+      cells.forEach(function (td, c) { setCell(td, it ? it[c] : ''); });
+    });
+    return dataRows;
+  }
+
+  // 최종 학력: 등록 정보가 없으므로 비워 둠 (직접 입력)
+  if (edu) fillRows(edu, 1, 2, [], 4);
+
+  // 자격 (취득일시 / 자격명 / 발급기관 / 비고)
+  if (cert) {
+    var items = data.certificates.map(function (c) {
+      return [c.date ? fmtD(parseD(c.date)) : '', c.name, c.issuer, ''];
+    });
+    fillRows(cert, 1, 2, items, 4);
+  }
+
+  // 경력 (기관 / 기간 / 프로그램명) + 총 기간
+  if (career) {
+    var today = parseD(data.today);
+    var list = data.careers.map(function (c) {
+      return {org: c.org, program: c.program, s: parseD(c.start), e: c.end ? parseD(c.end) : today};
+    });
+    var rowsData = list.map(function (c) {
+      var m = monthsBetween(c.s, c.e);
+      return [c.org, fmtD(c.s) + '~' + fmtD(c.e) + '(' + ym(m) + ')', c.program];
+    });
+    fillRows(career, 1, 5, rowsData, 3);
+
+    // 총 기간 (겹치는 기간은 한 번만 인정)
+    var sorted = list.slice().sort(function (a, b) { return a.s - b.s; });
+    var total = 0, prevEnd = null;
+    sorted.forEach(function (c) {
+      var s = c.s;
+      if (prevEnd && s <= prevEnd) s = new Date(prevEnd.getFullYear(), prevEnd.getMonth(), prevEnd.getDate() + 1);
+      if (s <= c.e) total += monthsBetween(s, c.e);
+      if (!prevEnd || c.e > prevEnd) prevEnd = c.e;
+    });
+    var trs = career.querySelectorAll(':scope > tbody > tr');
+    var totalRow = trs[trs.length - 1];
+    var tcells = totalRow.children;
+    if (tcells.length >= 2) {
+      var y = Math.floor(total / 12), mo = total % 12;
+      setCell(tcells[tcells.length - 2], list.length ? (y + '년 ' + mo + '개월') : '년      개월');
+    }
+  }
+})();
+</script>
+{% endblock %}
