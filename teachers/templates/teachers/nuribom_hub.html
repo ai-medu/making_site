@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=9">
+<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=10">
 <style>
   body { background: #e9ecef; }
   .nb-bar {
@@ -41,6 +41,8 @@
   .nb-paper .cell { outline: none; min-height: 1em; }
   .nb-paper .cell:focus { background: rgba(255, 244, 179, .45); }
   .nb-paper .hwp-pic { display: block; max-width: 100%; }
+  /* 칸 안에 들어간 표(최종 학력·자격·경력)는 좌우 여백이 같도록 가운데 정렬 */
+  .nb-paper .cell table.hwp-tbl { margin-left: auto; margin-right: auto; }
   .nb-anchor { scroll-margin-top: calc(var(--nb-top, 70px) + var(--nb-bar, 56px) + 8px); }
   .nb-hint { max-width: 794px; margin: 0 auto 8px; font-size: .85rem; color: #6c757d; }
 </style>
