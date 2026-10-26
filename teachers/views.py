@@ -789,8 +789,8 @@ def nuribom_hub(request):
             for e in Education.objects.filter(teacher=teacher)
         ],
         "certificates": [
-            {"date": d(c.issued_date), "name": c.name, "issuer": c.issued_by}
-            for c in Certificate.objects.filter(teacher=teacher).exclude(cert_type="private").order_by("-issued_date", "name")
+            {"id": c.id, "type": c.cert_type, "date": d(c.issued_date), "name": c.name, "issuer": c.issued_by}
+            for c in Certificate.objects.filter(teacher=teacher).order_by(F("issued_date").desc(nulls_last=True), "-id")
         ],
         "careers": [
             {"id": c.id, "org": c.organization, "start": d(c.start_date), "end": d(c.end_date), "program": c.position}

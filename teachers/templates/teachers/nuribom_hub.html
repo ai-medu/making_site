@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=8">
+<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=9">
 <style>
   body { background: #e9ecef; }
   .nb-bar {
@@ -10,9 +10,9 @@
     background: #fff; border-bottom: 1px solid #ced4da; box-shadow: 0 2px 6px rgba(0,0,0,.08);
   }
   .nb-bar .inner { max-width: 794px; margin: 0 auto; padding: 8px 12px 8px; }
-  .nb-bar .row1 { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .nb-bar .row1 { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
   .nb-bar .title { font-weight: 700; white-space: nowrap; }
-  .nb-bar .actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+  .nb-bar .actions { margin-left: auto; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
   .nb-bar .saved { font-size: .78rem; color: #6c757d; white-space: nowrap; }
   .nb-bar .row2 { display: flex; gap: 6px; flex-wrap: nowrap; overflow-x: auto; }
   .nb-bar .btn { white-space: nowrap; }
@@ -53,6 +53,7 @@
       <span class="title"><i class="bi bi-file-earmark-text me-1"></i>늘봄허브 등록 서류</span>
       <div class="actions">
         <span class="saved" id="nbSaved"></span>
+        <button type="button" class="btn btn-outline-primary btn-sm" id="nbCertPick"><i class="bi bi-award me-1"></i>자격 선택 <span id="nbCertCount"></span></button>
         <button type="button" class="btn btn-outline-primary btn-sm" id="nbCareerPick"><i class="bi bi-briefcase me-1"></i>경력 선택 <span id="nbCareerCount"></span></button>
         <button type="button" class="btn btn-success btn-sm" id="nbSave"><i class="bi bi-save me-1"></i>저장</button>
         <button type="button" class="btn btn-outline-secondary btn-sm" id="nbLoad"><i class="bi bi-folder2-open me-1"></i>불러오기</button>
@@ -73,6 +74,32 @@
   <div class="nb-hint">칸을 직접 클릭해서 수정할 수 있습니다. 강사 기본 정보는 등록된 학력·자격증·경력이 자동으로 채워집니다. 수정 후 [저장]을 눌러야 보관됩니다.</div>
   <div class="nb-paper" id="nbDoc">
     {% include "teachers/_nuribom_doc.html" %}
+  </div>
+</div>
+
+<div class="modal fade" id="nbCertModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="bi bi-award me-1"></i> 서류에 넣을 자격증 선택</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+      </div>
+      <div class="modal-body">
+        <div class="small text-muted mb-2">
+          서류에는 <b>국가자격</b>과 <b>국가공인민간자격</b>만 기재합니다. 해당 자격증만 체크할 수 있고, 민간자격·종류 미지정 자격증은 선택할 수 없습니다.
+          (종류는 <b>이력 &gt; 자격증관리</b>에서 지정)
+        </div>
+        <div class="d-flex gap-2 mb-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="nbCertAll">전체 선택</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="nbCertNone">전체 해제</button>
+        </div>
+        <div id="nbCertList"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">취소</button>
+        <button type="button" class="btn btn-primary btn-sm" id="nbCertApply">적용</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -328,13 +355,91 @@
     fillRows(edu, 1, 2, eitems, 4);
   }
 
-  // 자격 (취득일시 / 자격명 / 발급기관 / 비고)
-  if (cert) {
-    var items = data.certificates.map(function (c) {
-      return [c.date ? fmtD(parseD(c.date)) : '', c.name, c.issuer, ''];
+  // 자격 (취득일시 / 자격명 / 발급기관 / 비고) — 국가자격·국가공인민간자격 중 선택한 것만 표시
+  var CERT_TYPE = {national: '국가자격', national_private: '국가공인민간자격', 'private': '민간자격', '': '종류 미지정'};
+  var allCerts = data.certificates.map(function (c) {
+    return {id: c.id, type: c.type || '', date: c.date, name: c.name, issuer: c.issuer,
+            eligible: c.type === 'national' || c.type === 'national_private'};
+  });
+  var eligibleIds = allCerts.filter(function (c) { return c.eligible; }).map(function (c) { return c.id; });
+  var certKey = 'nb-certs-' + (data.teacher_id || 'me');
+  var certSel = eligibleIds.slice();   // 기본: 서류 대상 자격증 전체
+  (function restoreCertSelection() {
+    try {
+      var st = JSON.parse(localStorage.getItem(certKey) || 'null');
+      if (st && Array.isArray(st.sel) && Array.isArray(st.known)) {
+        certSel = eligibleIds.filter(function (id) { return st.sel.indexOf(id) >= 0 || st.known.indexOf(id) < 0; });
+      }
+    } catch (e) { /* 저장소를 못 쓰면 전체 선택 */ }
+  })();
+
+  function renderCerts() {
+    var tbl = basic.querySelectorAll('table.hwp-tbl')[1];
+    if (!tbl) return;
+    var list = allCerts.filter(function (c) { return certSel.indexOf(c.id) >= 0; });
+    var body = tbl.querySelector(':scope > tbody');
+    var rows = Array.prototype.slice.call(body.children);
+    var dataRows = rows.slice(1);
+    var target = Math.max(2, list.length);
+    while (dataRows.length < target) {
+      var clone = dataRows[dataRows.length - 1].cloneNode(true);
+      body.appendChild(clone);
+      dataRows.push(clone);
+    }
+    while (dataRows.length > target) dataRows.pop().remove();
+    var label = tbl.querySelector('td[rowspan]');
+    if (label) label.setAttribute('rowspan', body.children.length);
+    dataRows.forEach(function (tr, i) {
+      var cells = Array.prototype.slice.call(tr.children);
+      cells = cells.slice(cells.length - 4);
+      var c = list[i];
+      var vals = c ? [c.date ? fmtD(parseD(c.date)) : '', c.name, c.issuer, ''] : ['', '', '', ''];
+      cells.forEach(function (td, k) { setCell(td, vals[k]); });
     });
-    fillRows(cert, 1, 2, items, 4);
+    var cnt = document.getElementById('nbCertCount');
+    if (cnt) cnt.textContent = '(' + list.length + '/' + allCerts.length + ')';
   }
+  renderCerts();
+
+  var certBtn = document.getElementById('nbCertPick');
+  var certList = document.getElementById('nbCertList');
+  if (!allCerts.length) { certBtn.disabled = true; }
+  certBtn.addEventListener('click', function () {
+    certList.innerHTML = '';
+    allCerts.forEach(function (c) {
+      var row = document.createElement('label');
+      row.className = 'd-flex align-items-start gap-2 py-2 border-bottom';
+      var cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.className = 'form-check-input mt-1'; cb.value = c.id;
+      cb.checked = c.eligible && certSel.indexOf(c.id) >= 0;
+      cb.disabled = !c.eligible;
+      row.style.cursor = c.eligible ? 'pointer' : 'not-allowed';
+      if (!c.eligible) row.style.opacity = '.55';
+      var txt = document.createElement('div'); txt.className = 'small';
+      var t1 = document.createElement('div'); t1.className = 'fw-semibold'; t1.textContent = c.name;
+      var t2 = document.createElement('div'); t2.className = 'text-muted';
+      t2.textContent = [CERT_TYPE[c.type] || '종류 미지정', c.issuer, c.date ? fmtD(parseD(c.date)) : ''].filter(Boolean).join(' · ');
+      txt.appendChild(t1); txt.appendChild(t2);
+      if (!c.eligible) {
+        var t3 = document.createElement('div'); t3.className = 'text-danger';
+        t3.textContent = c.type === 'private' ? '민간자격은 서류 대상이 아닙니다.' : '자격증관리에서 종류를 지정하면 선택할 수 있습니다.';
+        txt.appendChild(t3);
+      }
+      row.appendChild(cb); row.appendChild(txt);
+      certList.appendChild(row);
+    });
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('nbCertModal')).show();
+  });
+  function setAllCerts(v) { certList.querySelectorAll('input[type=checkbox]:not(:disabled)').forEach(function (cb) { cb.checked = v; }); }
+  document.getElementById('nbCertAll').addEventListener('click', function () { setAllCerts(true); });
+  document.getElementById('nbCertNone').addEventListener('click', function () { setAllCerts(false); });
+  document.getElementById('nbCertApply').addEventListener('click', function () {
+    certSel = Array.prototype.filter.call(certList.querySelectorAll('input[type=checkbox]:not(:disabled)'), function (cb) { return cb.checked; })
+      .map(function (cb) { return +cb.value; });
+    try { localStorage.setItem(certKey, JSON.stringify({sel: certSel, known: eligibleIds})); } catch (e) { /* 무시 */ }
+    renderCerts();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('nbCertModal')).hide();
+  });
 
   // 경력 (기관 / 기간 / 프로그램명) + 총 기간 — 등록한 경력 중 선택한 것만 표시
   var allCareers = data.careers.map(function (c) {
