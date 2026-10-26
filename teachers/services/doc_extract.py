@@ -12,6 +12,8 @@ PDF_TYPE = "application/pdf"
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 FALLBACK_MODELS = ["gemini-3.8-flash", "gemini-3.5-flash-lite"]
+# 모델별로 지원하는 생각 수준이 달라서 확인된 모델만 지정 (그 외 모델은 기본값)
+THINKING_LEVEL = {"gemini-3.5-flash": "minimal", "gemini-3.8-flash": "low"}
 
 
 def _str(enum=None):
@@ -177,7 +179,13 @@ def _models():
 def _post_with_model_fallback(key, body, timeout):
     resp = None
     for model in _models():
-        resp = requests.post(GEMINI_URL.format(model=model), json=body,
+        level = THINKING_LEVEL.get(model)
+        if level:   # 서류 읽기는 깊은 추론이 필요 없어서 '생각' 단계를 줄여 속도를 높임 (기본값은 1~2분 걸림)
+            b = json.loads(json.dumps(body))
+            b.setdefault("generationConfig", {})["thinkingConfig"] = {"thinkingLevel": level}
+        else:
+            b = body
+        resp = requests.post(GEMINI_URL.format(model=model), json=b,
                              headers={"x-goog-api-key": key}, timeout=timeout)
         if resp.status_code not in (404, 503):   # 모델 없음 / 일시 과부하만 다음 모델로 넘김
             return resp

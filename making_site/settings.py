@@ -227,6 +227,9 @@ LOGOUT_REDIRECT_URL = '/accounts/login/'  # 로그아웃 후 로그인 페이지
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+# 증빙 서류(졸업증명서·자격증·경력증명서) 비공개 보관 폴더 (웹 서버가 직접 공개하지 않음)
+PRIVATE_MEDIA_ROOT = os.path.join(BASE_DIR, 'private_media')
+
 # Filebrowser settings
 FILEBROWSER_DIRECTORY = ""  # media/ 바로 밑에서 시작
 FILEBROWSER_DEFAULT_PERMISSIONS = True

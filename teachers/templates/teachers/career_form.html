@@ -10,7 +10,7 @@
         </div>
         <div class="card-body">
             {% include "teachers/_doc_extract.html" with kind="career" label="경력증명서 · 재직증명서 · 위촉증명서 · 근무확인서" %}
-            <form method="post" novalidate>
+            <form method="post" novalidate enctype="multipart/form-data">
                 {% csrf_token %}
 
                 <div class="row g-3">
@@ -45,6 +45,8 @@
                         </label>
                     </div>
                 </div>
+
+                {% include "teachers/_proof_field.html" with kind="career" %}
 
                 <div class="d-flex justify-content-end mt-4">
                     <button type="submit" class="btn btn-success me-2">

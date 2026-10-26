@@ -14,11 +14,12 @@
             <table class="table table-hover table-striped mb-0 align-middle text-center">
                 <thead class="table-light">
                     <tr>
-                        <th style="width:24%"><i class="bi bi-calendar-range"></i> 기간</th>
-                        <th style="width:24%"><i class="bi bi-bank"></i> 학교명(상태)</th>
-                        <th style="width:22%"><i class="bi bi-book"></i> 전공 분야</th>
-                        <th style="width:12%"><i class="bi bi-award"></i> 학위 구분</th>
-                        <th style="width:18%"><i class="bi bi-gear"></i> 관리</th>
+                        <th style="width:20%"><i class="bi bi-calendar-range"></i> 기간</th>
+                        <th style="width:20%"><i class="bi bi-bank"></i> 학교명(상태)</th>
+                        <th style="width:17%"><i class="bi bi-book"></i> 전공 분야</th>
+                        <th style="width:9%"><i class="bi bi-award"></i> 학위 구분</th>
+                        <th style="width:18%"><i class="bi bi-paperclip"></i> 파일</th>
+                        <th style="width:16%"><i class="bi bi-gear"></i> 관리</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -28,6 +29,7 @@
                         <td>{{ edu.school_name }}{% if edu.status %}({{ edu.status }}){% endif %}</td>
                         <td>{{ edu.major|default:"-" }}</td>
                         <td class="text-nowrap">{{ edu.degree|default:"-" }}</td>
+                        <td class="text-center">{% include "teachers/_proof_cell.html" with obj=edu kind="education" %}</td>
                         <td class="text-center">
                             <a href="{% url 'education_update' edu.id %}" class="btn btn-sm btn-outline-primary me-1">
                                 <i class="bi bi-pencil-square"></i>
@@ -43,7 +45,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="5" class="text-center text-muted py-4">
+                        <td colspan="6" class="text-center text-muted py-4">
                             <i class="bi bi-info-circle me-1"></i> 등록된 학력이 없습니다.
                         </td>
                     </tr>
@@ -53,4 +55,5 @@
         </div>
     </div>
 </div>
+{% include "teachers/_proof_modal.html" %}
 {% endblock %}

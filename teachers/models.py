@@ -1,6 +1,36 @@
 # teachers/models.py
 
 from django.db import models
+import os
+import uuid
+
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
+
+from .storage import get_private_storage
+
+
+def proof_upload_to(instance, filename):
+    ext = os.path.splitext(filename)[1].lower()
+    return f"proofs/{instance._meta.model_name}/{instance.teacher_id}/{uuid.uuid4().hex}{ext}"
+
+
+class ProofMixin(models.Model):
+    """증빙 서류 파일(선택)을 붙일 수 있는 모델용 공통 필드"""
+    proof_file = models.FileField("증빙 파일", upload_to=proof_upload_to, storage=get_private_storage, blank=True)
+    proof_name = models.CharField("증빙 파일명", max_length=200, blank=True)
+
+    class Meta:
+        abstract = True
+
+    @property
+    def proof_ext(self):
+        return os.path.splitext(self.proof_file.name or "")[1].lower().lstrip(".")
+
+    @property
+    def proof_is_image(self):
+        return self.proof_ext in ("jpg", "jpeg", "png", "webp", "gif")
+
 from django.contrib.auth.models import User
 from datetime import date
 from calendar import monthrange
@@ -60,7 +90,7 @@ class TeachingDay(models.Model):
     def __str__(self):
         return self.name
 
-class Certificate(models.Model):
+class Certificate(ProofMixin, models.Model):
     teacher = models.ForeignKey(User, on_delete=models.CASCADE, related_name="certificates")
     name = models.CharField("자격증명", max_length=200)
     issued_by = models.CharField("발급기관", max_length=200, blank=True)
@@ -118,7 +148,7 @@ class CertificateCatalogItem(models.Model):
 from django.db import models
 from datetime import date
 
-class Career(models.Model):
+class Career(ProofMixin, models.Model):
     teacher = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
@@ -191,7 +221,7 @@ class Career(models.Model):
 
 
 
-class Education(models.Model):
+class Education(ProofMixin, models.Model):
     """강사 학력 (최근 학력 순으로 늘봄허브 서류에 사용)"""
     STATUS_CHOICES = [
         ("졸업", "졸업"),
@@ -236,3 +266,12 @@ class NuribomDraft(models.Model):
 
     def __str__(self):
         return f"늘봄허브 서류 - {self.teacher.first_name}"
+
+
+@receiver(post_delete, sender=Certificate)
+@receiver(post_delete, sender=Career)
+@receiver(post_delete, sender=Education)
+def _delete_proof_file(sender, instance, **kwargs):
+    """기록을 삭제하면 증빙 파일도 함께 삭제"""
+    if instance.proof_file and instance.proof_file.name:
+        instance.proof_file.delete(save=False)

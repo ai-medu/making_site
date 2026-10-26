@@ -1,0 +1,22 @@
+{# 등록/수정 폼의 증빙 파일(선택) 입력: kind, obj(수정 시) #}
+<div class="border rounded-3 p-3 mt-4" id="proofField">
+  <div class="fw-semibold mb-1"><i class="bi bi-paperclip me-1"></i> 증빙 파일 <span class="text-muted fw-normal small">(선택)</span></div>
+  {% if obj.proof_file %}
+  <div class="d-flex align-items-center flex-wrap gap-2 mb-2 small">
+    <span class="text-muted">현재 파일:</span>
+    <span class="fw-semibold text-break">{{ obj.proof_name|default:"증빙 파일" }}</span>
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'proof_file' kind obj.id %}" target="_blank" rel="noopener"><i class="bi bi-eye"></i> 보기</a>
+    <a class="btn btn-sm btn-outline-success" href="{% url 'proof_file' kind obj.id %}?download=1"><i class="bi bi-download"></i> 다운</a>
+    <div class="form-check ms-2">
+      <input class="form-check-input" type="checkbox" name="clear_proof" id="clearProof">
+      <label class="form-check-label" for="clearProof">현재 파일 삭제</label>
+    </div>
+  </div>
+  {% endif %}
+  <input type="file" name="proof_file" id="proofInput" class="form-control form-control-sm"
+         accept="application/pdf,image/*" style="max-width:420px;">
+  <div class="form-text">
+    PDF·이미지(JPG, PNG) 10MB 이하. 올리지 않아도 등록할 수 있고, 본인과 관리자만 볼 수 있습니다.
+    {% if obj.proof_file %}새 파일을 올리면 기존 파일을 대체합니다.{% endif %}
+  </div>
+</div>

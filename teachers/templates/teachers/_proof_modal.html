@@ -1,0 +1,39 @@
+{# 증빙 파일 미리보기 모달 (목록 화면 공통) #}
+<div class="modal fade" id="proofModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title text-truncate" id="proofModalTitle">미리보기</h6>
+        <a class="btn btn-sm btn-outline-success ms-auto me-2" id="proofModalDown" href="#"><i class="bi bi-download me-1"></i>다운로드</a>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+      </div>
+      <div class="modal-body p-0 text-center bg-light" id="proofModalBody" style="min-height:60vh;"></div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var modalEl = document.getElementById('proofModal');
+  var body = document.getElementById('proofModalBody');
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.proof-preview');
+    if (!btn) return;
+    var url = btn.dataset.url, ext = (btn.dataset.ext || '').toLowerCase();
+    document.getElementById('proofModalTitle').textContent = btn.dataset.name || '증빙 파일';
+    document.getElementById('proofModalDown').href = url + '?download=1';
+    body.innerHTML = '';
+    var el;
+    if (['jpg', 'jpeg', 'png', 'webp', 'gif'].indexOf(ext) >= 0) {
+      el = document.createElement('img');
+      el.src = url; el.alt = btn.dataset.name || '';
+      el.style.maxWidth = '100%'; el.style.height = 'auto';
+    } else {
+      el = document.createElement('iframe');
+      el.src = url; el.style.width = '100%'; el.style.height = '75vh'; el.style.border = '0';
+    }
+    body.appendChild(el);
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+  });
+  modalEl.addEventListener('hidden.bs.modal', function () { body.innerHTML = ''; });
+})();
+</script>

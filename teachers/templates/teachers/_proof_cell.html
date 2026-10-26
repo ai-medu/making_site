@@ -1,0 +1,29 @@
+{# 목록 표의 '파일' 칸: obj, kind #}
+{% if obj.proof_file %}
+  <div class="d-inline-flex gap-1 align-items-center flex-nowrap">
+    <button type="button" class="btn btn-sm btn-outline-secondary proof-preview"
+            data-url="{% url 'proof_file' kind obj.id %}" data-ext="{{ obj.proof_ext }}"
+            data-name="{{ obj.proof_name|default:'증빙 파일' }}" title="미리보기">
+      <i class="bi bi-eye"></i>
+    </button>
+    <a class="btn btn-sm btn-outline-success" href="{% url 'proof_file' kind obj.id %}?download=1" title="다운로드">
+      <i class="bi bi-download"></i>
+    </a>
+    <form method="post" action="{% url 'proof_delete' kind obj.id %}" class="d-inline">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-sm btn-outline-danger" title="파일 삭제"
+              onclick="return confirm('증빙 파일만 삭제할까요? (기록은 그대로 남습니다)');">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </form>
+  </div>
+{% else %}
+  <form method="post" action="{% url 'proof_upload' kind obj.id %}" enctype="multipart/form-data" class="d-inline">
+    {% csrf_token %}
+    <input type="file" name="proof_file" accept="application/pdf,image/*" hidden
+           onchange="if(this.files.length){this.form.submit();}">
+    <button type="button" class="btn btn-sm btn-outline-primary" onclick="this.previousElementSibling.click();" title="증빙 파일 추가 (PDF·이미지, 10MB 이하)">
+      <i class="bi bi-paperclip"></i> 파일 추가
+    </button>
+  </form>
+{% endif %}

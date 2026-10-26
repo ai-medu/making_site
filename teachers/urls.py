@@ -14,6 +14,9 @@ urlpatterns = [
     path('nuribom-hub/load/', views.nuribom_load, name='nuribom_load'),
 
     path('extract-document/<str:kind>/', views.extract_document, name='extract_document'),
+    path('proof/<str:kind>/<int:pk>/', views.proof_file, name='proof_file'),
+    path('proof/<str:kind>/<int:pk>/upload/', views.proof_upload, name='proof_upload'),
+    path('proof/<str:kind>/<int:pk>/delete/', views.proof_delete, name='proof_delete'),
 
     path('educations/', views.education_list, name='education_list'),
     path('educations/new/', views.education_create, name='education_create'),

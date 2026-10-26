@@ -1,3 +1,4 @@
+import os
 # teachers/views.py
 from django import forms
 from .forms import TeachingInstitutionForm
@@ -12,7 +13,8 @@ from .models import TeachingInstitution, TeachingDay
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from .models import Certificate, Career, CertificateCatalogItem, Education, NuribomDraft
-from django.http import HttpResponseForbidden, JsonResponse
+from django.http import HttpResponseForbidden, JsonResponse, FileResponse, Http404
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from .forms import CertificateForm, CareerForm, EducationForm
 from collections import OrderedDict
 
@@ -603,10 +605,11 @@ def certificate_list(request):
 def certificate_create(request):
     if request.method == 'POST':
         form = CertificateForm(request.POST)
-        if form.is_valid():
+        if form.is_valid() and _proof_ok(request):
             cert = form.save(commit=False)
             cert.teacher = request.user
             cert.save()
+            _save_proof(request, cert)
             return redirect('certificate_list')
     else:
         form = CertificateForm()
@@ -618,13 +621,14 @@ def certificate_update(request, pk):
     cert = get_object_or_404(Certificate, pk=pk, teacher=request.user)
     if request.method == "POST":
         form = CertificateForm(request.POST, instance=cert)
-        if form.is_valid():
-            form.save()
+        if form.is_valid() and _proof_ok(request):
+            cert = form.save()
+            _save_proof(request, cert)
             messages.success(request, "자격증이 수정되었습니다.")
             return redirect("certificate_list")
     else:
         form = CertificateForm(instance=cert)
-    return render(request, "teachers/certificate_form.html", {"form": form})
+    return render(request, "teachers/certificate_form.html", {"form": form, "obj": cert})
 
 @login_required
 def certificate_delete(request, pk):
@@ -644,10 +648,11 @@ def career_list(request):
 def career_create(request):
     if request.method == 'POST':
         form = CareerForm(request.POST)
-        if form.is_valid():
+        if form.is_valid() and _proof_ok(request):
             career = form.save(commit=False)
             career.teacher = request.user
             career.save()
+            _save_proof(request, career)
             return redirect('career_list')
     else:
         form = CareerForm()
@@ -659,13 +664,14 @@ def career_update(request, pk):
     career = get_object_or_404(Career, pk=pk, teacher=request.user)
     if request.method == "POST":
         form = CareerForm(request.POST, instance=career)
-        if form.is_valid():
-            form.save()
+        if form.is_valid() and _proof_ok(request):
+            career = form.save()
+            _save_proof(request, career)
             messages.success(request, "경력이 수정되었습니다.")
             return redirect("career_list")
     else:
         form = CareerForm(instance=career)
-    return render(request, "teachers/career_form.html", {"form": form})
+    return render(request, "teachers/career_form.html", {"form": form, "obj": career})
 
 
 @login_required
@@ -687,10 +693,11 @@ def education_list(request):
 def education_create(request):
     if request.method == 'POST':
         form = EducationForm(request.POST)
-        if form.is_valid():
+        if form.is_valid() and _proof_ok(request):
             edu = form.save(commit=False)
             edu.teacher = request.user
             edu.save()
+            _save_proof(request, edu)
             return redirect('education_list')
     else:
         form = EducationForm()
@@ -702,13 +709,14 @@ def education_update(request, pk):
     edu = get_object_or_404(Education, pk=pk, teacher=request.user)
     if request.method == "POST":
         form = EducationForm(request.POST, instance=edu)
-        if form.is_valid():
-            form.save()
+        if form.is_valid() and _proof_ok(request):
+            edu = form.save()
+            _save_proof(request, edu)
             messages.success(request, "학력이 수정되었습니다.")
             return redirect("education_list")
     else:
         form = EducationForm(instance=edu)
-    return render(request, "teachers/education_form.html", {"form": form, 'is_edit': True})
+    return render(request, "teachers/education_form.html", {"form": form, 'is_edit': True, "obj": edu})
 
 
 @login_required
@@ -803,3 +811,104 @@ def extract_document(request, kind):
     except ExtractError as e:
         return JsonResponse({"ok": False, "error": str(e)}, status=400)
     return JsonResponse({"ok": True, "items": result.get("items", []), "note": result.get("note", "")})
+
+
+
+# ==========================================
+# 증빙 파일 (학력·자격증·경력 공통) - 비공개 저장, 본인/관리자만 열람
+# ==========================================
+PROOF_MODELS = {"education": Education, "certificate": Certificate, "career": Career}
+PROOF_LIST_URL = {"education": "education_list", "certificate": "certificate_list", "career": "career_list"}
+PROOF_ALLOWED = {
+    "pdf": "application/pdf",
+    "jpg": "image/jpeg", "jpeg": "image/jpeg",
+    "png": "image/png", "webp": "image/webp",
+}
+PROOF_MAX_BYTES = 10 * 1024 * 1024
+
+
+def _proof_ok(request):
+    """업로드된 증빙 파일 검사 (없으면 통과). 문제가 있으면 안내 메시지를 남기고 False"""
+    f = request.FILES.get("proof_file")
+    if not f:
+        return True
+    ext = os.path.splitext(f.name)[1].lower().lstrip(".")
+    if ext not in PROOF_ALLOWED:
+        messages.error(request, "증빙 파일은 PDF 또는 이미지(JPG, PNG)만 올릴 수 있습니다.")
+        return False
+    if f.size > PROOF_MAX_BYTES:
+        messages.error(request, "증빙 파일이 너무 큽니다. 10MB 이하로 올려주세요.")
+        return False
+    return True
+
+
+def _save_proof(request, obj):
+    """폼 저장 후 증빙 파일 반영 (새 파일 업로드 / 삭제 체크)"""
+    f = request.FILES.get("proof_file")
+    if f:
+        if obj.proof_file:
+            obj.proof_file.delete(save=False)
+        obj.proof_file.save(f.name, f, save=False)
+        obj.proof_name = os.path.basename(f.name)[:200]
+        obj.save(update_fields=["proof_file", "proof_name"])
+    elif request.POST.get("clear_proof") == "on" and obj.proof_file:
+        obj.proof_file.delete(save=False)
+        obj.proof_file = ""
+        obj.proof_name = ""
+        obj.save(update_fields=["proof_file", "proof_name"])
+
+
+def _proof_obj(request, kind, pk):
+    model = PROOF_MODELS.get(kind)
+    if not model:
+        raise Http404
+    obj = get_object_or_404(model, pk=pk)
+    if obj.teacher_id != request.user.id and not request.user.is_staff:
+        raise Http404
+    return obj
+
+
+@login_required
+@xframe_options_sameorigin
+def proof_file(request, kind, pk):
+    """증빙 파일 보기(미리보기) / 다운로드(?download=1)"""
+    obj = _proof_obj(request, kind, pk)
+    if not obj.proof_file:
+        raise Http404
+    ext = obj.proof_ext
+    ctype = PROOF_ALLOWED.get(ext, "application/octet-stream")
+    resp = FileResponse(
+        obj.proof_file.open("rb"),
+        as_attachment=request.GET.get("download") == "1",
+        filename=obj.proof_name or os.path.basename(obj.proof_file.name),
+        content_type=ctype,
+    )
+    resp["X-Content-Type-Options"] = "nosniff"
+    resp["Cache-Control"] = "private, no-store"
+    return resp
+
+
+@login_required
+@require_POST
+def proof_upload(request, kind, pk):
+    """목록 표에서 바로 증빙 파일 추가/교체"""
+    obj = _proof_obj(request, kind, pk)
+    if not request.FILES.get("proof_file"):
+        messages.error(request, "파일을 선택해주세요.")
+    elif _proof_ok(request):
+        _save_proof(request, obj)
+        messages.success(request, "증빙 파일을 저장했습니다.")
+    return redirect(PROOF_LIST_URL[kind])
+
+
+@login_required
+@require_POST
+def proof_delete(request, kind, pk):
+    obj = _proof_obj(request, kind, pk)
+    if obj.proof_file:
+        obj.proof_file.delete(save=False)
+        obj.proof_file = ""
+        obj.proof_name = ""
+        obj.save(update_fields=["proof_file", "proof_name"])
+        messages.success(request, "증빙 파일을 삭제했습니다.")
+    return redirect(PROOF_LIST_URL[kind])
