@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=11">
+<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=12">
 <style>
   body { background: #e9ecef; }
   .nb-bar {
@@ -20,22 +20,35 @@
   .nb-bar .btn.active { background: #0d6efd; color: #fff; }
   .nb-name-label { position: absolute; left: 0; top: 0; }
   @media print {
-    @page { size: A4; margin: 10mm 8mm; }
+    @page { size: A4; margin: 20mm; }
     html, body { background: #fff !important; }
     nav, .nb-bar, .nb-hint, footer, .navbar { display: none !important; }
     body { padding: 0 !important; margin: 0 !important; }
     .nb-wrap { padding: 0 !important; overflow: visible !important; }
     .nb-paper { box-shadow: none !important; width: auto !important; margin: 0 !important; padding: 0 !important; }
+    .nb-sheet { width: auto !important; margin: 0 !important; }
+    #nbOverlay { display: none !important; }
     .nb-paper tr { break-inside: avoid; }
     .nb-paper .cell:focus { background: none !important; }
     #nb-sec2, #nb-sec3, #nb-sec4, #nb-sec5 { break-before: page; }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
   .nb-wrap { overflow-x: auto; padding: 16px 8px 80px; }
+  /* A4(210x297mm) 한 장 = 794 x 1123px, 위아래·좌우 여백 20mm(75.6px) */
+  .nb-sheet { position: relative; width: 794px; margin: 0 auto; }
   .nb-paper {
-    width: 794px; margin: 0 auto; background: #fff; padding: 48px 75.6px 60px;
+    width: 794px; margin: 0; background: #fff; padding: 75.6px;
     box-sizing: border-box; box-shadow: 0 2px 12px rgba(0,0,0,.18);
   }
+  #nbOverlay { position: absolute; left: 0; top: 0; right: 0; height: 0; pointer-events: none; }
+  .nb-band {
+    position: absolute; left: -16px; right: -16px; height: 28px; background: #e9ecef;
+    display: flex; align-items: center; justify-content: center; gap: 14px;
+    font-size: .72rem; color: #6c757d; letter-spacing: .02em; z-index: 5;
+  }
+  .nb-pageno { position: absolute; left: 0; right: 0; text-align: center; font-size: .72rem; color: #9aa0a6; z-index: 4; }
+  .nb-mask { position: absolute; background: #fff; z-index: 3; }
+  .nb-topline { position: absolute; height: 0; border-top: 1px solid #000; z-index: 3; }
   .nb-paper .hwp-tbl { border-collapse: collapse; table-layout: fixed; }
   .nb-paper .hwp-tbl td { overflow: hidden; }
   .nb-paper .cell { outline: none; min-height: 1em; }
@@ -55,6 +68,7 @@
       <span class="title"><i class="bi bi-file-earmark-text me-1"></i>늘봄허브 등록 서류</span>
       <div class="actions">
         <span class="saved" id="nbSaved"></span>
+        <button type="button" class="btn btn-outline-dark btn-sm" id="nbPages" title="A4 용지 기준으로 쪽이 나뉘는 위치를 보여줍니다"><i class="bi bi-file-earmark-break me-1"></i>쪽 구분</button>
         <button type="button" class="btn btn-outline-primary btn-sm" id="nbCertPick"><i class="bi bi-award me-1"></i>자격 선택 <span id="nbCertCount"></span></button>
         <button type="button" class="btn btn-outline-primary btn-sm" id="nbCareerPick"><i class="bi bi-briefcase me-1"></i>경력 선택 <span id="nbCareerCount"></span></button>
         <button type="button" class="btn btn-success btn-sm" id="nbSave"><i class="bi bi-save me-1"></i>저장</button>
@@ -73,9 +87,12 @@
 </div>
 
 <div class="nb-wrap">
-  <div class="nb-hint">칸을 직접 클릭해서 수정할 수 있습니다. 강사 기본 정보는 등록된 학력·자격증·경력이 자동으로 채워집니다. 수정 후 [저장]을 눌러야 보관됩니다.</div>
-  <div class="nb-paper" id="nbDoc">
-    {% include "teachers/_nuribom_doc.html" %}
+  <div class="nb-hint">칸을 직접 클릭해서 수정할 수 있습니다. 강사 기본 정보는 등록된 학력·자격증·경력이 자동으로 채워집니다. 수정 후 [저장]을 눌러야 보관됩니다. 회색 띠는 A4 용지로 출력(PDF 저장)할 때 쪽이 나뉘는 위치입니다(예상).</div>
+  <div class="nb-sheet" id="nbSheet">
+    <div class="nb-paper" id="nbDoc">
+      {% include "teachers/_nuribom_doc.html" %}
+    </div>
+    <div id="nbOverlay" aria-hidden="true"></div>
   </div>
 </div>
 
@@ -184,6 +201,131 @@
   window.addEventListener('scroll', onScroll, {passive: true});
   onScroll();
 
+  // ---------- A4 쪽 구분 표시 (PDF 저장 시 쪽이 나뉘는 위치를 미리 보여줌) ----------
+  // 쪽이 시작되는 줄(표의 한 줄 / 문단)의 위쪽 여백을 늘려 아래로 밀고, 그 자리에 회색 띠·쪽 번호를 겹쳐 그린다.
+  // (표에 새 줄을 끼워 넣으면 병합된 칸이 있는 표의 높이가 틀어져서, 여백 방식으로 처리)
+  var PAGE_H = 971, MARGIN = 75.6, GAP = 28;   // 본문 높이(A4 297mm - 위아래 20mm), 여백 20mm, 쪽 사이 간격
+  var overlay = document.getElementById('nbOverlay');
+  var pagesBtn = document.getElementById('nbPages');
+  var pagesOn = true;
+  try { pagesOn = localStorage.getItem('nb-pages') !== '0'; } catch (e) { /* 기본값 사용 */ }
+  var pgTimer = null;
+
+  function schedulePaginate() { clearTimeout(pgTimer); pgTimer = setTimeout(paginate, 350); }
+
+  // 쪽 구분을 위해 늘렸던 여백을 원래대로 (root: 문서 또는 문서 복사본)
+  function restorePush(root) {
+    root.querySelectorAll('[data-nb-pt]').forEach(function (td) {
+      td.style.paddingTop = td.getAttribute('data-nb-pt');
+      td.removeAttribute('data-nb-pt');
+    });
+    root.querySelectorAll('[data-nb-mt]').forEach(function (el) {
+      el.style.marginTop = el.getAttribute('data-nb-mt');
+      el.removeAttribute('data-nb-mt');
+    });
+  }
+  function clearPages() {
+    restorePush(doc);
+    overlay.innerHTML = '';
+  }
+  function addEl(cls, css, html) {
+    var d = document.createElement('div');
+    d.className = cls; d.style.cssText = css; d.innerHTML = html || '';
+    overlay.appendChild(d);
+    return d;
+  }
+  function pushDown(unit, h) {
+    var el = unit.el;
+    if (unit.row) {
+      var cells = Array.prototype.slice.call(el.children);
+      cells.forEach(function (td) { td.setAttribute('data-nb-pt', td.style.paddingTop || ''); });
+      var add = h;
+      for (var n = 0; n < 4; n++) {
+        cells.forEach(function (td) {
+          var base = n === 0 ? (parseFloat(getComputedStyle(td).paddingTop) || 0) : parseFloat(td.style.paddingTop);
+          td.style.paddingTop = (base + add) + 'px';
+        });
+        // 줄 높이가 원래 더 컸던 만큼 덜 늘어나므로, 실제로 늘어난 높이를 재서 모자란 만큼 더함
+        var grown = el.getBoundingClientRect().height - (unit.bottom - unit.top);
+        add = h - grown;
+        if (Math.abs(add) < 0.5) break;
+      }
+    } else {
+      el.setAttribute('data-nb-mt', el.style.marginTop || '');
+      el.style.marginTop = (parseFloat(getComputedStyle(el).marginTop) || 0) + h + 'px';
+    }
+  }
+  function paginate() {
+    clearPages();
+    pagesBtn.classList.toggle('active', pagesOn);
+    if (!pagesOn) return;
+
+    // 1) 쪽을 나눌 수 있는 단위(표의 한 줄 / 문단)와 위치 측정
+    var docTop = doc.getBoundingClientRect().top + MARGIN;
+    var units = [];
+    Array.prototype.forEach.call(doc.children, function (p) {
+      var tbls = p.querySelectorAll(':scope > table.hwp-tbl');
+      if (tbls.length) {
+        Array.prototype.forEach.call(tbls, function (t) {
+          var forced = /^nb-sec[2-5]$/.test(t.id);   // 2~5번 항목은 새 쪽에서 시작
+          Array.prototype.forEach.call(t.querySelectorAll(':scope > tbody > tr'), function (tr, i) {
+            var r = tr.getBoundingClientRect();
+            units.push({el: tr, row: true, table: t, top: r.top - docTop, bottom: r.bottom - docTop, forced: forced && i === 0});
+          });
+        });
+      } else {
+        var r = p.getBoundingClientRect();
+        if (r.height > 0) units.push({el: p, row: false, top: r.top - docTop, bottom: r.bottom - docTop, forced: false});
+      }
+    });
+
+    // 2) 인쇄와 같은 규칙으로 쪽 나눔 위치 계산 (표의 줄은 중간에서 자르지 않음)
+    var pageStart = 0, breaks = [];
+    units.forEach(function (u) {
+      var need = (u.forced && u.top > pageStart + 1) || (u.bottom - pageStart > PAGE_H && u.top > pageStart + 1);
+      if (need) {
+        breaks.push({unit: u, remaining: Math.max(0, pageStart + PAGE_H - u.top)});
+        pageStart = u.top;
+      }
+      while (u.bottom - pageStart > PAGE_H) pageStart += PAGE_H;   // 한 쪽보다 큰 칸은 여러 쪽에 걸침
+    });
+
+    // 3) 쪽이 시작되는 줄을 아래로 밀기 (남은 공간 + 아래 여백 + 간격 + 위 여백)
+    breaks.forEach(function (b) {
+      b.h = b.remaining + MARGIN + GAP + MARGIN;
+      pushDown(b.unit, b.h);
+    });
+
+    // 4) 회색 띠·쪽 번호, 표 테두리 가림막 그리기
+    var sheet = overlay.getBoundingClientRect(), total = breaks.length + 1;
+    breaks.forEach(function (b, i) {
+      var rowTop = b.unit.el.getBoundingClientRect().top - sheet.top;
+      var bandTop = rowTop + b.remaining + MARGIN;
+      if (b.unit.row) {
+        // 이전 쪽 끝~다음 쪽 시작 사이에서 표의 세로 테두리가 보이지 않도록 흰색으로 가리고, 다음 쪽 첫 줄의 윗선을 그린다
+        var tr = b.unit.table.getBoundingClientRect();
+        var css = 'left:' + (tr.left - sheet.left - 3) + 'px;width:' + (tr.width + 6) + 'px;';
+        addEl('nb-mask', css + 'top:' + (rowTop + 2) + 'px;height:' + Math.max(0, b.h - 3) + 'px');
+        addEl('nb-topline', 'left:' + (tr.left - sheet.left) + 'px;width:' + tr.width + 'px;top:' + (rowTop + b.h - 1) + 'px');
+      }
+      addEl('nb-pageno', 'top:' + (bandTop - 30) + 'px', (i + 1) + ' / ' + total);
+      addEl('nb-band', 'top:' + bandTop + 'px', '<span>▲ ' + (i + 1) + '쪽</span><span>' + (i + 2) + '쪽 ▼</span>');
+    });
+    var docBottom = doc.getBoundingClientRect().bottom - sheet.top;
+    addEl('nb-pageno', 'top:' + (docBottom - 50) + 'px', total + ' / ' + total);
+  }
+  pagesBtn.addEventListener('click', function () {
+    pagesOn = !pagesOn;
+    try { localStorage.setItem('nb-pages', pagesOn ? '1' : '0'); } catch (e) { /* 무시 */ }
+    paginate();
+  });
+  doc.addEventListener('input', schedulePaginate);   // 내용을 고치면 쪽 구분도 다시 계산
+  window.addEventListener('load', schedulePaginate);
+  window.addEventListener('beforeprint', clearPages);   // 인쇄(PDF 저장) 때는 실제 쪽 나눔을 쓰도록 미리보기 여백 제거
+  window.addEventListener('afterprint', schedulePaginate);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(schedulePaginate);
+  schedulePaginate();
+
   // ---------- 저장 / 불러오기 / PDF ----------
   function csrf() {
     var m = document.cookie.match(/csrftoken=([^;]+)/);
@@ -196,7 +338,7 @@
 
   function cleanForSave() {
     var clone = doc.cloneNode(true);
-    clone.querySelectorAll('.cell').forEach(function (c) { c.removeAttribute('data-x'); });
+    restorePush(clone);   // 쪽 구분 미리보기용 여백은 저장하지 않음
     return clone.innerHTML;
   }
   // 불러온 HTML에서 스크립트·이벤트 속성 제거
@@ -235,6 +377,7 @@
         if (!j.ok) { alert(j.error || '불러오지 못했습니다.'); return; }
         if (!confirm('저장된 내용(' + j.updated + ')을 불러옵니다.\n지금 화면의 수정 내용은 사라집니다. 계속할까요?')) return;
         doc.innerHTML = sanitize(j.html);
+        schedulePaginate();
         showSaved(j.updated);
         onScroll();
       }).catch(function () { alert('불러오지 못했습니다.'); });
@@ -400,6 +543,7 @@
     });
     var cnt = document.getElementById('nbCertCount');
     if (cnt) cnt.textContent = '(' + list.length + '/' + allCerts.length + ')';
+    schedulePaginate();
   }
   renderCerts();
 
@@ -510,6 +654,7 @@
     }
     var cnt = document.getElementById('nbCareerCount');
     if (cnt) cnt.textContent = '(' + list.length + '/' + allCareers.length + ')';
+    schedulePaginate();
   }
   renderCareers();
 
