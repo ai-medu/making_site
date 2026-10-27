@@ -116,43 +116,51 @@ def normalize(raw):
     }
 
 
-def _call_json(body):
-    """Gemini를 호출해 JSON 응답을 돌려줌 (키 순환·모델 대체·시간 제한 포함)"""
+def _call_json(body, call_timeout=GENERATE_BUDGET):
+    """Gemini를 호출해 JSON 응답을 돌려줌 (키 순환·모델 대체·시간 제한 포함)
+    call_timeout: 호출 1회 최대 대기 시간. 짧은 글은 짧게 잡아, 응답이 멈춘 호출은 빨리 포기하고 다른 키로 다시 시도한다."""
     keys = _active_keys()
     if not keys:
         raise ExtractError("AI 설정(API 키)이 아직 되어 있지 않습니다. 관리자에게 문의해주세요.")
-    # 긴 글을 쓰는 데는 10~20초 걸릴 수 있어, 서류 읽기(15초)보다 오래 기다린다 (서버 작업 제한 30초 안에서)
+    # 서버 작업 제한 30초 안에서 끝내야 함
     deadline = time.monotonic() + GENERATE_BUDGET
     last_error = None
-    for key_obj, key in keys:
-        if deadline - time.monotonic() < MIN_REMAINING:
-            break
-        try:
-            resp = _post_with_model_fallback(key, body, deadline=deadline, timeout=GENERATE_BUDGET)
-        except requests.Timeout:
-            _record(key_obj, "응답 지연(시간 초과)")
-            last_error = ExtractError("AI 서비스가 지금 혼잡해서 응답이 늦습니다. 잠시 후 다시 시도해주세요.")
-            continue
-        except requests.RequestException:
-            _record(key_obj, "연결 실패")
-            last_error = ExtractError("AI 서비스에 연결하지 못했습니다. 잠시 후 다시 시도해주세요.")
-            continue
-        if resp.status_code == 200:
+    for _round in range(3):
+        retryable = False          # 시간 초과·일시 오류가 있었으면 한 바퀴 더 돌아 재시도
+        for key_obj, key in keys:
+            if deadline - time.monotonic() < MIN_REMAINING:
+                break
             try:
-                text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-                data = json.loads(text)
-            except (KeyError, IndexError, ValueError, TypeError) as e:
-                _record(key_obj, "응답 해석 실패")
-                raise ExtractError("AI 응답을 해석하지 못했습니다. 다시 시도해주세요.") from e
-            _record(key_obj, None)
-            return data
-        _record(key_obj, _status_message(resp.status_code))
-        if resp.status_code == 429:
-            last_error = ExtractError("오늘 무료 사용량을 모두 사용했거나 요청이 몰렸습니다. 잠시 후 다시 시도해주세요.")
-        elif resp.status_code in (400, 401, 403):
-            last_error = ExtractError("AI 서비스 설정(API 키)에 문제가 있습니다. 관리자에게 문의해주세요.")
-        else:
-            last_error = ExtractError("내용을 작성하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
+                resp = _post_with_model_fallback(key, body, deadline=deadline, timeout=call_timeout)
+            except requests.Timeout:
+                _record(key_obj, "응답 지연(시간 초과)")
+                last_error = ExtractError("AI 서비스가 지금 혼잡해서 응답이 늦습니다. 잠시 후 다시 시도해주세요.")
+                retryable = True
+                continue
+            except requests.RequestException:
+                _record(key_obj, "연결 실패")
+                last_error = ExtractError("AI 서비스에 연결하지 못했습니다. 잠시 후 다시 시도해주세요.")
+                retryable = True
+                continue
+            if resp.status_code == 200:
+                try:
+                    text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+                    data = json.loads(text)
+                except (KeyError, IndexError, ValueError, TypeError) as e:
+                    _record(key_obj, "응답 해석 실패")
+                    raise ExtractError("AI 응답을 해석하지 못했습니다. 다시 시도해주세요.") from e
+                _record(key_obj, None)
+                return data
+            _record(key_obj, _status_message(resp.status_code))
+            if resp.status_code == 429:
+                last_error = ExtractError("오늘 무료 사용량을 모두 사용했거나 요청이 몰렸습니다. 잠시 후 다시 시도해주세요.")
+            elif resp.status_code in (400, 401, 403):
+                last_error = ExtractError("AI 서비스 설정(API 키)에 문제가 있습니다. 관리자에게 문의해주세요.")
+            else:
+                last_error = ExtractError("내용을 작성하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
+                retryable = retryable or resp.status_code >= 500
+        if not retryable or deadline - time.monotonic() < MIN_REMAINING:
+            break
     raise last_error or ExtractError("AI 서비스가 지금 혼잡해서 응답이 늦습니다. 잠시 후 다시 시도해주세요.")
 
 
@@ -296,7 +304,8 @@ def generate_section(section, programs, options, current, materials="", flat=Fal
     schema = FLAT_SCHEMA if flat else DETAIL_SPEC[section][1]
     prompt = _section_prompt(section, programs, mode, chars, note, extra, current, materials, flat, base)
     # '새로 작성'은 매번 다른 결과가 나오도록 온도를 조금 높임
-    data = _call_json(_body(prompt, schema, temperature=0.85 if mode == "new" else 0.6))
+    # 항목 하나는 보통 3~8초면 끝나므로 호출당 10초만 기다리고, 멈춘 호출은 다른 키로 다시 시도
+    data = _call_json(_body(prompt, schema, temperature=0.85 if mode == "new" else 0.6), call_timeout=10)
 
     if flat:
         return {"lines": _lines(data.get("lines"), 600)[:12] if isinstance(data, dict) else []}
