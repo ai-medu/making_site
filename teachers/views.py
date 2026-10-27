@@ -801,7 +801,11 @@ def nuribom_hub(request):
     draft = NuribomDraft.objects.filter(teacher=teacher).first()
     data["saved"] = timezone.localtime(draft.updated_at).strftime("%Y-%m-%d %H:%M") if draft else ""
     data["teacher_id"] = teacher.id if teacher != request.user else ""
-    return render(request, "teachers/nuribom_hub.html", {"teacher": teacher, "hub_data": data})
+    year = timezone.localdate().year    # 연간 활동 지도 계획안: 올해 3월부터 내년 2월까지
+    return render(request, "teachers/nuribom_hub.html", {
+        "teacher": teacher, "hub_data": data,
+        "nb_year1": f"{year % 100:02d}", "nb_year2": f"{(year + 1) % 100:02d}",
+    })
 
 
 @login_required
