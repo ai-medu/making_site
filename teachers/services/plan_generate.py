@@ -287,9 +287,7 @@ def generate_section(section, programs, options, current, materials="", flat=Fal
         chars = DEFAULT_CHARS[section]
     chars = max(15, min(chars, 400))
     note = " ".join(str(options.get("note") or "").split())[:300]
-    base = "
-".join(" ".join(x.split()) for x in str(options.get("base") or "").split("
-") if x.strip())[:600]
+    base = "\n".join(" ".join(x.split()) for x in str(options.get("base") or "").split("\n") if x.strip())[:600]
     extra = bool(options.get("extra"))
     flat = bool(flat) or section not in DETAIL_SPEC
     if not isinstance(current, dict):
