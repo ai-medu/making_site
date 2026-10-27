@@ -31,6 +31,7 @@
     .nb-paper tr { break-inside: avoid; }
     .nb-paper .cell:focus { background: none !important; }
     #nb-sec2, #nb-sec3, #nb-sec4, #nb-sec5 { break-before: page; }
+    .nb-paper tr.nb-pagebreak { break-before: page; }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
   .nb-wrap { overflow-x: auto; padding: 16px 8px 80px; }
@@ -255,33 +256,87 @@
       el.style.marginTop = (parseFloat(getComputedStyle(el).marginTop) || 0) + h + 'px';
     }
   }
-  function paginate() {
-    clearPages();
-    pagesBtn.classList.toggle('active', pagesOn);
-    if (!pagesOn) return;
-
-    // 1) 쪽을 나눌 수 있는 단위(표의 한 줄 / 문단)와 위치 측정
+  // 쪽을 나눌 수 있는 단위(표의 한 줄 / 문단)를 모으고 위치를 잰다
+  function collectUnits() {
     var docTop = doc.getBoundingClientRect().top + MARGIN;
     var units = [];
     Array.prototype.forEach.call(doc.children, function (p) {
       var tbls = p.querySelectorAll(':scope > table.hwp-tbl');
       if (tbls.length) {
         Array.prototype.forEach.call(tbls, function (t) {
-          var forced = /^nb-sec[2-5]$/.test(t.id);   // 2~5번 항목은 새 쪽에서 시작
+          var sec = /^nb-sec[2-5]$/.test(t.id);   // 2~5번 항목은 새 쪽에서 시작
           Array.prototype.forEach.call(t.querySelectorAll(':scope > tbody > tr'), function (tr, i) {
             var r = tr.getBoundingClientRect();
-            units.push({el: tr, row: true, table: t, top: r.top - docTop, bottom: r.bottom - docTop, forced: forced && i === 0});
+            // '운영방법' 줄은 프로그램 운영 계획서의 두 번째 쪽이 시작되는 곳
+            var firstCell = tr.children[0] ? tr.children[0].textContent.replace(/[\s\u200b]/g, '') : '';
+            var brk = (sec && i === 0) || (t.id === 'nb-sec2' && firstCell === '운영방법');
+            tr.classList.toggle('nb-pagebreak', brk);   // 인쇄(PDF)에서도 같은 위치에서 쪽 나눔
+            units.push({el: tr, row: true, table: t, top: r.top - docTop, bottom: r.bottom - docTop, forced: brk});
           });
         });
       } else {
         var r = p.getBoundingClientRect();
-        if (r.height > 0) units.push({el: p, row: false, top: r.top - docTop, bottom: r.bottom - docTop, forced: false});
+        var empty = !p.textContent.replace(/[\s\u200b]/g, '') && !p.querySelector('img,table');
+        if (r.height > 0) units.push({el: p, row: false, soft: empty, top: r.top - docTop, bottom: r.bottom - docTop, forced: false});
       }
     });
+    return units;
+  }
+
+  // 한 묶음(새 쪽이 시작되는 곳부터 다음 새 쪽 전까지)이 정해진 쪽 수 안에 들어가도록, 넘칠 때만 줄 간격과 글자 크기를 조금씩 줄인다
+  // (글꼴이 달라 글줄이 늘어나도 '1쪽 / 2쪽 / 3쪽 ...' 구성이 유지되게 함. 원래 값은 data-lh0 / data-fs0에 보관)
+  var FIT_STEPS = [[1, 1], [0.92, 1], [0.84, 1], [0.8, 1], [0.8, 0.96], [0.8, 0.92], [0.78, 0.9], [0.76, 0.88], [0.74, 0.86], [0.72, 0.84], [0.7, 0.82]];
+  function setScale(els, kl, kf) {
+    els.forEach(function (el) {
+      el.querySelectorAll('.hp').forEach(function (p) {
+        if (!p.hasAttribute('data-lh0')) {
+          var cs = getComputedStyle(p), fs = parseFloat(cs.fontSize), lh = parseFloat(cs.lineHeight);
+          if (!(fs > 0) || !(lh > 0)) return;
+          p.setAttribute('data-lh0', (lh / fs).toFixed(3));
+        }
+        p.style.lineHeight = kl >= 1 ? '' : String((parseFloat(p.getAttribute('data-lh0')) * kl).toFixed(3));
+      });
+      el.querySelectorAll('.hp > span').forEach(function (sp) {
+        if (!sp.hasAttribute('data-fs0')) sp.setAttribute('data-fs0', parseFloat(getComputedStyle(sp).fontSize).toFixed(2));
+        sp.style.fontSize = kf >= 1 ? '' : (parseFloat(sp.getAttribute('data-fs0')) * kf).toFixed(2) + 'px';
+      });
+    });
+  }
+  function fitSegments(units) {
+    var segs = [], cur = null;
+    units.forEach(function (u) {
+      if (!cur || u.forced) { cur = []; segs.push(cur); }
+      cur.push(u);
+    });
+    segs.forEach(function (seg) {
+      var real = seg.filter(function (u) { return !u.soft; });   // 끝의 빈 문단은 높이 계산에서 제외
+      if (!real.length) return;
+      var els = seg.map(function (u) { return u.el; });
+      var first = real[0].el, last = real[real.length - 1].el;
+      var isPlan = real[0].row && real[0].table.id === 'nb-sec3';        // 연간 활동 지도 계획안은 2쪽
+      var target = isPlan ? 2 * PAGE_H - 70 : PAGE_H;                     // 나머지는 1쪽
+      function height() { return last.getBoundingClientRect().bottom - first.getBoundingClientRect().top; }
+      for (var i = 0; i < FIT_STEPS.length; i++) {
+        setScale(els, FIT_STEPS[i][0], FIT_STEPS[i][1]);
+        if (height() <= target) return;
+      }
+    });
+  }
+
+  function paginate() {
+    clearPages();
+    // 쪽 구성 맞추기 (쪽 구분 표시를 꺼도 인쇄 결과는 같도록 항상 적용)
+    fitSegments(collectUnits());
+    pagesBtn.classList.toggle('active', pagesOn);
+    if (!pagesOn) return;
+
+    // 1) 쪽을 나눌 수 있는 단위의 위치
+    var units = collectUnits();
 
     // 2) 인쇄와 같은 규칙으로 쪽 나눔 위치 계산 (표의 줄은 중간에서 자르지 않음)
     var pageStart = 0, breaks = [];
     units.forEach(function (u) {
+      if (u.soft) return;   // 빈 문단은 쪽을 새로 만들지 않음
       var need = (u.forced && u.top > pageStart + 1) || (u.bottom - pageStart > PAGE_H && u.top > pageStart + 1);
       if (need) {
         breaks.push({unit: u, remaining: Math.max(0, pageStart + PAGE_H - u.top)});
