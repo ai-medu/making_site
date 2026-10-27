@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=17">
+<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=20">
 <style>
   body { background: #e9ecef; }
   .nb-bar {
@@ -35,6 +35,8 @@
     .nb-paper .cell:focus { background: none !important; }
     #nb-sec2, #nb-sec3, #nb-sec4, #nb-sec5 { break-before: page; }
     .nb-paper tr.nb-pagebreak { break-before: page; }
+    .nb-paper tr.nb-keep { break-before: avoid; }
+    .nb-paper td.nb-sel { box-shadow: none !important; outline: none !important; }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
   .nb-wrap { overflow-x: auto; padding: 16px 8px 80px; }
@@ -62,6 +64,10 @@
   .nb-ctx-item:disabled { color: #adb5bd; }
   .nb-ctx-sep { height: 1px; background: #e9ecef; margin: 5px 2px; }
   .nb-ctx-tip { font-size: .7rem; color: #868e96; padding: 2px 8px 4px; }
+  .nb-paper td.nb-sel { box-shadow: inset 0 0 0 9999px rgba(13,110,253,.16); outline: 2px solid #0d6efd; outline-offset: -2px; }
+  #nbDoc.nb-selecting, #nbDoc.nb-selecting * { user-select: none !important; }
+  /* 강사 기본 정보 표의 맨 아래 선 */
+  #nb-sec1 > tbody > tr:last-child > td { border-bottom: 1px solid #000; }
   .nb-mask { position: absolute; background: #fff; z-index: 3; }
   .nb-topline { position: absolute; height: 0; border-top: 1px solid #000; z-index: 3; }
   .nb-paper .hwp-tbl { border-collapse: collapse; table-layout: fixed; }
@@ -105,7 +111,7 @@
 </div>
 
 <div class="nb-wrap">
-  <div class="nb-hint">칸을 직접 클릭해서 수정할 수 있습니다. 강사 기본 정보는 등록된 학력·자격증·경력이 자동으로 채워집니다. 수정 후 [저장]을 눌러야 보관됩니다. 회색 띠는 A4 용지로 출력(PDF 저장)할 때 쪽이 나뉘는 위치입니다(예상). <b>표 칸에서 마우스 오른쪽 버튼</b>을 누르면 줄·칸 추가/삭제, 칸 나누기/합치기를 할 수 있고, <b>칸 경계선을 끌면</b> 너비·높이를 조절할 수 있습니다.</div>
+  <div class="nb-hint">칸을 직접 클릭해서 수정할 수 있습니다. 강사 기본 정보는 등록된 학력·자격증·경력이 자동으로 채워집니다. 수정 후 [저장]을 눌러야 보관됩니다. 회색 띠는 A4 용지로 출력(PDF 저장)할 때 쪽이 나뉘는 위치입니다(예상). <b>표 칸에서 마우스 오른쪽 버튼</b>을 누르면 줄·칸 추가/삭제, 칸 나누기/합치기를 할 수 있고, <b>칸 경계선을 끌면</b> 너비·높이를 조절할 수 있습니다. 여러 칸을 <b>마우스로 끌어 선택</b>한 뒤 오른쪽 버튼을 누르면 선택한 칸의 너비·높이를 같게 맞출 수 있습니다.</div>
   <div class="nb-sheet" id="nbSheet">
     <div class="nb-paper" id="nbDoc">
       {% include "teachers/_nuribom_doc.html" %}
@@ -304,7 +310,8 @@
       el.style.marginTop = (parseFloat(getComputedStyle(el).marginTop) || 0) + h + 'px';
     }
   }
-  // 쪽을 나눌 수 있는 단위(표의 한 줄 / 문단)를 모으고 위치를 잰다
+  // 쪽을 나눌 수 있는 단위를 모으고 위치를 잰다.
+  // 표는 '합쳐진 칸(월 라벨처럼 여러 줄에 걸친 칸)'으로 이어진 줄들을 한 덩어리로 보고 덩어리 사이에서만 쪽을 나눈다.
   function collectUnits() {
     var docTop = doc.getBoundingClientRect().top + MARGIN;
     var units = [];
@@ -313,19 +320,30 @@
       if (tbls.length) {
         Array.prototype.forEach.call(tbls, function (t) {
           var sec = /^nb-sec[2-5]$/.test(t.id);   // 2~5번 항목은 새 쪽에서 시작
-          Array.prototype.forEach.call(t.querySelectorAll(':scope > tbody > tr'), function (tr, i) {
-            var r = tr.getBoundingClientRect();
-            // '운영방법' 줄은 프로그램 운영 계획서의 두 번째 쪽이 시작되는 곳
-            var firstCell = tr.children[0] ? tr.children[0].textContent.replace(/[\s\u200b]/g, '') : '';
-            var brk = (sec && i === 0) || (t.id === 'nb-sec2' && firstCell === '운영방법');
-            tr.classList.toggle('nb-pagebreak', brk);   // 인쇄(PDF)에서도 같은 위치에서 쪽 나눔
-            units.push({el: tr, row: true, first: i === 0, table: t, top: r.top - docTop, bottom: r.bottom - docTop, forced: brk});
+          var g = buildGrid(t);
+          var groups = [];
+          g.rows.forEach(function (tr, r) {
+            var joined = r > 0 && g.grid[r].some(function (cell) { return cell && cell._r < r; });   // 위 줄에서 이어지는 칸이 있음
+            if (!joined || !groups.length) groups.push([tr]); else groups[groups.length - 1].push(tr);
+          });
+          groups.forEach(function (rs, gi) {
+            var first = rs[0], last = rs[rs.length - 1];
+            var fr = first.getBoundingClientRect(), lr = last.getBoundingClientRect();
+            // '운영방법' 묶음은 프로그램 운영 계획서의 두 번째 쪽이 시작되는 곳
+            var firstCell = first.children[0] ? first.children[0].textContent.replace(/[\s\u200b]/g, '') : '';
+            var brk = (sec && gi === 0) || (t.id === 'nb-sec2' && firstCell === '운영방법');
+            rs.forEach(function (tr, k) {
+              tr.classList.toggle('nb-pagebreak', brk && k === 0);   // 인쇄(PDF)에서도 같은 위치에서 쪽 나눔
+              tr.classList.toggle('nb-keep', k > 0);                 // 인쇄에서 묶음 중간에서 쪽이 나뉘지 않게
+            });
+            units.push({el: first, els: rs, last: last, row: true, first: gi === 0, table: t,
+                        top: fr.top - docTop, bottom: lr.bottom - docTop, forced: brk});
           });
         });
       } else {
         var r = p.getBoundingClientRect();
         var empty = !p.textContent.replace(/[\s\u200b]/g, '') && !p.querySelector('img,table');
-        if (r.height > 0) units.push({el: p, row: false, soft: empty, top: r.top - docTop, bottom: r.bottom - docTop, forced: false});
+        if (r.height > 0) units.push({el: p, els: [p], last: p, row: false, soft: empty, top: r.top - docTop, bottom: r.bottom - docTop, forced: false});
       }
     });
     return units;
@@ -359,10 +377,13 @@
     segs.forEach(function (seg) {
       var real = seg.filter(function (u) { return !u.soft; });   // 끝의 빈 문단은 높이 계산에서 제외
       if (!real.length) return;
-      var els = seg.map(function (u) { return u.el; });
-      var first = real[0].el, last = real[real.length - 1].el;
+      var els = [];
+      seg.forEach(function (u) { (u.els || [u.el]).forEach(function (e) { els.push(e); }); });
+      var first = real[0].el, last = real[real.length - 1].last || real[real.length - 1].el;
       var isPlan = real[0].row && real[0].table.id === 'nb-sec3';        // 연간 활동 지도 계획안은 2쪽
-      var target = isPlan ? 2 * PAGE_H - 70 : PAGE_H;                     // 나머지는 1쪽
+      var maxUnit = 0;
+      real.forEach(function (u) { maxUnit = Math.max(maxUnit, u.bottom - u.top); });
+      var target = isPlan ? 2 * PAGE_H - maxUnit : PAGE_H;                // 묶음 단위로 나뉘므로 한 묶음만큼 여유를 둠
       function height() { return last.getBoundingClientRect().bottom - first.getBoundingClientRect().top; }
       for (var i = 0; i < FIT_STEPS.length; i++) {
         setScale(els, FIT_STEPS[i][0], FIT_STEPS[i][1]);
@@ -371,35 +392,45 @@
     });
   }
 
-  // 프로그램 개요 아래 세 항목(운영 목표 / 주요 교육 내용 / 주요 강의 방법)이 2쪽을 채우도록 줄 높이를 늘린다
-  function planRowsForStretch() {
+  // 프로그램 운영 계획서의 두 쪽을 채우도록 줄 높이를 늘린다
+  //  - 1쪽(문서 2쪽): 운영 목표 / 주요 교육 내용 / 주요 강의 방법
+  //  - 2쪽(문서 3쪽): 운영 방법
+  function planStretchGroups() {
     var t = planTable(); if (!t) return null;
     var rows = Array.prototype.slice.call(t.querySelectorAll(':scope > tbody > tr'));
-    var s0 = rows.findIndex(function (r) { return r.children[0] && normT(r.children[0].textContent) === '운영목표'; });
-    var e0 = rows.findIndex(function (r) { return r.children[0] && normT(r.children[0].textContent) === '운영방법'; });
-    if (s0 < 0 || e0 <= s0) return null;
-    return {all: rows, target: rows.slice(s0, e0), end: e0};
+    var idx = function (fn) { return rows.findIndex(fn); };
+    var goal = idx(function (r) { return r.children[0] && normT(r.children[0].textContent) === '운영목표'; });
+    var oper = idx(function (r) { return r.children[0] && normT(r.children[0].textContent) === '운영방법'; });
+    var book = idx(function (r) { return normT(r.textContent).indexOf('▶교재및콘텐츠') === 0; });
+    if (goal < 0 || oper <= goal || book <= oper) return null;
+    return {all: rows, p2: rows.slice(goal, oper), p3: rows.slice(oper, book), goal: goal, oper: oper};
   }
   function resetPlanStretch() {
-    var g = planRowsForStretch(); if (!g) return;
+    var g = planStretchGroups(); if (!g) return;
     if (planTable().hasAttribute('data-nb-nostretch')) return;
-    g.target.forEach(function (tr) {
+    g.p2.concat(g.p3).forEach(function (tr) {
       if (tr.hasAttribute('data-h0')) tr.style.height = tr.getAttribute('data-h0');
     });
   }
+  function stretchRows(rows, used) {
+    var gap = PAGE_H - used - 2;
+    if (gap < 6) return;
+    var hs = rows.map(function (tr) { return tr.getBoundingClientRect().height; });
+    var sum = hs.reduce(function (a, b) { return a + b; }, 0);
+    rows.forEach(function (tr, i) { tr.style.height = (hs[i] + gap * hs[i] / sum).toFixed(1) + 'px'; });
+  }
   function stretchPlanRows() {
-    var g = planRowsForStretch(); if (!g) return;
+    var g = planStretchGroups(); if (!g) return;
     if (planTable().hasAttribute('data-nb-nostretch')) return;   // 직접 높이를 조절했으면 그대로 둠
-    g.target.forEach(function (tr) {
+    g.p2.concat(g.p3).forEach(function (tr) {
       if (!tr.hasAttribute('data-h0')) tr.setAttribute('data-h0', tr.style.height || '');
       tr.style.height = tr.getAttribute('data-h0');
     });
-    var used = g.all[g.end - 1].getBoundingClientRect().bottom - g.all[0].getBoundingClientRect().top;
-    var gap = PAGE_H - used - 2;
-    if (gap < 6) return;
-    var hs = g.target.map(function (tr) { return tr.getBoundingClientRect().height; });
-    var sum = hs.reduce(function (a, b) { return a + b; }, 0);
-    g.target.forEach(function (tr, i) { tr.style.height = (hs[i] + gap * hs[i] / sum).toFixed(1) + 'px'; });
+    var rect = function (el) { return el.getBoundingClientRect(); };
+    // 문서 2쪽: 제목 줄부터 '운영방법' 줄 앞까지
+    stretchRows(g.p2, rect(g.all[g.oper - 1]).bottom - rect(g.all[0]).top);
+    // 문서 3쪽: '운영방법' 줄부터 표 끝까지
+    stretchRows(g.p3, rect(g.all[g.all.length - 1]).bottom - rect(g.all[g.oper]).top);
   }
 
   function paginate() {
@@ -415,15 +446,16 @@
     var units = collectUnits();
 
     // 2) 인쇄와 같은 규칙으로 쪽 나눔 위치 계산 (표의 줄은 중간에서 자르지 않음)
-    var pageStart = 0, breaks = [];
+    var pageStart = 0, breaks = [], lastReal = null;
     units.forEach(function (u) {
       if (u.soft) return;   // 빈 문단은 쪽을 새로 만들지 않음
       var need = (u.forced && u.top > pageStart + 1) || (u.bottom - pageStart > PAGE_H && u.top > pageStart + 1);
       if (need) {
-        breaks.push({unit: u, remaining: Math.max(0, pageStart + PAGE_H - u.top)});
+        breaks.push({unit: u, remaining: Math.max(0, pageStart + PAGE_H - u.top), gapAbove: lastReal ? u.top - lastReal.bottom : 99});
         pageStart = u.top;
       }
       while (u.bottom - pageStart > PAGE_H) pageStart += PAGE_H;   // 한 쪽보다 큰 칸은 여러 쪽에 걸침
+      lastReal = u;
     });
 
     // 3) 쪽이 시작되는 줄을 아래로 밀기 (남은 공간 + 아래 여백 + 간격 + 위 여백)
@@ -442,7 +474,8 @@
         var tr = b.unit.table.getBoundingClientRect();
         var css = 'left:' + (tr.left - sheet.left - 3) + 'px;width:' + (tr.width + 6) + 'px;';
         // 새 표의 첫 줄이면 그 표의 윗선이 이전 쪽 끝에 남아 보이므로 윗선까지 가린다 (표 중간이면 이전 줄의 아랫선은 그대로 둠)
-        var maskTop = b.unit.first ? rowTop - 3 : rowTop + 2;
+        // 앞 표와 사이에 간격이 있을 때만 새 표의 윗선을 가림 (앞 표 바로 아래에 붙어 있으면 그 선은 앞 표의 아랫선이므로 남김)
+        var maskTop = (b.unit.first && b.gapAbove > 6) ? rowTop - 3 : rowTop + 2;
         addEl('nb-mask', css + 'top:' + maskTop + 'px;height:' + Math.max(0, rowTop + b.h - 1 - maskTop) + 'px');
         addEl('nb-topline', 'left:' + (tr.left - sheet.left) + 'px;width:' + tr.width + 'px;top:' + (rowTop + b.h - 1) + 'px');
       }
@@ -469,6 +502,61 @@
   var MIN_COL = 16, MIN_ROW = 14, EDGE = 4;
   var tblHistory = [];
   var ctxEl = null;
+
+  // ----- 여러 칸 블록 선택 (마우스로 끌어서 선택) -----
+  var selTable = null, selCells = [], selRect = null, selAnchor = null, selecting = false;
+  function clearSel() {
+    selCells.forEach(function (td) { td.classList.remove('nb-sel'); });
+    selCells = []; selTable = null; selRect = null;
+  }
+  function setSel(table, a, b) {
+    var g = buildGrid(table);
+    var r0 = Math.min(a._r, b._r), r1 = Math.max(a._r + (a.rowSpan || 1) - 1, b._r + (b.rowSpan || 1) - 1);
+    var c0 = Math.min(a._c, b._c), c1 = Math.max(a._c + (a.colSpan || 1) - 1, b._c + (b.colSpan || 1) - 1);
+    var changed = true;                     // 합쳐진 칸이 경계에 걸치면 직사각형을 넓혀 칸 전체를 포함
+    while (changed) {
+      changed = false;
+      for (var r = r0; r <= r1; r++) {
+        for (var c = c0; c <= c1; c++) {
+          var cell = g.grid[r] && g.grid[r][c];
+          if (!cell) continue;
+          var cr0 = cell._r, cr1 = cell._r + (cell.rowSpan || 1) - 1, cc0 = cell._c, cc1 = cell._c + (cell.colSpan || 1) - 1;
+          if (cr0 < r0) { r0 = cr0; changed = true; }
+          if (cr1 > r1) { r1 = cr1; changed = true; }
+          if (cc0 < c0) { c0 = cc0; changed = true; }
+          if (cc1 > c1) { c1 = cc1; changed = true; }
+        }
+      }
+    }
+    selCells.forEach(function (td) { td.classList.remove('nb-sel'); });
+    var set = new Set();
+    for (var rr = r0; rr <= r1; rr++) for (var cc = c0; cc <= c1; cc++) { if (g.grid[rr][cc]) set.add(g.grid[rr][cc]); }
+    selCells = Array.from(set);
+    selCells.forEach(function (td) { td.classList.add('nb-sel'); });
+    selTable = table; selRect = {r0: r0, r1: r1, c0: c0, c1: c1};
+  }
+  function equalizeWidths(table, rect) {
+    var cols = colsOf(table), g = buildGrid(table);
+    if (cols.length !== g.ncols) throw new Error('이 표는 너비를 맞출 수 없습니다.');
+    var idx = [];
+    for (var c = rect.c0; c <= rect.c1; c++) idx.push(c);
+    var total = idx.reduce(function (a, c) { return a + parseFloat(cols[c].style.width); }, 0);
+    var each = Math.round(total / idx.length * 10) / 10;
+    if (each < MIN_COL) throw new Error('선택한 칸이 너무 좁아 맞출 수 없습니다.');
+    idx.forEach(function (c) { cols[c].style.width = each + 'px'; });
+    cols[idx[idx.length - 1]].style.width = (each + (total - each * idx.length)) + 'px';   // 반올림 오차는 마지막 칸이 흡수 (표 전체 너비 유지)
+  }
+  function equalizeHeights(table, rect) {
+    var g = buildGrid(table), rs = [];
+    for (var r = rect.r0; r <= rect.r1; r++) rs.push(g.rows[r]);
+    var hs = rs.map(function (tr) { return tr.getBoundingClientRect().height; });
+    var mean = hs.reduce(function (a, b) { return a + b; }, 0) / hs.length;
+    rs.forEach(function (tr) {
+      tr.style.height = mean.toFixed(1) + 'px';
+      if (table.id === 'nb-sec2') tr.setAttribute('data-h0', tr.style.height);
+    });
+    if (table.id === 'nb-sec2') table.setAttribute('data-nb-nostretch', '1');   // 직접 맞춘 높이는 자동으로 늘리지 않음
+  }
 
   function buildGrid(table) {
     var tb = table.tBodies[0];
@@ -697,12 +785,14 @@
   function histUndo() {
     var snap = tblHistory.pop();
     if (snap == null) return;
+    clearSel();
     clearPages();
     doc.innerHTML = snap;
     schedulePaginate();
   }
   // 쪽 구분용 여백을 걷어낸 상태에서 수정하고, 끝나면 쪽 구분을 다시 계산
-  function runTableOp(fn) {
+  function runTableOp(fn, keepSel) {
+    if (!keepSel) clearSel();
     histPush();
     clearPages();
     resetPlanStretch();
@@ -725,7 +815,7 @@
     b.addEventListener('click', function () { closeCtx(); fn(); });
     return b;
   }
-  function openCtx(x, y, td) {
+  function openCtx(x, y, td, sel) {
     closeCtx();
     var table = td.closest('table');
     var g = buildGrid(table);
@@ -737,6 +827,12 @@
     var m = document.createElement('div');
     m.className = 'nb-ctx';
     function head(t) { var h = document.createElement('div'); h.className = 'nb-ctx-head'; h.textContent = t; m.appendChild(h); }
+    if (sel) {
+      head('선택한 ' + selCells.length + '칸');
+      m.appendChild(ctxItem('선택한 칸 너비 같게', 'distribute-horizontal', function () { runTableOp(function () { equalizeWidths(table, selRect); }, true); }, selRect.c1 <= selRect.c0));
+      m.appendChild(ctxItem('선택한 칸 높이 같게', 'distribute-vertical', function () { runTableOp(function () { equalizeHeights(table, selRect); }, true); }, selRect.r1 <= selRect.r0));
+      m.appendChild(ctxItem('선택 해제', 'x-square', function () { clearSel(); }));
+    }
     head('줄');
     m.appendChild(ctxItem('위에 줄 추가', 'arrow-bar-up', function () { runTableOp(function () { insertRow(table, R, false); }); }));
     m.appendChild(ctxItem('아래에 줄 추가', 'arrow-bar-down', function () { runTableOp(function () { insertRow(table, R + rs - 1, true); }); }));
@@ -766,11 +862,48 @@
     var td = e.target.closest ? e.target.closest('td') : null;
     if (!td || !doc.contains(td) || !td.closest('table')) return;
     e.preventDefault();
-    openCtx(e.clientX, e.clientY, td);
+    var inSel = selCells.length > 1 && selCells.indexOf(td) >= 0 && selTable === td.closest('table');
+    if (!inSel) clearSel();
+    openCtx(e.clientX, e.clientY, td, inSel);
   });
   document.addEventListener('mousedown', function (e) { if (ctxEl && !ctxEl.contains(e.target)) closeCtx(); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeCtx(); });
   window.addEventListener('scroll', closeCtx, {passive: true});
+
+  doc.addEventListener('mousedown', function (e) {
+    if (e.button !== 0) return;
+    var td = e.target.closest ? e.target.closest('td') : null;
+    if (!td || !doc.contains(td)) { clearSel(); selAnchor = null; return; }
+    var table = td.closest('table');
+    if (e.shiftKey && selAnchor && selAnchor.closest('table') === table) {   // Shift + 클릭: 처음 클릭한 칸부터 여기까지 선택
+      setSel(table, selAnchor, td);
+      e.preventDefault();
+      return;
+    }
+    if (edgeInfo(e)) return;                                                 // 경계선 끌기는 따로 처리
+    clearSel();
+    selAnchor = td;
+  });
+  document.addEventListener('mousemove', function (e) {
+    if (drag || !selAnchor || e.buttons !== 1) return;
+    var td = e.target.closest ? e.target.closest('td') : null;
+    if (!td || !doc.contains(td)) return;
+    var table = selAnchor.closest('table');
+    var cur = td;                                  // 안쪽 표의 칸이면 같은 표의 칸까지 거슬러 올라감
+    while (cur && cur.closest('table') !== table) cur = cur.parentElement ? cur.parentElement.closest('td') : null;
+    if (!cur || (cur === selAnchor && !selecting)) return;
+    selecting = true;
+    doc.classList.add('nb-selecting');
+    window.getSelection().removeAllRanges();
+    setSel(table, selAnchor, cur);
+  });
+  document.addEventListener('mouseup', function () {
+    if (!selecting) return;
+    selecting = false;
+    doc.classList.remove('nb-selecting');
+    if (selCells.length < 2) clearSel();
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') clearSel(); });
 
   // ----- 칸 경계를 끌어 너비·높이 조절 -----
   var drag = null;
@@ -849,6 +982,7 @@
   function cleanForSave() {
     var clone = doc.cloneNode(true);
     restorePush(clone);   // 쪽 구분 미리보기용 여백은 저장하지 않음
+    clone.querySelectorAll('.nb-sel').forEach(function (e) { e.classList.remove('nb-sel'); });
     return clone.innerHTML;
   }
   // 불러온 HTML에서 스크립트·이벤트 속성 제거
