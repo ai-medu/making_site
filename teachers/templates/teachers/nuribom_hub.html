@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=20">
+<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=23">
 <style>
   body { background: #e9ecef; }
   .nb-bar {
@@ -274,6 +274,10 @@
       td.style.paddingTop = td.getAttribute('data-nb-pt');
       td.removeAttribute('data-nb-pt');
     });
+    root.querySelectorAll('[data-nb-ph]').forEach(function (tr) {
+      tr.style.height = tr.getAttribute('data-nb-ph');
+      tr.removeAttribute('data-nb-ph');
+    });
     root.querySelectorAll('[data-nb-mt]').forEach(function (el) {
       el.style.marginTop = el.getAttribute('data-nb-mt');
       el.removeAttribute('data-nb-mt');
@@ -292,19 +296,15 @@
   function pushDown(unit, h) {
     var el = unit.el;
     if (unit.row) {
+      // 줄 높이를 h만큼 늘리고 칸의 위쪽 여백도 h만큼 늘린다.
+      // → 칸 안의 글자는 '원래 칸 높이' 안에서 세로 가운데 정렬이 유지되고, 늘어난 부분은 쪽 사이 빈 공간이 된다.
       var cells = Array.prototype.slice.call(el.children);
-      cells.forEach(function (td) { td.setAttribute('data-nb-pt', td.style.paddingTop || ''); });
-      var add = h;
-      for (var n = 0; n < 4; n++) {
-        cells.forEach(function (td) {
-          var base = n === 0 ? (parseFloat(getComputedStyle(td).paddingTop) || 0) : parseFloat(td.style.paddingTop);
-          td.style.paddingTop = (base + add) + 'px';
-        });
-        // 줄 높이가 원래 더 컸던 만큼 덜 늘어나므로, 실제로 늘어난 높이를 재서 모자란 만큼 더함
-        var grown = el.getBoundingClientRect().height - (unit.bottom - unit.top);
-        add = h - grown;
-        if (Math.abs(add) < 0.5) break;
-      }
+      cells.forEach(function (td) {
+        td.setAttribute('data-nb-pt', td.style.paddingTop || '');
+        td.style.paddingTop = (parseFloat(getComputedStyle(td).paddingTop) || 0) + h + 'px';
+      });
+      el.setAttribute('data-nb-ph', el.style.height || '');
+      el.style.height = (unit.h0 + h).toFixed(2) + 'px';
     } else {
       el.setAttribute('data-nb-mt', el.style.marginTop || '');
       el.style.marginTop = (parseFloat(getComputedStyle(el).marginTop) || 0) + h + 'px';
@@ -336,7 +336,7 @@
               tr.classList.toggle('nb-pagebreak', brk && k === 0);   // 인쇄(PDF)에서도 같은 위치에서 쪽 나눔
               tr.classList.toggle('nb-keep', k > 0);                 // 인쇄에서 묶음 중간에서 쪽이 나뉘지 않게
             });
-            units.push({el: first, els: rs, last: last, row: true, first: gi === 0, table: t,
+            units.push({el: first, els: rs, last: last, row: true, h0: fr.height, first: gi === 0, table: t,
                         top: fr.top - docTop, bottom: lr.bottom - docTop, forced: brk});
           });
         });
@@ -429,8 +429,14 @@
     var rect = function (el) { return el.getBoundingClientRect(); };
     // 문서 2쪽: 제목 줄부터 '운영방법' 줄 앞까지
     stretchRows(g.p2, rect(g.all[g.oper - 1]).bottom - rect(g.all[0]).top);
-    // 문서 3쪽: '운영방법' 줄부터 표 끝까지
-    stretchRows(g.p3, rect(g.all[g.all.length - 1]).bottom - rect(g.all[g.oper]).top);
+    // 문서 3쪽: '운영방법' 줄부터 표 끝까지 (표 뒤에 붙은 빈 문단 높이도 같은 쪽에 들어가므로 포함)
+    var tail = 0, nx = planTable().parentElement.nextElementSibling;
+    while (nx && !nx.querySelector(':scope > table.hwp-tbl')) {
+      var cs = getComputedStyle(nx);
+      tail += rect(nx).height + (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0);
+      nx = nx.nextElementSibling;
+    }
+    stretchRows(g.p3, rect(g.all[g.all.length - 1]).bottom + tail - rect(g.all[g.oper]).top);
   }
 
   function paginate() {
