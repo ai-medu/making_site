@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=23">
+<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=24">
 <style>
   body { background: #e9ecef; }
   .nb-bar {
@@ -1256,6 +1256,62 @@
     var sp = nameSpan(); if (!sp) return;
     sp.textContent = list.length ? list.join(' & ') : '\u200b';
   }
+  // ---------- 교재 및 콘텐츠의 '재료' 칸: 로봇과학 / 로봇코딩을 고르면 기본 재료가 들어감 ----------
+  var ROBOT_MATERIALS = [
+    ['큐보', '큐보', '85,000', '단계별'],
+    ['올로AI', '로보티즈', '85,000', '단계별'],
+    ['엑스로보', '엑스로보', '90,000', '단계별'],
+    ['커넥트', '프로보', '90,000', '단계별'],
+    ['테크닉', '프로보', '95,000~99,000', '단계별'],
+    ['공구함', '아트키트', '20,000', '단계별']
+  ];
+  function materialsBlock() {
+    var t = planTable(); if (!t) return null;
+    var rows = Array.prototype.slice.call(t.tBodies[0].rows);
+    var hi = rows.findIndex(function (r) { return r.children[0] && normT(r.children[0].textContent) === '재료'; });
+    if (hi < 0) return null;
+    var label = r0label(rows[hi]);
+    var n = Math.max(1, (label.rowSpan || 2) - 1);
+    return {label: label, head: rows[hi], rows: rows.slice(hi + 1, hi + 1 + n)};
+  }
+  function r0label(tr) { return tr.children[0]; }
+  function currentMaterials() {
+    var m = materialsBlock(); if (!m) return [];
+    return m.rows.map(function (tr) {
+      return Array.prototype.map.call(tr.children, function (td) { return td.textContent.replace(/[\s\u200b]/g, ''); });
+    });
+  }
+  function isBlankMaterials(list) { return list.every(function (r) { return r.every(function (x) { return x === ''; }); }); }
+  function sameAsRobotPreset(list) {
+    if (list.length !== ROBOT_MATERIALS.length) return false;
+    return list.every(function (r, i) { return r.every(function (x, k) { return x === ROBOT_MATERIALS[i][k].replace(/\s/g, ''); }); });
+  }
+  function setMaterials(items) {
+    var m = materialsBlock(); if (!m || !m.rows.length) return;
+    if (!items.length) items = [['', '', '', '']];
+    var proto = m.rows[0].cloneNode(true);
+    m.rows.slice(1).forEach(function (r) { r.remove(); });
+    var prev = m.rows[0];
+    items.forEach(function (it, i) {
+      var tr = prev;
+      if (i > 0) { tr = proto.cloneNode(true); prev.parentNode.insertBefore(tr, prev.nextSibling); }
+      Array.prototype.forEach.call(tr.children, function (td, k) { setCell(td, it[k] || ''); });
+      prev = tr;
+    });
+    m.label.rowSpan = 1 + items.length;
+  }
+  // 프로그램 선택에 따라 재료 칸 정리: 로봇과학·로봇코딩이면 기본 재료, 아니면(기본 재료 그대로일 때만) 비움
+  function applyMaterials(programs) {
+    var robot = programs.some(function (x) { return /로봇과학|로봇코딩/.test(x); });
+    var cur = currentMaterials();
+    if (robot) {
+      if (isBlankMaterials(cur) || sameAsRobotPreset(cur) || confirm('재료 칸에 직접 입력한 내용이 있습니다.\n로봇과학·로봇코딩 기본 재료로 바꿀까요?')) setMaterials(ROBOT_MATERIALS);
+    } else if (sameAsRobotPreset(cur)) {
+      setMaterials([]);
+    }
+    schedulePaginate();
+  }
+
   // 칸 안 내용을 줄 단위로 채움: 줄마다 문단 하나 (원본처럼 '- ' 줄이 내어쓰기 정렬되도록), 첫 문단의 서식을 따름
   function setCellLines(td, lines) {
     var cell = td.querySelector('.cell'); if (!cell) return;
@@ -1400,6 +1456,7 @@
     addCustomProgram();                       // 입력칸에 쓰다 만 것도 포함
     var programs = progSel.slice();
     setProgramName(programs);                 // 프로그램명은 바로 반영
+    applyMaterials(programs);                 // 로봇과학·로봇코딩이면 재료 칸에 기본 재료
     var auto = document.getElementById('nbProgAuto').checked;
     if (!programs.length || !auto) {
       if (!programs.length && auto) setPlanStructure('simple');   // 선택을 모두 해제하면 안내 문구가 있는 처음 모양으로
