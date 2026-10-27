@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}{{ plan.title }} 연간계획서{% endblock %}
+{% block content %}
+<div class="container mt-4 mb-5">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-2">
+      <li class="breadcrumb-item"><a href="{% url 'plan_list' %}" class="text-decoration-none text-muted">연간계획서</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'plan_list' %}?cat={{ plan.category }}" class="text-decoration-none text-muted">{{ plan.get_category_display }}</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{{ plan.title }}</li>
+    </ol>
+  </nav>
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <div>
+      <h3 class="mb-1">{{ plan.title }}</h3>
+      {% if plan.description %}<div class="text-muted small">{{ plan.description }}</div>{% endif %}
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'plan_file' plan.pk %}" target="_blank" class="btn btn-outline-secondary btn-sm"><i class="bi bi-box-arrow-up-right me-1"></i>새 창에서 보기</a>
+      <a href="{% url 'plan_file' plan.pk %}?download=1" class="btn btn-primary btn-sm"><i class="bi bi-download me-1"></i>다운로드</a>
+      <a href="{% url 'plan_list' %}?cat={{ plan.category }}" class="btn btn-outline-dark btn-sm"><i class="bi bi-list me-1"></i>목록</a>
+    </div>
+  </div>
+  <div id="pdfBox" class="border rounded-3 bg-light p-2" style="min-height: 60vh;">
+    <div id="pdfStatus" class="text-center text-muted py-5">
+      <div class="spinner-border spinner-border-sm me-2"></div>연간계획서를 불러오는 중입니다…
+    </div>
+    <div id="pdfPages" class="d-flex flex-column align-items-center gap-2"></div>
+  </div>
+  <div class="small text-muted mt-2">화면에 보이지 않으면 [새 창에서 보기] 또는 [다운로드]를 이용해주세요.</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+(function () {
+  var URL_FILE = "{% url 'plan_file' plan.pk %}";
+  var box = document.getElementById('pdfBox');
+  var pages = document.getElementById('pdfPages');
+  var status = document.getElementById('pdfStatus');
+  var doc = null, token = 0;
+
+  function fail(msg) {
+    status.className = 'text-center text-muted py-5';
+    status.innerHTML = msg;
+  }
+  function renderAll() {
+    if (!doc) return;
+    var my = ++token;
+    var width = box.clientWidth - 16;
+    pages.innerHTML = '';
+    var chain = Promise.resolve();
+    for (var n = 1; n <= doc.numPages; n++) {
+      (function (num) {
+        chain = chain.then(function () {
+          if (my !== token) return;
+          return doc.getPage(num).then(function (page) {
+            if (my !== token) return;
+            var base = page.getViewport({scale: 1});
+            var scale = Math.min(width / base.width, 2.2);
+            var ratio = window.devicePixelRatio || 1;
+            var vp = page.getViewport({scale: scale * ratio});
+            var canvas = document.createElement('canvas');
+            canvas.width = Math.floor(vp.width); canvas.height = Math.floor(vp.height);
+            canvas.style.width = Math.floor(vp.width / ratio) + 'px';
+            canvas.style.height = Math.floor(vp.height / ratio) + 'px';
+            canvas.className = 'bg-white shadow-sm';
+            pages.appendChild(canvas);
+            return page.render({canvasContext: canvas.getContext('2d'), viewport: vp}).promise;
+          });
+        });
+      })(n);
+    }
+    chain.then(function () { if (my === token) status.classList.add('d-none'); });
+  }
+
+  if (!window.pdfjsLib) { fail('PDF 보기 도구를 불러오지 못했습니다. 위의 [새 창에서 보기] 또는 [다운로드]를 이용해주세요.'); return; }
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  pdfjsLib.getDocument({
+    url: URL_FILE, withCredentials: true,
+    cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/', cMapPacked: true
+  }).promise.then(function (d) {
+    doc = d; renderAll();
+  }).catch(function () {
+    fail('연간계획서를 화면에 표시하지 못했습니다. 위의 [새 창에서 보기] 또는 [다운로드]를 이용해주세요.');
+  });
+  var rt = null, lastW = box.clientWidth;
+  window.addEventListener('resize', function () {
+    clearTimeout(rt);
+    rt = setTimeout(function () { if (box.clientWidth !== lastW) { lastW = box.clientWidth; renderAll(); } }, 250);
+  });
+})();
+</script>
+{% endblock %}

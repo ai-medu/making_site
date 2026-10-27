@@ -51,3 +51,91 @@ def robot_xrobo(request):
 @user_passes_test(is_staff_or_teacher)
 def robot_jrobo(request):
     return render(request, "class_resources/robot/jrobo.html")
+
+# ---------------------------------------------------------------------------
+# 연간계획서 (PDF)
+# ---------------------------------------------------------------------------
+from django import forms
+from django.contrib import messages
+from django.http import FileResponse, Http404
+from django.shortcuts import get_object_or_404, redirect
+from django.views.decorators.http import require_POST
+
+from .models import AnnualPlan
+
+PLAN_MAX_BYTES = 11 * 1024 * 1024   # 서버(nginx) 업로드 제한 12MB 안쪽
+
+
+class AnnualPlanForm(forms.ModelForm):
+    class Meta:
+        model = AnnualPlan
+        fields = ["title", "category", "description", "pdf", "order"]
+
+    def clean_pdf(self):
+        f = self.cleaned_data["pdf"]
+        if hasattr(f, "size") and not hasattr(f, "instance"):
+            if not f.name.lower().endswith(".pdf"):
+                raise forms.ValidationError("PDF 파일만 올릴 수 있습니다.")
+            if f.size > PLAN_MAX_BYTES:
+                raise forms.ValidationError("파일이 너무 큽니다. (최대 11MB)")
+            head = f.read(5)
+            f.seek(0)
+            if head != b"%PDF-":
+                raise forms.ValidationError("올바른 PDF 파일이 아닙니다.")
+        return f
+
+
+@login_required
+@user_passes_test(is_staff_or_teacher)
+def plan_list(request):
+    cat = request.GET.get("cat", "")
+    plans = AnnualPlan.objects.all()
+    if cat in dict(AnnualPlan.CATEGORIES):
+        plans = plans.filter(category=cat)
+    else:
+        cat = ""
+    return render(request, "class_resources/plan_list.html", {
+        "plans": plans, "cat": cat, "categories": AnnualPlan.CATEGORIES,
+    })
+
+
+@login_required
+@user_passes_test(is_staff_or_teacher)
+def plan_detail(request, pk):
+    return render(request, "class_resources/plan_detail.html", {"plan": get_object_or_404(AnnualPlan, pk=pk)})
+
+
+@login_required
+@user_passes_test(is_staff_or_teacher)
+def plan_file(request, pk):
+    """PDF 보기(미리보기) / 다운로드(?download=1)"""
+    plan = get_object_or_404(AnnualPlan, pk=pk)
+    if not plan.pdf:
+        raise Http404
+    resp = FileResponse(plan.pdf.open("rb"), as_attachment=request.GET.get("download") == "1",
+                        filename=f"{plan.title}.pdf", content_type="application/pdf")
+    resp["X-Content-Type-Options"] = "nosniff"
+    resp["Cache-Control"] = "private, no-store"
+    return resp
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def plan_create(request):
+    form = AnnualPlanForm(request.POST or None, request.FILES or None, initial={"category": request.GET.get("cat", "robot")})
+    if request.method == "POST" and form.is_valid():
+        plan = form.save()
+        messages.success(request, f"'{plan.title}' 연간계획서를 등록했습니다.")
+        return redirect("plan_list")
+    return render(request, "class_resources/plan_form.html", {"form": form})
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+@require_POST
+def plan_delete(request, pk):
+    plan = get_object_or_404(AnnualPlan, pk=pk)
+    title = plan.title
+    plan.delete()
+    messages.success(request, f"'{title}' 연간계획서를 삭제했습니다.")
+    return redirect("plan_list")

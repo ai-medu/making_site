@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}연간계획서{% endblock %}
+{% block content %}
+<style>
+  .plan-filter .btn { border-radius: 20px; padding: .35rem 1rem; }
+  .plan-card { border: none; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,.07); transition: transform .2s, box-shadow .2s; overflow: hidden; }
+  .plan-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,.13); }
+  .plan-card .plan-top { height: 96px; display: flex; align-items: center; justify-content: center; font-size: 2.6rem; color: #fff; }
+  .plan-card a.stretched-link { text-decoration: none; }
+  .plan-robot .plan-top { background: linear-gradient(135deg, #0d6efd, #6ea8fe); }
+  .plan-science .plan-top { background: linear-gradient(135deg, #198754, #75b798); }
+  .plan-math .plan-top { background: linear-gradient(135deg, #fd7e14, #feb272); }
+  .plan-3dpen .plan-top { background: linear-gradient(135deg, #6f42c1, #a98eda); }
+  .plan-drone .plan-top { background: linear-gradient(135deg, #0dcaf0, #6edff6); }
+</style>
+
+<div class="container mt-4 mb-5">
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <h3 class="mb-0"><i class="bi bi-calendar3-range me-2"></i>연간계획서</h3>
+    {% if request.user.is_staff %}
+      <a href="{% url 'plan_create' %}{% if cat %}?cat={{ cat }}{% endif %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>연간계획서 등록</a>
+    {% endif %}
+  </div>
+
+  <div class="plan-filter d-flex flex-wrap gap-2 mb-4">
+    <a href="{% url 'plan_list' %}" class="btn btn-sm {% if not cat %}btn-dark{% else %}btn-outline-dark{% endif %}">전체</a>
+    {% for value, label in categories %}
+      <a href="?cat={{ value }}" class="btn btn-sm {% if cat == value %}btn-dark{% else %}btn-outline-dark{% endif %}">{{ label }}</a>
+    {% endfor %}
+  </div>
+
+  {% if plans %}
+  <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xl-4 g-3">
+    {% for plan in plans %}
+    <div class="col">
+      <div class="card plan-card plan-{{ plan.category }} h-100 position-relative">
+        <div class="plan-top">
+          {% if plan.category == 'robot' %}<i class="bi bi-robot"></i>
+          {% elif plan.category == 'science' %}<i class="bi bi-flask"></i>
+          {% elif plan.category == 'math' %}<i class="bi bi-calculator"></i>
+          {% elif plan.category == '3dpen' %}<i class="bi bi-pen"></i>
+          {% else %}<i class="bi bi-airplane"></i>{% endif %}
+        </div>
+        <div class="card-body">
+          <span class="badge text-bg-light border mb-2">{{ plan.get_category_display }}</span>
+          <h5 class="card-title fw-semibold mb-1">{{ plan.title }}</h5>
+          {% if plan.description %}<p class="card-text small text-muted mb-0">{{ plan.description }}</p>{% endif %}
+          <a href="{% url 'plan_detail' plan.pk %}" class="stretched-link" aria-label="{{ plan.title }} 보기"></a>
+        </div>
+        <div class="card-footer bg-white border-0 pt-0 pb-3 d-flex justify-content-between align-items-center position-relative" style="z-index:2">
+          <span class="small text-primary"><i class="bi bi-file-earmark-pdf me-1"></i>연간계획서 보기</span>
+          {% if request.user.is_staff %}
+          <form method="post" action="{% url 'plan_delete' plan.pk %}" onsubmit="return confirm('\'{{ plan.title|escapejs }}\' 연간계획서를 삭제할까요?');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" title="삭제"><i class="bi bi-trash"></i></button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-center text-muted py-5">
+    <i class="bi bi-inbox display-4 d-block mb-2"></i>
+    등록된 연간계획서가 없습니다.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

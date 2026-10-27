@@ -51,6 +51,11 @@ def populate_menus():
             access_level="teacher"
         )
 
+    MenuItem.objects.get_or_create(
+        title="연간계획서", url="/resources/plans/", order=len(resource_categories) + 1,
+        parent=m_class_resources, access_level="teacher"
+    )
+
 
 
     # --- [관리자 전용] 관리 ---
