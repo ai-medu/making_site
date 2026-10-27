@@ -57,7 +57,7 @@ def robot_jrobo(request):
 # ---------------------------------------------------------------------------
 from django import forms
 from django.contrib import messages
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.views.decorators.http import require_POST
 
@@ -139,3 +139,39 @@ def plan_delete(request, pk):
     plan.delete()
     messages.success(request, f"'{title}' 연간계획서를 삭제했습니다.")
     return redirect("plan_list")
+
+
+@login_required
+@user_passes_test(is_staff_or_teacher)
+def plan_api_list(request):
+    """늘봄허브 연간 활동 지도 계획안에서 고를 수 있는 연간계획서 목록"""
+    return JsonResponse({"plans": [
+        {"id": p.pk, "title": p.title, "category": p.category, "category_label": p.get_category_display(),
+         "description": p.description}
+        for p in AnnualPlan.objects.all()
+    ]})
+
+
+@login_required
+@user_passes_test(is_staff_or_teacher)
+@require_POST
+def plan_api_rows(request, pk):
+    """선택한 연간계획서(PDF)를 읽어 주별 주제·내용 일부(start부터 count개)를 표 칸 크기에 맞게 작성"""
+    import json
+    from teachers.services.doc_extract import ExtractError
+    from teachers.services.plan_generate import generate_plan_rows
+
+    plan = get_object_or_404(AnnualPlan, pk=pk)
+    try:
+        p = json.loads(request.body or b"{}")
+        args = [p.get(k) for k in ("start", "count", "total", "topic_max", "line_max")]
+    except ValueError:
+        return JsonResponse({"ok": False, "error": "요청을 읽지 못했습니다."}, status=400)
+    try:
+        with plan.pdf.open("rb") as f:
+            rows = generate_plan_rows(f.read(), plan.title, *args)
+    except ExtractError as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    except (OSError, ValueError):
+        return JsonResponse({"ok": False, "error": "계획서 파일을 열 수 없습니다."}, status=400)
+    return JsonResponse({"ok": True, "rows": rows})

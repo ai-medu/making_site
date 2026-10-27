@@ -318,3 +318,63 @@ def generate_section(section, programs, options, current, materials="", flat=Fal
     o = dict(data)
     o["time"] = o.pop("operation_time", "")
     return {"operation": normalize({"operation": o})["operation"]}
+
+
+# ---------------------------------------------------------------------------
+# 연간 활동 지도 계획안: 등록된 연간계획서(PDF)를 읽어 주(週)별 '주제 / 내용'으로 정리
+# ---------------------------------------------------------------------------
+import base64
+
+PLAN_ROWS_SCHEMA = _obj({"rows": {"type": "ARRAY", "items": _obj({"topic": _s(), "lines": _arr()})}})
+MAX_PLAN_PDF = 8 * 1024 * 1024
+
+
+def _plan_rows_prompt(title, start, end, total, topic_max, line_max):
+    return f"""첨부한 PDF는 '{title}' 연간(운영) 계획서입니다. 차시(수업 회차)별 학습 주제와 학습 내용이 들어 있습니다.
+이 계획서를 바탕으로 강사 제출 서류의 '연간 활동 지도 계획안' 표를 작성합니다.
+표는 1주에 1차시씩, 총 {total}주(행)입니다. 이번에는 {start}번째 주부터 {end}번째 주까지({end - start + 1}개 행)만 작성하세요.
+
+[대응 규칙]
+- 계획서의 차시 순서를 그대로 따라 1주 = 1차시로 대응합니다. (n번째 주 = 계획서의 n번째 차시)
+- 계획서에서 한 주제가 여러 차시에 걸쳐 있으면, 그 학습 내용을 차시별 단계(개념 학습 → 제작 → 동작·실험 등)로 나누어 각 주에 배분합니다. 같은 주제가 이어지면 주제 끝에 (1), (2)처럼 순서를 붙여도 됩니다. 계획서에 없는 활동을 새로 지어내지 마세요.
+- 계획서의 전체 차시 수가 {total}보다 많으면 인접한 차시를 묶어 {total}주 안에 들어가게 하고, 적으면 남는 주는 topic과 lines를 빈 값으로 둡니다.
+- 차시 번호가 건너뛰어 있거나 표가 여러 쪽에 나뉘어 있어도 계획서 전체를 순서대로 읽습니다.
+
+[분량 - 표 칸이 좁으므로 반드시 지킴]
+- topic(주제): 한 줄, 공백 포함 {topic_max}자 이내. 질문형 제목은 의미를 유지하며 짧게 줄입니다.
+- lines(내용): 정확히 2줄(배열 2개). 각 줄은 공백 포함 {line_max}자 이내의 한 문장이며 '~합니다 / ~해 봅니다' 문체로 씁니다. 줄 앞에 기호(*, -, ▷)는 붙이지 않습니다.
+- 응답은 rows 배열에 {start}번째 주부터 순서대로 정확히 {end - start + 1}개 항목을 담습니다."""
+
+
+def generate_plan_rows(pdf_bytes, title, start, count, total, topic_max, line_max):
+    if len(pdf_bytes) > MAX_PLAN_PDF:
+        raise ExtractError("계획서 파일이 너무 커서 읽을 수 없습니다.")
+    try:
+        start, count, total = int(start), int(count), int(total)
+        topic_max, line_max = int(topic_max), int(line_max)
+    except (TypeError, ValueError):
+        raise ExtractError("요청을 읽지 못했습니다.")
+    if not (1 <= count <= 24 and 1 <= start <= total <= 60):
+        raise ExtractError("요청 범위가 올바르지 않습니다.")
+    topic_max = max(8, min(topic_max, 60))
+    line_max = max(10, min(line_max, 80))
+    end = min(total, start + count - 1)
+    body = {
+        "contents": [{"parts": [
+            {"inline_data": {"mime_type": "application/pdf", "data": base64.b64encode(pdf_bytes).decode()}},
+            {"text": _plan_rows_prompt(str(title)[:80], start, end, total, topic_max, line_max)},
+        ]}],
+        "generationConfig": {
+            "temperature": 0.3, "maxOutputTokens": 8192,
+            "responseMimeType": "application/json", "responseSchema": PLAN_ROWS_SCHEMA,
+        },
+    }
+    data = _call_json(body, call_timeout=15)   # 멈춘 호출은 15초에 포기하고 다른 키로 한 번 더
+    rows = []
+    for r in (data.get("rows") if isinstance(data, dict) else None) or []:
+        topic = " ".join(str(r.get("topic") or "").split())[:topic_max + 6]
+        lines = [" ".join(str(x).split()).lstrip("*-▷· ").strip() for x in (r.get("lines") or []) if str(x).strip()]
+        rows.append({"topic": topic, "lines": [x[:line_max + 8] for x in lines[:2]]})
+    want = end - start + 1
+    rows = rows[:want] + [{"topic": "", "lines": []}] * max(0, want - len(rows))
+    return rows

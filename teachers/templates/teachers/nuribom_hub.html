@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=30">
+<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=31">
 <style>
   body { background: #e9ecef; }
   .nb-bar {
@@ -48,6 +48,9 @@
     width: 794px; margin: 0; background: #fff; padding: 75.6px;
     box-sizing: border-box; box-shadow: 0 2px 12px rgba(0,0,0,.18);
   }
+  /* 연간 활동 지도 계획안: 글자를 조금 키우고 줄 사이를 넉넉하게 (2쪽 안에 들어가도록 칸 위아래 여백은 줄임) */
+  #nb-sec3 .c1, #nb-sec3 .c5 { font-size: 9.5pt; }
+  #nb-sec3 .p5, #nb-sec3 .p55 { line-height: 1.3; }
   #nbOverlay { position: absolute; left: 0; top: 0; right: 0; height: 0; pointer-events: none; }
   #nbAiLayer { position: absolute; left: 0; top: 0; right: 0; height: 0; pointer-events: none; z-index: 6; }
   .nb-ai-btn {
@@ -230,6 +233,27 @@
       <div class="modal-footer py-2">
         <button type="button" class="btn btn-secondary btn-sm" id="nbAiCancel" data-bs-dismiss="modal">취소</button>
         <button type="button" class="btn btn-primary btn-sm" id="nbAiGo"><i class="bi bi-stars me-1"></i>내용 생성</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="nbPlanPickModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="bi bi-calendar3-range me-1"></i> 연간계획서 선택</h6>
+        <button type="button" class="btn-close" id="nbPlanPickClose" data-bs-dismiss="modal" aria-label="닫기"></button>
+      </div>
+      <div class="modal-body">
+        <div class="small text-muted mb-2">선택한 연간계획서를 바탕으로 아래 표의 <b>주제·내용</b>을 칸 크기에 맞게 정리해서 채웁니다. 현재 입력된 주제·내용은 바뀝니다. (되돌리기 가능)</div>
+        <div class="d-flex flex-wrap gap-1 mb-2" id="nbPlanPickFilter"></div>
+        <div id="nbPlanPickList" class="border rounded-2" style="min-height:80px"></div>
+        <div class="small mt-3 d-none" id="nbPlanPickStatus"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-secondary btn-sm" id="nbPlanPickCancel" data-bs-dismiss="modal">취소</button>
+        <button type="button" class="btn btn-primary btn-sm" id="nbPlanPickGo" disabled><i class="bi bi-stars me-1"></i>주제·내용 채우기</button>
       </div>
     </div>
   </div>
@@ -499,10 +523,22 @@
       real.forEach(function (u) { maxUnit = Math.max(maxUnit, u.bottom - u.top); });
       var target = isPlan ? 2 * PAGE_H - maxUnit : PAGE_H;                // 묶음 단위로 나뉘므로 한 묶음만큼 여유를 둠
       function height() { return last.getBoundingClientRect().bottom - first.getBoundingClientRect().top; }
-      for (var i = 0; i < FIT_STEPS.length; i++) {
-        setScale(els, FIT_STEPS[i][0], FIT_STEPS[i][1]);
-        if (height() <= target) return;
+      var steps = isPlan ? FIT_STEPS.slice(0, 2) : FIT_STEPS;     // 연간 계획안은 줄 간격을 조금만 줄임 (글자는 그대로)
+      // 연간 계획안은 월 묶음 단위로 쪽이 나뉘므로, 실제로 몇 쪽이 되는지 쌓아 보고 판단
+      var planPages = function () {
+        var used = 0, pages = 1;
+        collectUnits().forEach(function (u) {
+          if (u.soft || !u.row || u.table.id !== 'nb-sec3') return;
+          var h = u.bottom - u.top;
+          if (used + h > PAGE_H - 2) { pages++; used = h; } else used += h;
+        });
+        return pages;
+      };
+      for (var i = 0; i < steps.length; i++) {
+        setScale(els, steps[i][0], steps[i][1]);
+        if (isPlan ? planPages() <= 2 : height() <= target) return;
       }
+      if (isPlan) setScale(els, 1, 1);                              // 그래도 넘치면 읽기 좋은 크기로 두고 다음 쪽까지 이어짐
     });
   }
 
@@ -557,8 +593,18 @@
     paginateCore();
     if (window.nbPlaceAi) window.nbPlaceAi();
   }
+  // 연간 활동 지도 계획안의 주별 줄은 칸 위아래 여백을 줄여 2쪽 안에 넉넉한 글자 크기로 들어가게 함
+  function tightenPlanRows() {
+    var t = document.getElementById('nb-sec3'); if (!t) return;
+    Array.prototype.slice.call(t.querySelectorAll(':scope > tbody > tr')).slice(2).forEach(function (tr) {
+      Array.prototype.forEach.call(tr.children, function (td) {
+        if (td.style.paddingTop !== '1px') { td.style.paddingTop = '1px'; td.style.paddingBottom = '1px'; }
+      });
+    });
+  }
   function paginateCore() {
     clearPages();
+    tightenPlanRows();
     resetPlanStretch();
     // 쪽 구성 맞추기 (쪽 구분 표시를 꺼도 인쇄 결과는 같도록 항상 적용)
     fitSegments(collectUnits());
@@ -1944,9 +1990,132 @@
     }).then(function () { clearInterval(aiTimer); aiLock(false); });
   });
 
+  // ---------- 연간 활동 지도 계획안: 등록된 연간계획서를 골라 주제·내용 채우기 ----------
+  function planWeekRows() {
+    var t = document.getElementById('nb-sec3'); if (!t) return [];
+    var rows = Array.prototype.slice.call(t.querySelectorAll(':scope > tbody > tr'));
+    return rows.slice(2).filter(function (tr) {       // 첫 줄은 제목, 둘째 줄은 '월/주/주제/내용/비고'
+      var n = tr.children.length, wk = tr.children[n - 4];
+      return (n === 4 || n === 5) && wk && /^\d+$/.test(wk.textContent.replace(/[\s\u200b]/g, ''));
+    });
+  }
+  // 주제·내용 칸에 한 줄로 들어갈 글자 수 (칸 너비와 글자 크기로 계산)
+  function planLimits() {
+    var t = document.getElementById('nb-sec3'), cols = t ? t.querySelectorAll('colgroup > col') : [];
+    var wTopic = parseFloat(cols[2] && cols[2].style.width) || 165, wBody = parseFloat(cols[3] && cols[3].style.width) || 350;
+    var px = 9.5 * 96 / 72;
+    return {
+      topic_max: Math.max(8, Math.floor((wTopic - 14) / px) * 2 - 2),   // 두 줄까지
+      line_max: Math.max(12, Math.floor((wBody - 14) / px) - 1)          // 한 줄
+    };
+  }
+  var planPickEl = document.getElementById('nbPlanPickModal');
+  var planPickList = document.getElementById('nbPlanPickList');
+  var planPickGo = document.getElementById('nbPlanPickGo');
+  var planPickSel = null, planPickCat = '', planPickPlans = [], planPickBusy = null;
+  function planPickStatus(msg, cls) {
+    var el = document.getElementById('nbPlanPickStatus');
+    el.className = 'small mt-3 ' + (cls || 'text-muted');
+    el.textContent = msg;
+    el.classList.toggle('d-none', !msg);
+  }
+  function planPickLock(b) {
+    ['nbPlanPickGo', 'nbPlanPickCancel', 'nbPlanPickClose'].forEach(function (id) { document.getElementById(id).disabled = b; });
+    if (!b) planPickGo.disabled = !planPickSel;
+  }
+  function renderPlanPick() {
+    var cats = [];
+    planPickPlans.forEach(function (p) { if (!cats.some(function (c) { return c[0] === p.category; })) cats.push([p.category, p.category_label]); });
+    var f = document.getElementById('nbPlanPickFilter'); f.innerHTML = '';
+    [['', '전체']].concat(cats).forEach(function (c) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'btn btn-sm ' + (planPickCat === c[0] ? 'btn-dark' : 'btn-outline-dark');
+      b.textContent = c[1];
+      b.addEventListener('click', function () { planPickCat = c[0]; renderPlanPick(); });
+      f.appendChild(b);
+    });
+    planPickList.innerHTML = '';
+    var shown = planPickPlans.filter(function (p) { return !planPickCat || p.category === planPickCat; });
+    if (!shown.length) { planPickList.innerHTML = '<div class="text-muted small p-3">등록된 연간계획서가 없습니다.</div>'; }
+    shown.forEach(function (p) {
+      var row = document.createElement('label');
+      row.className = 'd-flex align-items-start gap-2 p-2 border-bottom';
+      row.style.cursor = 'pointer';
+      var rd = document.createElement('input');
+      rd.type = 'radio'; rd.name = 'nbPlanPick'; rd.className = 'form-check-input mt-1'; rd.checked = planPickSel === p.id;
+      rd.addEventListener('change', function () { planPickSel = p.id; planPickGo.disabled = false; });
+      var tx = document.createElement('div'); tx.className = 'small';
+      var t1 = document.createElement('div'); t1.className = 'fw-semibold';
+      t1.textContent = p.title;
+      var bd = document.createElement('span'); bd.className = 'badge text-bg-light border ms-2'; bd.textContent = p.category_label;
+      t1.appendChild(bd);
+      var t2 = document.createElement('div'); t2.className = 'text-muted'; t2.textContent = p.description || '';
+      tx.appendChild(t1); tx.appendChild(t2);
+      row.appendChild(rd); row.appendChild(tx);
+      planPickList.appendChild(row);
+    });
+  }
+  function openPlanPick() {
+    planPickSel = null; planPickCat = ''; planPickGo.disabled = true;
+    planPickStatus(''); planPickLock(false);
+    planPickList.innerHTML = '<div class="text-muted small p-3">불러오는 중…</div>';
+    bootstrap.Modal.getOrCreateInstance(planPickEl).show();
+    fetch("{% url 'plan_api_list' %}", {credentials: 'same-origin'})
+      .then(function (r) { return r.json(); })
+      .then(function (j) { planPickPlans = j.plans || []; renderPlanPick(); })
+      .catch(function () { planPickList.innerHTML = '<div class="text-danger small p-3">목록을 불러오지 못했습니다.</div>'; });
+  }
+  function applyPlanRows(rows) {
+    var weeks = planWeekRows();
+    histPush(); clearPages(); resetPlanStretch();
+    weeks.forEach(function (tr, i) {
+      var r = rows[i] || {topic: '', lines: []};
+      var n = tr.children.length;
+      setCellLines(tr.children[n - 3], r.topic ? [r.topic] : []);
+      setCellLines(tr.children[n - 2], (r.lines || []).map(function (x) { return '*' + x; }));
+      tr.style.height = '35px';                  // 내용에 맞게 줄 높이를 같게 (내용이 길면 자동으로 늘어남)
+    });
+    schedulePaginate();
+  }
+  planPickGo.addEventListener('click', function () {
+    var weeks = planWeekRows();
+    if (!planPickSel || !weeks.length) { planPickStatus('채울 주(週) 줄을 찾지 못했습니다.', 'text-danger'); return; }
+    var lim = planLimits(), total = weeks.length, CH = 16, chunks = [];
+    for (var s0 = 1; s0 <= total; s0 += CH) chunks.push([s0, Math.min(CH, total - s0 + 1)]);
+    var all = [], idx = 0, t0 = Date.now();
+    planPickLock(true);
+    clearInterval(planPickBusy);
+    planPickBusy = setInterval(function () {
+      planPickStatus('AI가 연간계획서를 읽고 정리하고 있습니다… (' + Math.min(idx + 1, chunks.length) + '/' + chunks.length + ') ' + Math.floor((Date.now() - t0) / 1000) + '초', 'text-primary');
+    }, 500);
+    function next() {
+      if (idx >= chunks.length) return Promise.resolve(true);
+      var c = chunks[idx];
+      return fetch("{% url 'plan_api_rows' 0 %}".replace('/0/', '/' + planPickSel + '/'), {
+        method: 'POST', credentials: 'same-origin',
+        headers: {'X-CSRFToken': csrf(), 'Content-Type': 'application/json'},
+        body: JSON.stringify({start: c[0], count: c[1], total: total, topic_max: lim.topic_max, line_max: lim.line_max})
+      }).then(function (r) {
+        return r.json().catch(function () { return {ok: false, error: '서버 응답을 읽지 못했습니다. (오류 ' + r.status + ')'}; });
+      }).then(function (j) {
+        if (!j.ok) { planPickStatus('작성에 실패했습니다: ' + (j.error || '') + ' (다시 [주제·내용 채우기]를 눌러 재시도할 수 있습니다.)', 'text-danger'); return false; }
+        all = all.concat(j.rows || []);
+        idx++;
+        return next();
+      });
+    }
+    next().then(function (ok) {
+      if (!ok) return;
+      applyPlanRows(all);
+      bootstrap.Modal.getOrCreateInstance(planPickEl).hide();
+    }).catch(function () {
+      planPickStatus('작성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', 'text-danger');
+    }).then(function () { clearInterval(planPickBusy); planPickLock(false); });
+  });
+
   // 각 항목 아래쪽 오른쪽에 'AI 활용' 버튼 (문서 밖 레이어라서 저장·PDF에는 들어가지 않음)
   var aiLayer = document.getElementById('nbAiLayer');
-  function nbPlaceAi() {
+  var nbPlaceAi = function () {
     aiLayer.innerHTML = '';
     var sheet = aiLayer.parentNode.getBoundingClientRect();
     Object.keys(AI_SECTIONS).forEach(function (sec) {
@@ -1962,6 +2131,21 @@
       aiLayer.appendChild(b);
     });
   }
+  var origPlace = nbPlaceAi;
+  nbPlaceAi = function () {
+    origPlace();
+    var t3 = document.getElementById('nb-sec3'), td = t3 && t3.querySelector('tr > td');
+    if (!td) return;
+    var r = td.getBoundingClientRect(), sheet = aiLayer.parentNode.getBoundingClientRect();
+    if (!r.height) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'nb-ai-btn nb-plan-btn';
+    b.innerHTML = '📋 연간계획서 선택'; b.title = '등록된 연간계획서를 골라 주제·내용을 채웁니다';
+    b.style.top = (r.bottom - sheet.top - 42) + 'px';
+    b.style.right = (sheet.right - r.right + 10) + 'px';
+    b.addEventListener('click', openPlanPick);
+    aiLayer.appendChild(b);
+  };
   window.nbPlaceAi = nbPlaceAi;
   window.addEventListener('resize', function () { schedulePaginate(); });
 

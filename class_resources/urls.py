@@ -6,6 +6,8 @@ urlpatterns = [
     # ✅ 연간계획서 (PDF) - '<str:category>/' 보다 앞에 둠
     path('plans/', views.plan_list, name='plan_list'),
     path('plans/new/', views.plan_create, name='plan_create'),
+    path('plans/api/', views.plan_api_list, name='plan_api_list'),
+    path('plans/<int:pk>/rows/', views.plan_api_rows, name='plan_api_rows'),
     path('plans/<int:pk>/', views.plan_detail, name='plan_detail'),
     path('plans/<int:pk>/file/', views.plan_file, name='plan_file'),
     path('plans/<int:pk>/delete/', views.plan_delete, name='plan_delete'),
