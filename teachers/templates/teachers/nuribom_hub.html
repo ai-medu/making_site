@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=24">
+<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=26">
 <style>
   body { background: #e9ecef; }
   .nb-bar {
@@ -119,6 +119,35 @@
     <div id="nbOverlay" aria-hidden="true"></div>
   </div>
   {% include "teachers/_nuribom_plan_templates.html" %}
+</div>
+
+<div class="modal fade" id="nbSplitModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="bi bi-grid-3x3-gap me-1"></i> 칸 나누기</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+      </div>
+      <div class="modal-body">
+        <div class="small text-muted mb-3">선택한 칸을 아래 줄·칸 수로 나눕니다.</div>
+        <div class="row g-2">
+          <div class="col-6">
+            <label class="form-label small mb-1" for="nbSplitRows">줄 수 (가로 줄)</label>
+            <input type="number" class="form-control form-control-sm" id="nbSplitRows" min="1" max="20" value="1">
+          </div>
+          <div class="col-6">
+            <label class="form-label small mb-1" for="nbSplitCols">칸 수 (세로 칸)</label>
+            <input type="number" class="form-control form-control-sm" id="nbSplitCols" min="1" max="20" value="2">
+          </div>
+        </div>
+        <div class="small text-danger mt-2" id="nbSplitInfo"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">취소</button>
+        <button type="button" class="btn btn-primary btn-sm" id="nbSplitOk">나누기</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="modal fade" id="nbProgModal" tabindex="-1" aria-hidden="true">
@@ -631,8 +660,9 @@
       var cell = g.grid[R][c];
       if (!cell) { c++; continue; }
       var cs = cell.colSpan || 1;
-      var crosses = onlyCell ? (cell !== onlyCell)
-                             : (after ? (cell._r + cell.rowSpan - 1 > R) : (cell._r < R));
+      var only = onlyCell ? (onlyCell instanceof Set ? onlyCell : new Set([onlyCell])) : null;
+      var crosses = only ? !only.has(cell)
+                         : (after ? (cell._r + cell.rowSpan - 1 > R) : (cell._r < R));
       if (crosses) {
         if (!done.has(cell)) { cell.rowSpan += 1; done.add(cell); }
       } else {
@@ -663,12 +693,12 @@
 
   // ----- 칸(열) -----
   // boundary: 새 칸이 들어갈 자리(0 = 맨 앞, ncols = 맨 뒤), donor: 너비를 나눠줄 기존 열 번호, onlyCell: 이 칸만 둘로 나누고 나머지는 늘림
-  function insertColumn(table, boundary, donor, onlyCell) {
+  function insertColumn(table, boundary, donor, onlyCell, force) {
     var g = buildGrid(table);
     var cols = colsOf(table);
     if (cols.length !== g.ncols) throw new Error('이 표는 칸을 추가할 수 없습니다.');
     var w = parseFloat(cols[donor].style.width);
-    if (w / 2 < MIN_COL) throw new Error('칸이 너무 좁아 더 나눌 수 없습니다. 먼저 칸 경계를 끌어 너비를 넓혀주세요.');
+    if (!force && w / 2 < MIN_COL) throw new Error('칸이 너무 좁아 더 나눌 수 없습니다. 먼저 칸 경계를 끌어 너비를 넓혀주세요.');
     var done = new Set();
     for (var r = 0; r < g.rows.length; r++) {
       var L = boundary > 0 ? g.grid[r][boundary - 1] : null;
@@ -754,6 +784,96 @@
       insertRow(table, cell._r, true, cell);
     }
   }
+  // 한 칸을 nr줄 x nc칸으로 나눈다 (한글의 '셀 나누기'처럼 줄 수·칸 수를 직접 지정)
+  function evenSizes(total, n) {
+    var base = Math.floor(total / n), extra = total % n, out = [];
+    for (var i = 0; i < n; i++) out.push(base + (i < extra ? 1 : 0));
+    return out;
+  }
+  function splitCellGrid(table, cell, nr, nc) {
+    if (!(nr >= 1 && nc >= 1) || nr * nc < 2) throw new Error('나눌 줄 수와 칸 수를 입력해주세요. (하나 이상은 2 이상)');
+    if (nr > 20 || nc > 20) throw new Error('줄·칸은 각각 20개까지 나눌 수 있습니다.');
+    var g = buildGrid(table);
+    var pieces = [cell];
+    var cs = cell.colSpan || 1, rs = cell.rowSpan || 1;
+    if (nc > 1 && cs < nc) {
+      var colsNow = colsOf(table), totalW = 0;
+      for (var ci = cell._c; ci < cell._c + cs; ci++) totalW += parseFloat(colsNow[ci].style.width) || 0;
+      // 나뉘는 칸이 더 생기는 만큼 너비를 같게 나누므로, 한 칸 너비가 너무 좁아지지 않는지 확인
+      if (totalW / nc < MIN_COL) throw new Error('칸이 너무 좁아 ' + nc + '칸으로 나눌 수 없습니다. (현재 너비 ' + Math.round(totalW) + 'px) 먼저 칸 경계를 끌어 너비를 넓혀주세요.');
+    }
+    var h0 = 0;
+    for (var rr = cell._r; rr < cell._r + rs; rr++) h0 += g.rows[rr].getBoundingClientRect().height;
+    var r0 = cell._r;
+
+    // ---- 칸(열) 나누기 ----
+    if (nc > 1) {
+      if (cs >= nc) {
+        var sizes = evenSizes(cs, nc), ref = cell;
+        cell.colSpan = sizes[0];
+        for (var i = 1; i < nc; i++) {
+          var np = newCell(cell, sizes[i], rs);
+          ref.parentNode.insertBefore(np, ref.nextSibling);
+          ref = np; pieces.push(np);
+        }
+      } else {
+        for (var k = 0; k < nc - cs; k++) {
+          var gg = buildGrid(table);
+          var donor = widestCol(table, cell._c, cell._c + cs - 1);
+          insertColumn(table, cell._c + cs, donor, cell, true);   // 오른쪽 가장자리에 새 칸: 이 칸 쪽에만 새 조각이 생기고 나머지 칸은 늘어남
+        }
+        // 원래 칸이 여러 열에 걸쳐 있었다면 한 열씩으로 쪼갬
+        var ref2 = cell;
+        for (var j = 1; j < cs; j++) {
+          var sp = newCell(cell, 1, rs);
+          ref2.parentNode.insertBefore(sp, ref2.nextSibling);
+          ref2 = sp; pieces.push(sp);
+        }
+        cell.colSpan = 1;
+        // 새로 생긴 오른쪽 조각들(원래 칸 뒤쪽 형제)도 조각 목록에 포함
+        var sib = ref2.nextSibling, added = nc - cs;
+        while (sib && added > 0) { if (sib.tagName === 'TD') { pieces.push(sib); added--; } sib = sib.nextSibling; }
+        var g2 = buildGrid(table);
+        var c0 = cell._c;
+        if (nc > 1) equalizeWidths(table, {c0: c0, c1: c0 + nc - 1});
+      }
+    }
+
+    // ---- 줄(행) 나누기 ----
+    if (nr > 1) {
+      var gr = buildGrid(table);
+      if (rs >= nr) {
+        var rsz = evenSizes(rs, nr);
+        pieces.forEach(function (pc) {
+          var psz = rsz.slice(), startRow = pc._r, acc = psz[0];
+          pc.rowSpan = psz[0];
+          for (var q = 1; q < nr; q++) {
+            var np2 = newCell(pc, pc.colSpan || 1, psz[q]);
+            insertCellAt(gr.rows[startRow + acc], np2, pc._c);
+            acc += psz[q];
+          }
+        });
+      } else {
+        for (var m = 0; m < nr - rs; m++) {
+          buildGrid(table);
+          var lastRow = pieces[0]._r + (pieces[0].rowSpan || 1) - 1;
+          insertRow(table, lastRow, true, new Set(pieces));
+        }
+        if (rs > 1) {                                           // 원래 칸이 여러 줄에 걸쳐 있었다면 한 줄씩으로 쪼갬
+          var gr2 = buildGrid(table);
+          pieces.forEach(function (pc) {
+            var start = pc._r;
+            for (var t = 1; t < rs; t++) insertCellAt(gr2.rows[start + t], newCell(pc, pc.colSpan || 1, 1), pc._c);
+            pc.rowSpan = 1;
+          });
+        }
+      }
+      // 나눈 줄들의 높이는 원래 칸 높이를 균등하게
+      var gh = buildGrid(table), each = Math.max(MIN_ROW, h0 / nr);
+      for (var z = 0; z < nr; z++) { if (gh.rows[r0 + z]) gh.rows[r0 + z].style.height = each.toFixed(1) + 'px'; }
+    }
+  }
+
   function mergeContent(a, b) {
     var ca = a.querySelector(':scope > .cell'), cb = b.querySelector(':scope > .cell');
     if (!ca || !cb) return;
@@ -805,11 +925,36 @@
     try {
       fn();
     } catch (e) {
-      tblHistory.pop();
+      var snap = tblHistory.pop();            // 중간까지 바뀌었을 수 있으므로 수정 전 상태로 되돌림
+      if (snap != null) { clearPages(); doc.innerHTML = snap; }
       alert(e && e.message ? e.message : '표를 수정하지 못했습니다.');
     }
     schedulePaginate();
   }
+
+  // ----- 칸 나누기 입력 창 -----
+  var splitTarget = null;
+  function openSplitDialog(table, td) {
+    splitTarget = {table: table, td: td};
+    document.getElementById('nbSplitRows').value = 1;
+    document.getElementById('nbSplitCols').value = 2;
+    document.getElementById('nbSplitInfo').textContent = '';
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('nbSplitModal')).show();
+    setTimeout(function () { document.getElementById('nbSplitCols').select(); }, 300);
+  }
+  function submitSplit() {
+    if (!splitTarget) return;
+    var nr = parseInt(document.getElementById('nbSplitRows').value, 10), nc = parseInt(document.getElementById('nbSplitCols').value, 10);
+    if (!(nr >= 1 && nc >= 1) || nr * nc < 2) { document.getElementById('nbSplitInfo').textContent = '줄 수와 칸 수를 1 이상으로 입력하고, 둘 중 하나는 2 이상이어야 합니다.'; return; }
+    if (nr > 20 || nc > 20) { document.getElementById('nbSplitInfo').textContent = '줄·칸은 각각 20개까지 나눌 수 있습니다.'; return; }
+    var t = splitTarget; splitTarget = null;
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('nbSplitModal')).hide();
+    runTableOp(function () { splitCellGrid(t.table, t.td, nr, nc); });
+  }
+  document.getElementById('nbSplitOk').addEventListener('click', submitSplit);
+  ['nbSplitRows', 'nbSplitCols'].forEach(function (id) {
+    document.getElementById(id).addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); submitSplit(); } });
+  });
 
   // ----- 오른쪽 버튼 메뉴 -----
   function closeCtx() { if (ctxEl) { ctxEl.remove(); ctxEl = null; } }
@@ -850,6 +995,7 @@
     head('나누기 / 합치기');
     m.appendChild(ctxItem('칸 나누기 (좌우로)', 'layout-split', function () { runTableOp(function () { splitCellCols(table, td); }); }));
     m.appendChild(ctxItem('칸 나누기 (상하로)', 'layout-text-sidebar-reverse', function () { runTableOp(function () { splitCellRows(table, td); }); }));
+    m.appendChild(ctxItem('칸 나누기 (줄·칸 수 입력)…', 'grid-3x3-gap', function () { openSplitDialog(table, td); }));
     m.appendChild(ctxItem('오른쪽 칸과 합치기', 'box-arrow-in-right', function () { runTableOp(function () { mergeRight(table, td); }); }, !canMergeR));
     m.appendChild(ctxItem('아래 칸과 합치기', 'box-arrow-in-down', function () { runTableOp(function () { mergeDown(table, td); }); }, !canMergeD));
     var hr = document.createElement('div'); hr.className = 'nb-ctx-sep'; m.appendChild(hr);
