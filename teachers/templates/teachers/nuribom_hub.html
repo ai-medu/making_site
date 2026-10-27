@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=10">
+<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=11">
 <style>
   body { background: #e9ecef; }
   .nb-bar {
@@ -490,6 +490,8 @@
       var c = list[i];
       var vals = c ? [c.org, fmtD(c.s) + '~' + fmtD(c.e) + '(' + ym(c.months) + ')', c.program] : ['', '', ''];
       cells.forEach(function (td, k) { setCell(td, vals[k]); });
+      var pp = cells[1].querySelector('.hp');   // 기간은 줄바꿈 없이 한 줄로
+      if (pp) pp.style.whiteSpace = 'nowrap';
     });
 
     // 총 기간 (겹치는 기간은 한 번만 인정)
