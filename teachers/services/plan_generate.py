@@ -10,6 +10,7 @@ from .doc_extract import (
 )
 
 MAX_PROGRAMS = 8
+GENERATE_BUDGET = 27
 MAX_NAME_LEN = 30
 
 
@@ -60,23 +61,25 @@ def _prompt(programs):
 
 [작성 조건 - 늘봄허브 강사 제출 서류 양식의 안내사항]
 1) 운영 목표: 프로그램을 통하여 학생들에게 길러질 수 있는 역량을 기술하고, 학생의 심리와 발달 정도를 고려한 프로그램 목표를 기술한다.
-   - 지식(knowledge) / 기능(skill) / 태도(attitude) 영역별로 각 2~3줄(각 줄 60자 이내).
+   - 지식(knowledge) / 기능(skill) / 태도(attitude) 영역별로 각 3줄, 한 줄은 45~65자의 구체적인 한 문장.
 2) 주요 교육 내용: 학생의 수준에 따른 교육 내용을 기술한다.
    - 수준별 3단계(초급 1~2학년, 중급 3~4학년, 고급 5~6학년)로 stages 3개. 각 단계마다
      name(단계 이름, 12자 이내, 프로그램 특성에 맞게. 예: '원리 배움 단계'), grade(예: '1~2학년'),
-     goal(목표 1줄), content(교육 내용 2~3줄, 줄바꿈은 \\n), outcome(기대 성과 1줄).
+     goal(목표 1문장, 35~55자), content(교육 내용 3줄, 한 줄 35~55자, 줄바꿈은 \\n), outcome(기대 성과 1문장, 35~55자).
 3) 주요 강의 방법: 학생 수준에 따른 강의 방법, 다른 강사(또는 유사 강의)와의 차별점, 학생 대상 평가 및 환류 방법을 기술한다.
-   - practice(실습 중심), project(프로젝트 기반 학습), media(시청각 자료 및 실제 사례), custom(맞춤형 지도)에는 수준별 강의 방법과 차별점이 드러나게 각 1~2문장.
-   - process_eval(과정 평가: 출석·참여도·수행 과정), result_eval(결과물 평가·피드백·환류 방법) 각 1~2문장.
+   - practice(실습 중심), project(프로젝트 기반 학습), media(시청각 자료 및 실제 사례), custom(맞춤형 지도)에는 초급·중급·고급 수준별 강의 방법과 다른 강의와의 차별점이 드러나게 각 2문장(90~140자).
+   - process_eval(과정 평가: 출석·참여도·수행 과정), result_eval(결과물 평가·피드백·환류 방법) 각 2문장(90~140자).
 4) 운영 방법: 프로그램 운영 시간(총 차시, 1일 차시), 운영 공간, 학생 참여 방법 및 안전 지도계획, 학교·학부모 소통을 기술한다.
-   - time(주 횟수, 1일 차시와 시간, 연간 총 차시), space(운영 공간), participation(학생 참여 방법 2줄),
-     safety(안전 지도계획 2줄), communication(학교·학부모 소통 2줄).
+   - time(주 횟수, 1일 차시와 시간, 연간 총 차시를 2줄), space(운영 공간 1~2줄),
+     participation(학생 참여 방법 3줄), safety(안전 지도계획 3줄), communication(학교·학부모 소통 3줄). 한 줄은 35~55자.
 
 [주의]
 - 선택한 프로그램의 특성에 맞는 구체적인 내용으로 쓰고, 다른 프로그램에도 그대로 쓸 수 있는 뻔한 문구는 피한다.
 - 특정 업체·상품·교재명을 단정하지 말고, 과장하거나 확인되지 않은 실적·수상 경력을 쓰지 않는다.
 - 문체는 '~한다/~할 수 있다' 형태의 간결한 문장으로 통일한다. 여러 줄은 줄바꿈(\\n)으로 구분하고 줄 앞에 기호(-, ▷ 등)는 붙이지 않는다.
-- 숫자(차시·시간)는 초등 방과후학교에서 일반적인 값으로 쓴다."""
+- 숫자(차시·시간)는 초등 방과후학교에서 일반적인 값으로 쓴다.
+- 내용이 너무 짧거나 추상적이면 안 된다. 서류 심사에서 강사의 전문성과 운영 계획이 구체적으로 보이도록 충실하게 쓰되,
+  정해진 분량(위에 적은 줄 수·글자 수)을 넘기지 않는다. 이 내용은 A4 한 쪽 표 안에 들어가야 한다."""
 
 
 def _text(v, limit=700):
@@ -85,11 +88,11 @@ def _text(v, limit=700):
     return str(v or "").strip()[:limit]
 
 
-def _lines(v, limit=300):
+def _lines(v, limit=400):
     if isinstance(v, str):
         v = v.split("\n")
     out = [str(x).strip().lstrip("-▷· ").strip() for x in (v or []) if str(x).strip()]
-    return [x[:limit] for x in out][:4]
+    return [x[:limit] for x in out][:5]
 
 
 def normalize(raw):
@@ -99,8 +102,8 @@ def normalize(raw):
     for st in (raw.get("stages") or [])[:3]:
         stages.append({
             "name": _text(st.get("name"), 30), "grade": _text(st.get("grade"), 20),
-            "goal": _text(st.get("goal"), 200), "content": _text(st.get("content"), 500),
-            "outcome": _text(st.get("outcome"), 200),
+            "goal": _text(st.get("goal"), 260), "content": _text(st.get("content"), 800),
+            "outcome": _text(st.get("outcome"), 260),
         })
     while len(stages) < 3:
         stages.append({"name": "", "grade": "", "goal": "", "content": "", "outcome": ""})
@@ -108,8 +111,8 @@ def normalize(raw):
     return {
         "goal": {k: _lines(goal.get(k)) for k in ("knowledge", "skill", "attitude")},
         "stages": stages,
-        "methods": {k: _text(m.get(k), 400) for k in ("practice", "project", "media", "custom", "process_eval", "result_eval")},
-        "operation": {k: _text(o.get(k), 400) for k in ("time", "space", "participation", "safety", "communication")},
+        "methods": {k: _text(m.get(k), 700) for k in ("practice", "project", "media", "custom", "process_eval", "result_eval")},
+        "operation": {k: _text(o.get(k), 700) for k in ("time", "space", "participation", "safety", "communication")},
     }
 
 
@@ -125,17 +128,19 @@ def generate_plan(programs):
         "contents": [{"parts": [{"text": _prompt(programs)}]}],
         "generationConfig": {
             "temperature": 0.6,
+            "maxOutputTokens": 8192,
             "responseMimeType": "application/json",
             "responseSchema": SCHEMA,
         },
     }
-    deadline = time.monotonic() + TOTAL_BUDGET
+    # 긴 글을 쓰는 데는 10~20초 걸릴 수 있어, 서류 읽기(15초)보다 오래 기다린다 (서버 작업 제한 30초 안에서)
+    deadline = time.monotonic() + GENERATE_BUDGET
     last_error = None
     for key_obj, key in keys:
         if deadline - time.monotonic() < MIN_REMAINING:
             break
         try:
-            resp = _post_with_model_fallback(key, body, deadline=deadline)
+            resp = _post_with_model_fallback(key, body, deadline=deadline, timeout=GENERATE_BUDGET)
         except requests.Timeout:
             _record(key_obj, "응답 지연(시간 초과)")
             last_error = ExtractError("AI 서비스가 지금 혼잡해서 응답이 늦습니다. 잠시 후 다시 시도해주세요.")
