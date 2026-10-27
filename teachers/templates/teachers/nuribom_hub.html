@@ -2349,6 +2349,35 @@
     bootstrap.Modal.getOrCreateInstance(document.getElementById('nbCareerModal')).hide();
   });
 
+  // ---------- 연간 활동 지도 계획안: 3월의 연도를 고치면 다음 해 1월·2월의 연도가 자동으로 +1 ----------
+  function planMonthCells() {
+    var t = document.getElementById('nb-sec3'); if (!t) return [];
+    return Array.prototype.slice.call(t.querySelectorAll(':scope > tbody > tr')).slice(2)
+      .filter(function (tr) { return tr.children.length === 5; })
+      .map(function (tr) { return tr.children[0]; });
+  }
+  function monthParas(td) {
+    return Array.prototype.map.call(td.querySelectorAll('.cell > .hp'), function (p) { return p.textContent.replace(/[\s​]/g, ''); });
+  }
+  function syncPlanYears() {
+    var cells = planMonthCells(); if (!cells.length) return;
+    var first = cells[0], m = /^(\d{1,2})년$/.exec(monthParas(first)[0] || '');
+    if (!m) return;
+    var next = String((parseInt(m[1], 10) + 1) % 100);
+    if (next.length < 2) next = '0' + next;
+    cells.slice(1).forEach(function (td) {
+      // '27년 / 1월'(두 줄)과 '27년 1월'(한 줄) 두 모양 모두 처리
+      if (!/^\d{1,2}년[12]월$/.test(monthParas(td).join(''))) return;
+      var sp = Array.prototype.filter.call(td.querySelectorAll('.cell span'), function (x) { return /^\s*\d{1,2}년/.test(x.textContent); })[0];
+      if (sp) sp.textContent = sp.textContent.replace(/^(\s*)\d{1,2}년/, '$1' + next + '년');
+    });
+  }
+  doc.addEventListener('input', function (e) {
+    var td = e.target.closest && e.target.closest('td');
+    var cells = planMonthCells();
+    if (td && cells.length && td === cells[0]) syncPlanYears();
+  });
+
   // ---------- 문서 안의 칸을 눌러 선택 창 열기 (자격 / 경력 / 프로그램 개요) ----------
   var PICK_MSG = {nbCertPick: '등록된 자격증이 없습니다. 먼저 자격증을 등록해주세요.', nbCareerPick: '등록된 경력이 없습니다. 먼저 경력을 등록해주세요.'};
   function pickTarget(td) {
