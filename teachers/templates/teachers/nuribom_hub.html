@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=15">
+<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=16">
 <style>
   body { background: #e9ecef; }
   .nb-bar {
@@ -10,9 +10,12 @@
     background: #fff; border-bottom: 1px solid #ced4da; box-shadow: 0 2px 6px rgba(0,0,0,.08);
   }
   .nb-bar .inner { max-width: 794px; margin: 0 auto; padding: 8px 12px 8px; }
-  .nb-bar .row1 { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+  .nb-bar .row1 { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .nb-bar .row1 .saved { margin-left: auto; }
+  .nb-bar .rowA { overflow-x: auto; margin-bottom: 6px; }
   .nb-bar .title { font-weight: 700; white-space: nowrap; }
-  .nb-bar .actions { margin-left: auto; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .nb-bar .actions { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; width: max-content; }
+  .nb-bar .actions .btn { padding: .2rem .55rem; font-size: .8rem; }
   .nb-bar .saved { font-size: .78rem; color: #6c757d; white-space: nowrap; }
   .nb-bar .row2 { display: flex; gap: 6px; flex-wrap: nowrap; overflow-x: auto; }
   .nb-bar .btn { white-space: nowrap; }
@@ -67,8 +70,10 @@
   <div class="inner">
     <div class="row1">
       <span class="title"><i class="bi bi-file-earmark-text me-1"></i>늘봄허브 등록 서류</span>
+      <span class="saved" id="nbSaved"></span>
+    </div>
+    <div class="rowA">
       <div class="actions">
-        <span class="saved" id="nbSaved"></span>
         <button type="button" class="btn btn-outline-dark btn-sm" id="nbPages" title="A4 용지 기준으로 쪽이 나뉘는 위치를 보여줍니다"><i class="bi bi-file-earmark-break me-1"></i>쪽 구분</button>
         <button type="button" class="btn btn-outline-primary btn-sm" id="nbProgPick"><i class="bi bi-journal-richtext me-1"></i>프로그램 선택</button>
         <button type="button" class="btn btn-outline-primary btn-sm" id="nbCertPick"><i class="bi bi-award me-1"></i>자격 선택 <span id="nbCertCount"></span></button>
@@ -303,7 +308,7 @@
             var firstCell = tr.children[0] ? tr.children[0].textContent.replace(/[\s\u200b]/g, '') : '';
             var brk = (sec && i === 0) || (t.id === 'nb-sec2' && firstCell === '운영방법');
             tr.classList.toggle('nb-pagebreak', brk);   // 인쇄(PDF)에서도 같은 위치에서 쪽 나눔
-            units.push({el: tr, row: true, table: t, top: r.top - docTop, bottom: r.bottom - docTop, forced: brk});
+            units.push({el: tr, row: true, first: i === 0, table: t, top: r.top - docTop, bottom: r.bottom - docTop, forced: brk});
           });
         });
       } else {
@@ -355,10 +360,41 @@
     });
   }
 
+  // 프로그램 개요 아래 세 항목(운영 목표 / 주요 교육 내용 / 주요 강의 방법)이 2쪽을 채우도록 줄 높이를 늘린다
+  function planRowsForStretch() {
+    var t = planTable(); if (!t) return null;
+    var rows = Array.prototype.slice.call(t.querySelectorAll(':scope > tbody > tr'));
+    var s0 = rows.findIndex(function (r) { return r.children[0] && normT(r.children[0].textContent) === '운영목표'; });
+    var e0 = rows.findIndex(function (r) { return r.children[0] && normT(r.children[0].textContent) === '운영방법'; });
+    if (s0 < 0 || e0 <= s0) return null;
+    return {all: rows, target: rows.slice(s0, e0), end: e0};
+  }
+  function resetPlanStretch() {
+    var g = planRowsForStretch(); if (!g) return;
+    g.target.forEach(function (tr) {
+      if (tr.hasAttribute('data-h0')) tr.style.height = tr.getAttribute('data-h0');
+    });
+  }
+  function stretchPlanRows() {
+    var g = planRowsForStretch(); if (!g) return;
+    g.target.forEach(function (tr) {
+      if (!tr.hasAttribute('data-h0')) tr.setAttribute('data-h0', tr.style.height || '');
+      tr.style.height = tr.getAttribute('data-h0');
+    });
+    var used = g.all[g.end - 1].getBoundingClientRect().bottom - g.all[0].getBoundingClientRect().top;
+    var gap = PAGE_H - used - 2;
+    if (gap < 6) return;
+    var hs = g.target.map(function (tr) { return tr.getBoundingClientRect().height; });
+    var sum = hs.reduce(function (a, b) { return a + b; }, 0);
+    g.target.forEach(function (tr, i) { tr.style.height = (hs[i] + gap * hs[i] / sum).toFixed(1) + 'px'; });
+  }
+
   function paginate() {
     clearPages();
+    resetPlanStretch();
     // 쪽 구성 맞추기 (쪽 구분 표시를 꺼도 인쇄 결과는 같도록 항상 적용)
     fitSegments(collectUnits());
+    stretchPlanRows();
     pagesBtn.classList.toggle('active', pagesOn);
     if (!pagesOn) return;
 
@@ -392,7 +428,9 @@
         // 이전 쪽 끝~다음 쪽 시작 사이에서 표의 세로 테두리가 보이지 않도록 흰색으로 가리고, 다음 쪽 첫 줄의 윗선을 그린다
         var tr = b.unit.table.getBoundingClientRect();
         var css = 'left:' + (tr.left - sheet.left - 3) + 'px;width:' + (tr.width + 6) + 'px;';
-        addEl('nb-mask', css + 'top:' + (rowTop + 2) + 'px;height:' + Math.max(0, b.h - 3) + 'px');
+        // 새 표의 첫 줄이면 그 표의 윗선이 이전 쪽 끝에 남아 보이므로 윗선까지 가린다 (표 중간이면 이전 줄의 아랫선은 그대로 둠)
+        var maskTop = b.unit.first ? rowTop - 3 : rowTop + 2;
+        addEl('nb-mask', css + 'top:' + maskTop + 'px;height:' + Math.max(0, rowTop + b.h - 1 - maskTop) + 'px');
         addEl('nb-topline', 'left:' + (tr.left - sheet.left) + 'px;width:' + tr.width + 'px;top:' + (rowTop + b.h - 1) + 'px');
       }
       addEl('nb-pageno', 'top:' + (bandTop - 30) + 'px', (i + 1) + ' / ' + total);
