@@ -234,7 +234,7 @@ def _clip(v, n):
         "\n".join(" ".join(x.split())[:n] for x in str(v).replace("\u200b", "").split("\n") if x.strip())
 
 
-def _section_prompt(section, programs, mode, chars, note, extra, current, materials, flat):
+def _section_prompt(section, programs, mode, chars, note, extra, current, materials, flat, base=""):
     names = ", ".join(programs)
     if flat:
         spec = FLAT_SPEC[section].format(n=chars)
@@ -260,6 +260,7 @@ def _section_prompt(section, programs, mode, chars, note, extra, current, materi
 
 {MODE_TEXT[mode]}
 {extra_txt}
+{("[기본 요청 - 늘봄허브 서류 안내사항, 반드시 반영] " + base) if base else ""}
 {("[강사의 추가 요청] " + note) if note else ""}
 
 [현재 내용]
@@ -286,13 +287,16 @@ def generate_section(section, programs, options, current, materials="", flat=Fal
         chars = DEFAULT_CHARS[section]
     chars = max(15, min(chars, 400))
     note = " ".join(str(options.get("note") or "").split())[:300]
+    base = "
+".join(" ".join(x.split()) for x in str(options.get("base") or "").split("
+") if x.strip())[:600]
     extra = bool(options.get("extra"))
     flat = bool(flat) or section not in DETAIL_SPEC
     if not isinstance(current, dict):
         current = {}
     current = {str(k)[:40]: v for k, v in list(current.items())[:30]}
     schema = FLAT_SCHEMA if flat else DETAIL_SPEC[section][1]
-    prompt = _section_prompt(section, programs, mode, chars, note, extra, current, materials, flat)
+    prompt = _section_prompt(section, programs, mode, chars, note, extra, current, materials, flat, base)
     # '새로 작성'은 매번 다른 결과가 나오도록 온도를 조금 높임
     data = _call_json(_body(prompt, schema, temperature=0.85 if mode == "new" else 0.6))
 

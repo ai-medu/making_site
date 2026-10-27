@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=27">
+<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=28">
 <style>
   body { background: #e9ecef; }
   .nb-bar {
@@ -197,6 +197,10 @@
           <label class="form-check-label small" for="nbAiExtra">현재 내용에 없는 내용도 AI가 추천해서 넣어도 됩니다</label>
         </div>
 
+        <div class="mb-2" id="nbAiBaseWrap">
+          <label class="form-label small mb-1" for="nbAiBase">기본 요청 <span class="text-muted">(늘봄허브 서류 안내 문구 · 고쳐도 됩니다)</span></label>
+          <textarea class="form-control form-control-sm" id="nbAiBase" rows="3" maxlength="600" style="color:#0d6efd"></textarea>
+        </div>
         <div class="mb-1">
           <label class="form-label small mb-1" for="nbAiNote">추가 요청 (선택)</label>
           <textarea class="form-control form-control-sm" id="nbAiNote" rows="2" maxlength="300" placeholder="예) 코딩 요소를 강조해주세요 / 안전 지도 비중을 늘려주세요"></textarea>
@@ -1695,6 +1699,16 @@
     return out.join('\n');
   }
 
+  // 처음 모양(안내 문구가 파란 글씨로 보이는 표)의 항목별 안내 문구 = 기본 요청
+  function aiBaseText(sec) {
+    var tpl = document.getElementById('nbPlanSimple'); if (!tpl) return '';
+    var want = {goal: '운영목표', content: '주요교육내용', methods: '주요강의방법', operation: '운영방법'}[sec];
+    var tr = Array.prototype.filter.call(tpl.content.querySelectorAll('tr'), function (r) { return normT(r.children[0].textContent) === want; })[0];
+    if (!tr) return '';
+    return Array.prototype.map.call(tr.lastElementChild.querySelectorAll('.hp'), function (p) {
+      return p.textContent.replace(/​/g, '').trim();
+    }).filter(Boolean).join('\n');
+  }
   var aiEl = document.getElementById('nbAiModal');
   var aiSec = null, aiTimer = null;
   function aiStatus(msg, cls) {
@@ -1723,6 +1737,9 @@
     document.getElementById('nbAiUnit').textContent = info.unit + ' 글자 수';
     document.getElementById('nbAiChars').value = info.def;
     document.getElementById('nbAiNote').value = '';
+    var base = aiBaseText(sec);
+    document.getElementById('nbAiBase').value = base;
+    document.getElementById('nbAiBaseWrap').classList.toggle('d-none', !base);
     document.getElementById('nbAiExtra').checked = true;
     aiStatus('');
     aiLock(false);
@@ -1781,7 +1798,7 @@
       materials: AI_GEAR[sec] ? aiMaterialsText() : '',
       options: {
         mode: mode, chars: parseInt(document.getElementById('nbAiChars').value, 10) || AI_SECTIONS[sec].def,
-        note: document.getElementById('nbAiNote').value, extra: document.getElementById('nbAiExtra').checked
+        base: document.getElementById('nbAiBase').value, note: document.getElementById('nbAiNote').value, extra: document.getElementById('nbAiExtra').checked
       }
     };
     aiLock(true);
