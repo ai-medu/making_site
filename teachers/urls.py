@@ -12,6 +12,7 @@ urlpatterns = [
     path('nuribom-hub/', views.nuribom_hub, name='nuribom_hub'),
     path('nuribom-hub/save/', views.nuribom_save, name='nuribom_save'),
     path('nuribom-hub/load/', views.nuribom_load, name='nuribom_load'),
+    path('nuribom-hub/generate/', views.nuribom_generate, name='nuribom_generate'),
 
     path('extract-document/<str:kind>/', views.extract_document, name='extract_document'),
     path('bulk-create/<str:kind>/', views.bulk_create_documents, name='bulk_create_documents'),

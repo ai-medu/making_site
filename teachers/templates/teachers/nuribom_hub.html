@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=12">
+<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=13">
 <style>
   body { background: #e9ecef; }
   .nb-bar {
@@ -70,6 +70,7 @@
       <div class="actions">
         <span class="saved" id="nbSaved"></span>
         <button type="button" class="btn btn-outline-dark btn-sm" id="nbPages" title="A4 용지 기준으로 쪽이 나뉘는 위치를 보여줍니다"><i class="bi bi-file-earmark-break me-1"></i>쪽 구분</button>
+        <button type="button" class="btn btn-outline-primary btn-sm" id="nbProgPick"><i class="bi bi-journal-richtext me-1"></i>프로그램 선택</button>
         <button type="button" class="btn btn-outline-primary btn-sm" id="nbCertPick"><i class="bi bi-award me-1"></i>자격 선택 <span id="nbCertCount"></span></button>
         <button type="button" class="btn btn-outline-primary btn-sm" id="nbCareerPick"><i class="bi bi-briefcase me-1"></i>경력 선택 <span id="nbCareerCount"></span></button>
         <button type="button" class="btn btn-success btn-sm" id="nbSave"><i class="bi bi-save me-1"></i>저장</button>
@@ -94,6 +95,36 @@
       {% include "teachers/_nuribom_doc.html" %}
     </div>
     <div id="nbOverlay" aria-hidden="true"></div>
+  </div>
+</div>
+
+<div class="modal fade" id="nbProgModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="bi bi-journal-richtext me-1"></i> 프로그램 선택</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기" id="nbProgClose"></button>
+      </div>
+      <div class="modal-body">
+        <div class="small text-muted mb-2">운영할 프로그램을 고르세요. 여러 개를 고르면 <b>프로그램 개요의 프로그램명</b>에 &amp;로 이어서 들어갑니다.</div>
+        <div class="d-flex flex-wrap gap-2 mb-3" id="nbProgChips"></div>
+        <div class="input-group input-group-sm mb-2">
+          <input type="text" class="form-control" id="nbProgCustom" maxlength="30" placeholder="직접 입력 (예: 인공지능코딩)">
+          <button type="button" class="btn btn-outline-secondary" id="nbProgAdd"><i class="bi bi-plus-lg"></i> 추가</button>
+        </div>
+        <div class="small mb-3">선택: <b id="nbProgSummary" class="text-primary">없음</b></div>
+        <div class="form-check mb-1">
+          <input class="form-check-input" type="checkbox" id="nbProgAuto" checked>
+          <label class="form-check-label" for="nbProgAuto">선택한 프로그램에 맞춰 <b>운영 목표 · 주요 교육 내용 · 주요 강의 방법 · 운영 방법</b>을 자동으로 작성 (AI)</label>
+        </div>
+        <div class="small text-danger ms-4">자동 작성하면 이 네 항목에 직접 입력한 내용은 새로 쓴 내용으로 바뀝니다.</div>
+        <div class="small mt-3 d-none" id="nbProgStatus"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" id="nbProgCancel">취소</button>
+        <button type="button" class="btn btn-primary btn-sm" id="nbProgApply">적용</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -640,6 +671,175 @@
     try { localStorage.setItem(certKey, JSON.stringify({sel: certSel, known: eligibleIds})); } catch (e) { /* 무시 */ }
     renderCerts();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('nbCertModal')).hide();
+  });
+
+  // ---------- 프로그램 선택 → 프로그램명 + 운영 계획서 내용 자동 작성 ----------
+  var PRESET_PROGRAMS = ['로봇과학', '로봇코딩', '과학탐구', '생명과학', '과학실험', '3D펜', '항공드론', '창의수학'];
+  function normT(t) { return (t || '').replace(/[\s\u200b·ㆍ,]/g, ''); }
+  function planTable() { return document.getElementById('nb-sec2'); }
+  function nameSpan() {
+    var t = planTable(); if (!t) return null;
+    var td = Array.prototype.find.call(t.querySelectorAll('td'), function (x) { return /프로그램\s*개요/.test(x.textContent); });
+    if (!td) return null;
+    var spans = td.querySelectorAll('.hp > span');
+    return spans.length >= 2 ? spans[1] : null;
+  }
+  function currentPrograms() {
+    var sp = nameSpan(); if (!sp) return [];
+    return sp.textContent.replace(/\u200b/g, '').split(/\s*[&,]\s*/).map(function (x) { return x.trim(); }).filter(Boolean);
+  }
+  function setProgramName(list) {
+    var sp = nameSpan(); if (!sp) return;
+    sp.textContent = list.length ? list.join(' & ') : '\u200b';
+  }
+  // 칸 안 내용을 줄 단위로 채움 (첫 문단의 글자 서식을 유지)
+  function setCellLines(td, lines) {
+    var cell = td.querySelector('.cell'); if (!cell) return;
+    var paras = cell.querySelectorAll(':scope > .hp');
+    var p = paras[0]; if (!p) return;
+    for (var i = 1; i < paras.length; i++) paras[i].remove();
+    var sp = p.querySelector('span');
+    if (!sp) { sp = document.createElement('span'); p.appendChild(sp); }
+    Array.prototype.slice.call(p.querySelectorAll('span')).slice(1).forEach(function (x) { x.remove(); });
+    while (sp.firstChild) sp.removeChild(sp.firstChild);
+    var arr = (lines || []).filter(Boolean);
+    if (!arr.length) { sp.textContent = '\u200b'; return; }
+    arr.forEach(function (ln, k) {
+      if (k) sp.appendChild(document.createElement('br'));
+      sp.appendChild(document.createTextNode(ln));
+    });
+  }
+  function splitLines(v) { return String(v || '').split('\n').map(function (x) { return x.trim().replace(/^[-▷·]\s*/, ''); }).filter(Boolean); }
+  function bulleted(arr) { return arr.length > 1 ? arr.map(function (x) { return '- ' + x; }) : arr; }
+
+  function fillPlan(plan) {
+    var rows = Array.prototype.slice.call(planTable().querySelectorAll(':scope > tbody > tr'));
+    var LABEL = {
+      '지식영역': ['goal', 'knowledge'], '기능영역': ['goal', 'skill'], '태도영역': ['goal', 'attitude'],
+      '실습중심': ['methods', 'practice'], '프로젝트기반학습': ['methods', 'project'],
+      '시청각자료및실제사례': ['methods', 'media'], '맞춤형지도': ['methods', 'custom'],
+      '과정평가': ['methods', 'process_eval'], '결과물평가': ['methods', 'result_eval'],
+      '운영시간': ['operation', 'time'], '운영공간': ['operation', 'space'],
+      '학생참여방법': ['operation', 'participation'], '안전지도계획': ['operation', 'safety'],
+      '학교학부모소통': ['operation', 'communication']
+    };
+    var stage = -1;
+    rows.forEach(function (tr) {
+      var tds = Array.prototype.slice.call(tr.children);
+      if (tds.length < 2) return;
+      var content = tds[tds.length - 1];
+      var labels = tds.slice(0, -1).map(function (td) { return normT(td.textContent); });
+      var key = null;
+      labels.forEach(function (l) { if (LABEL[l]) key = LABEL[l]; });
+      if (key) {
+        var v = plan[key[0]] && plan[key[0]][key[1]];
+        var lines = Array.isArray(v) ? v : splitLines(v);
+        setCellLines(content, key[0] === 'goal' ? bulleted(lines) : (key[0] === 'operation' ? bulleted(lines) : lines));
+        return;
+      }
+      // 주요 교육 내용: 단계마다 '목표 / 내용 / 성과' 세 줄
+      var sub = labels.indexOf('목표') >= 0 ? 'goal' : labels.indexOf('내용') >= 0 ? 'content' : labels.indexOf('성과') >= 0 ? 'outcome' : null;
+      if (sub) {
+        if (sub === 'goal') {
+          stage++;
+          var st = plan.stages[stage];
+          var stageTd = tds.filter(function (td) { return td.getAttribute('rowspan') === '3'; })[0];
+          if (stageTd && st) setCellLines(stageTd, [st.name, st.grade ? '(' + st.grade + ')' : ''].filter(Boolean));
+        }
+        var cur = plan.stages[stage];
+        if (cur) setCellLines(content, splitLines(cur[sub]));
+      }
+    });
+    schedulePaginate();
+  }
+
+  // 선택 창
+  var progSel = [];
+  var progModalEl = document.getElementById('nbProgModal');
+  var progChips = document.getElementById('nbProgChips');
+  var progBusy = null;
+  function allProgChoices() {
+    var extra = progSel.filter(function (x) { return PRESET_PROGRAMS.indexOf(x) < 0; });
+    return PRESET_PROGRAMS.concat(extra);
+  }
+  function renderProgChips() {
+    progChips.innerHTML = '';
+    allProgChoices().forEach(function (name) {
+      var on = progSel.indexOf(name) >= 0, custom = PRESET_PROGRAMS.indexOf(name) < 0;
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn btn-sm ' + (on ? 'btn-primary' : 'btn-outline-primary');
+      b.textContent = (on ? '✓ ' : '') + name + (custom ? '  ×' : '');
+      b.addEventListener('click', function () {
+        if (custom && on && b.dataset.armed !== '1') { /* 직접 입력한 것은 한 번 더 누르면 해제 */ }
+        var i = progSel.indexOf(name);
+        if (i >= 0) progSel.splice(i, 1); else if (progSel.length < 8) progSel.push(name);
+        renderProgChips();
+      });
+      progChips.appendChild(b);
+    });
+    document.getElementById('nbProgSummary').textContent = progSel.length ? progSel.join(' & ') : '없음';
+  }
+  function addCustomProgram() {
+    var input = document.getElementById('nbProgCustom');
+    var v = input.value.replace(/\s+/g, ' ').trim();
+    if (!v) return;
+    if (progSel.indexOf(v) < 0 && progSel.length < 8) progSel.push(v);
+    input.value = '';
+    renderProgChips();
+  }
+  function progStatus(msg, cls) {
+    var el = document.getElementById('nbProgStatus');
+    el.className = 'small mt-3 ' + (cls || 'text-muted');
+    el.textContent = msg;
+    el.classList.toggle('d-none', !msg);
+  }
+  function progLock(busy) {
+    document.getElementById('nbProgApply').disabled = busy;
+    document.getElementById('nbProgClose').disabled = busy;
+    document.getElementById('nbProgCancel').disabled = busy;
+  }
+  document.getElementById('nbProgPick').addEventListener('click', function () {
+    progSel = currentPrograms();
+    progStatus('');
+    progLock(false);
+    renderProgChips();
+    bootstrap.Modal.getOrCreateInstance(progModalEl).show();
+  });
+  document.getElementById('nbProgAdd').addEventListener('click', addCustomProgram);
+  document.getElementById('nbProgCustom').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); addCustomProgram(); }
+  });
+  document.getElementById('nbProgApply').addEventListener('click', function () {
+    addCustomProgram();                       // 입력칸에 쓰다 만 것도 포함
+    var programs = progSel.slice();
+    setProgramName(programs);                 // 프로그램명은 바로 반영
+    var auto = document.getElementById('nbProgAuto').checked;
+    if (!programs.length || !auto) {
+      schedulePaginate();
+      bootstrap.Modal.getOrCreateInstance(progModalEl).hide();
+      return;
+    }
+    // 운영 계획서 내용 자동 작성
+    progLock(true);
+    var t0 = Date.now();
+    progBusy = setInterval(function () {
+      progStatus('AI가 운영 계획서를 작성하고 있습니다… ' + Math.floor((Date.now() - t0) / 1000) + '초 (보통 10~25초)', 'text-primary');
+    }, 500);
+    progStatus('AI가 운영 계획서를 작성하고 있습니다…', 'text-primary');
+    fetch("{% url 'nuribom_generate' %}", {
+      method: 'POST', credentials: 'same-origin',
+      headers: {'X-CSRFToken': csrf(), 'Content-Type': 'application/json'},
+      body: JSON.stringify({programs: programs})
+    }).then(function (r) {
+      return r.json().catch(function () { return {ok: false, error: '서버 응답을 읽지 못했습니다. (오류 ' + r.status + ')'}; });
+    }).then(function (j) {
+      if (!j.ok) { progStatus('내용 자동 작성에 실패했습니다: ' + (j.error || '') + ' (프로그램명만 적용했습니다. 다시 [적용]을 눌러 재시도할 수 있습니다.)', 'text-danger'); return; }
+      fillPlan(j.plan);
+      bootstrap.Modal.getOrCreateInstance(progModalEl).hide();
+    }).catch(function () {
+      progStatus('내용 자동 작성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', 'text-danger');
+    }).then(function () { clearInterval(progBusy); progLock(false); });
   });
 
   // 경력 (기관 / 기간 / 프로그램명) + 총 기간 — 등록한 경력 중 선택한 것만 표시

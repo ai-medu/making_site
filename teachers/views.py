@@ -990,3 +990,25 @@ def bulk_create_documents(request, kind):
         messages.success(request, msg)
         return JsonResponse({"ok": True, "created": created, "skipped": skipped, "redirect": reverse(list_name)})
     return JsonResponse({"ok": False, "error": "등록하지 못했습니다. 입력이 부족한 항목입니다: " + ", ".join(skipped)}, status=400)
+
+
+@login_required
+@require_POST
+def nuribom_generate(request):
+    """선택한 프로그램에 맞춰 프로그램 운영 계획서(운영 목표·교육 내용·강의 방법·운영 방법) 내용을 AI로 작성"""
+    import json
+    from .services.doc_extract import ExtractError
+    from .services.plan_generate import generate_plan
+
+    try:
+        payload = json.loads(request.body or b"{}")
+        programs = payload.get("programs") or []
+        if not isinstance(programs, list):
+            raise ValueError
+    except ValueError:
+        return JsonResponse({"ok": False, "error": "요청을 읽지 못했습니다."}, status=400)
+    try:
+        plan = generate_plan(programs)
+    except ExtractError as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True, "plan": plan})
