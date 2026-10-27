@@ -2082,7 +2082,7 @@
     if (!planPickSel || !weeks.length) { planPickStatus('채울 주(週) 줄을 찾지 못했습니다.', 'text-danger'); return; }
     var lim = planLimits(), total = weeks.length, CH = 16, chunks = [];
     for (var s0 = 1; s0 <= total; s0 += CH) chunks.push([s0, Math.min(CH, total - s0 + 1)]);
-    var all = [], idx = 0, t0 = Date.now();
+    var all = [], idx = 0, tries = 0, t0 = Date.now();
     planPickLock(true);
     clearInterval(planPickBusy);
     planPickBusy = setInterval(function () {
@@ -2098,9 +2098,10 @@
       }).then(function (r) {
         return r.json().catch(function () { return {ok: false, error: '서버 응답을 읽지 못했습니다. (오류 ' + r.status + ')'}; });
       }).then(function (j) {
+        if (!j.ok && tries < 2) { tries++; return next(); }          // 응답이 늦거나 일시 오류면 같은 부분을 한 번 더 시도
         if (!j.ok) { planPickStatus('작성에 실패했습니다: ' + (j.error || '') + ' (다시 [주제·내용 채우기]를 눌러 재시도할 수 있습니다.)', 'text-danger'); return false; }
         all = all.concat(j.rows || []);
-        idx++;
+        idx++; tries = 0;
         return next();
       });
     }
