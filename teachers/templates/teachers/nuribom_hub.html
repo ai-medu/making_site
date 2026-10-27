@@ -101,9 +101,9 @@
     <div class="rowA">
       <div class="actions">
         <button type="button" class="btn btn-outline-dark btn-sm" id="nbPages" title="A4 용지 기준으로 쪽이 나뉘는 위치를 보여줍니다"><i class="bi bi-file-earmark-break me-1"></i>쪽 구분</button>
-        <button type="button" class="btn btn-outline-primary btn-sm" id="nbProgPick"><i class="bi bi-journal-richtext me-1"></i>프로그램 선택</button>
-        <button type="button" class="btn btn-outline-primary btn-sm" id="nbCertPick"><i class="bi bi-award me-1"></i>자격 선택 <span id="nbCertCount"></span></button>
-        <button type="button" class="btn btn-outline-primary btn-sm" id="nbCareerPick"><i class="bi bi-briefcase me-1"></i>경력 선택 <span id="nbCareerCount"></span></button>
+        <button type="button" class="btn btn-outline-primary btn-sm d-none" id="nbProgPick"><i class="bi bi-journal-richtext me-1"></i>프로그램 선택</button>
+        <button type="button" class="btn btn-outline-primary btn-sm d-none" id="nbCertPick"><i class="bi bi-award me-1"></i>자격 선택 <span id="nbCertCount"></span></button>
+        <button type="button" class="btn btn-outline-primary btn-sm d-none" id="nbCareerPick"><i class="bi bi-briefcase me-1"></i>경력 선택 <span id="nbCareerCount"></span></button>
         <button type="button" class="btn btn-success btn-sm" id="nbSave"><i class="bi bi-save me-1"></i>저장</button>
         <button type="button" class="btn btn-outline-secondary btn-sm" id="nbLoad"><i class="bi bi-folder2-open me-1"></i>불러오기</button>
         <button type="button" class="btn btn-danger btn-sm" id="nbPdf"><i class="bi bi-file-earmark-pdf me-1"></i>PDF 저장</button>
@@ -138,7 +138,7 @@
 </div>
 
 <div class="nb-wrap">
-  <div class="nb-hint">칸을 직접 클릭해서 수정할 수 있습니다. 강사 기본 정보는 등록된 학력·자격증·경력이 자동으로 채워집니다. 수정 후 [저장]을 눌러야 보관됩니다. 회색 띠는 A4 용지로 출력(PDF 저장)할 때 쪽이 나뉘는 위치입니다(예상). <b>표 칸에서 마우스 오른쪽 버튼</b>을 누르면 줄·칸 추가/삭제, 칸 나누기/합치기를 할 수 있고, <b>칸 경계선을 끌면</b> 너비·높이를 조절할 수 있습니다. 여러 칸을 <b>마우스로 끌어 선택</b>한 뒤 오른쪽 버튼을 누르면 선택한 칸의 너비·높이를 같게 맞출 수 있습니다.</div>
+  <div class="nb-hint">칸을 직접 클릭해서 수정할 수 있습니다. <b>'자격' · '경력' 칸과 '프로그램 개요'의 프로그램명 칸을 누르면</b> 선택 창이 열립니다. 강사 기본 정보는 등록된 학력·자격증·경력이 자동으로 채워집니다. 수정 후 [저장]을 눌러야 보관됩니다. 회색 띠는 A4 용지로 출력(PDF 저장)할 때 쪽이 나뉘는 위치입니다(예상). <b>표 칸에서 마우스 오른쪽 버튼</b>을 누르면 줄·칸 추가/삭제, 칸 나누기/합치기를 할 수 있고, <b>칸 경계선을 끌면</b> 너비·높이를 조절할 수 있습니다. 여러 칸을 <b>마우스로 끌어 선택</b>한 뒤 오른쪽 버튼을 누르면 선택한 칸의 너비·높이를 같게 맞출 수 있습니다.</div>
   <div class="nb-sheet" id="nbSheet">
     <div class="nb-paper" id="nbDoc">
       {% include "teachers/_nuribom_doc.html" %}
@@ -2162,6 +2162,35 @@
     saveSelection();
     renderCareers();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('nbCareerModal')).hide();
+  });
+
+  // ---------- 문서 안의 칸을 눌러 선택 창 열기 (자격 / 경력 / 프로그램 개요) ----------
+  var PICK_MSG = {nbCertPick: '등록된 자격증이 없습니다. 먼저 자격증을 등록해주세요.', nbCareerPick: '등록된 경력이 없습니다. 먼저 경력을 등록해주세요.'};
+  function pickTarget(td) {
+    if (!td || !doc.contains(td)) return null;
+    var t = normT(td.textContent);
+    if (basic.contains(td) && td === td.parentNode.firstElementChild && (td.rowSpan || 1) > 1) {
+      if (t === '경력') return 'nbCareerPick';
+      if (t.indexOf('자격') === 0) return 'nbCertPick';
+    }
+    var pt = planTable();
+    if (pt && pt.contains(td) && /프로그램\s*개요/.test(td.textContent)) return 'nbProgPick';
+    return null;
+  }
+  doc.addEventListener('mousemove', function (e) {
+    if (doc.classList.contains('nb-cur-col') || doc.classList.contains('nb-cur-row')) return;
+    var id = pickTarget(e.target.closest && e.target.closest('td'));
+    doc.style.cursor = id ? 'pointer' : '';
+  });
+  doc.addEventListener('click', function (e) {
+    if (selCells.length || e.button) return;
+    var sel = window.getSelection();
+    if (sel && !sel.isCollapsed) return;       // 글자를 드래그해서 선택한 경우는 편집으로 봄
+    var id = pickTarget(e.target.closest && e.target.closest('td'));
+    if (!id) return;
+    var btn = document.getElementById(id);
+    if (btn.disabled) { alert(PICK_MSG[id] || '선택할 항목이 없습니다.'); return; }
+    btn.click();
   });
 })();
 </script>
