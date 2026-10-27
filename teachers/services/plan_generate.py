@@ -116,23 +116,11 @@ def normalize(raw):
     }
 
 
-def generate_plan(programs):
-    programs = clean_programs(programs)
-    if not programs:
-        raise ExtractError("프로그램을 선택해주세요.")
+def _call_json(body):
+    """Gemini를 호출해 JSON 응답을 돌려줌 (키 순환·모델 대체·시간 제한 포함)"""
     keys = _active_keys()
     if not keys:
         raise ExtractError("AI 설정(API 키)이 아직 되어 있지 않습니다. 관리자에게 문의해주세요.")
-
-    body = {
-        "contents": [{"parts": [{"text": _prompt(programs)}]}],
-        "generationConfig": {
-            "temperature": 0.6,
-            "maxOutputTokens": 8192,
-            "responseMimeType": "application/json",
-            "responseSchema": SCHEMA,
-        },
-    }
     # 긴 글을 쓰는 데는 10~20초 걸릴 수 있어, 서류 읽기(15초)보다 오래 기다린다 (서버 작업 제한 30초 안에서)
     deadline = time.monotonic() + GENERATE_BUDGET
     last_error = None
@@ -157,7 +145,7 @@ def generate_plan(programs):
                 _record(key_obj, "응답 해석 실패")
                 raise ExtractError("AI 응답을 해석하지 못했습니다. 다시 시도해주세요.") from e
             _record(key_obj, None)
-            return normalize(data)
+            return data
         _record(key_obj, _status_message(resp.status_code))
         if resp.status_code == 429:
             last_error = ExtractError("오늘 무료 사용량을 모두 사용했거나 요청이 몰렸습니다. 잠시 후 다시 시도해주세요.")
@@ -166,3 +154,156 @@ def generate_plan(programs):
         else:
             last_error = ExtractError("내용을 작성하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
     raise last_error or ExtractError("AI 서비스가 지금 혼잡해서 응답이 늦습니다. 잠시 후 다시 시도해주세요.")
+
+
+def _body(prompt, schema, temperature=0.6):
+    return {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": temperature,
+            "maxOutputTokens": 8192,
+            "responseMimeType": "application/json",
+            "responseSchema": schema,
+        },
+    }
+
+
+def generate_plan(programs):
+    programs = clean_programs(programs)
+    if not programs:
+        raise ExtractError("프로그램을 선택해주세요.")
+    return normalize(_call_json(_body(_prompt(programs), SCHEMA)))
+
+
+# ---------------------------------------------------------------------------
+# 항목별 AI 작성 (운영 목표 / 주요 교육 내용 / 주요 강의 방법 / 운영 방법 / 교구재 선정 이유·내용·활용 방법)
+# ---------------------------------------------------------------------------
+SECTION_LABELS = {
+    "goal": "운영 목표", "content": "주요 교육 내용", "methods": "주요 강의 방법", "operation": "운영 방법",
+    "reason": "교구재 선정 이유", "gear_content": "교구재 내용", "gear_use": "교구재 활용 방법",
+}
+# 항목마다 '글자 수' 설정이 가리키는 단위의 기본값 (화면의 안내와 맞춤)
+DEFAULT_CHARS = {"goal": 55, "content": 45, "methods": 120, "operation": 45, "reason": 160, "gear_content": 160, "gear_use": 160}
+MODES = ("fill", "improve", "new")
+
+# 칸이 나뉜 모양(detail)일 때의 칸 이름과 설명
+DETAIL_SPEC = {
+    "goal": ("""운영 목표: 프로그램을 통하여 학생들에게 길러질 수 있는 역량을 기술하고, 학생의 심리와 발달 정도를 고려한 프로그램 목표를 기술한다.
+   - 지식(knowledge) / 기능(skill) / 태도(attitude) 영역별로 각 3줄, 한 줄은 약 {n}자의 구체적인 한 문장.""",
+             _obj({"knowledge": _arr(), "skill": _arr(), "attitude": _arr()})),
+    "content": ("""주요 교육 내용: 학생의 수준에 따른 교육 내용을 기술한다.
+   - 수준별 3단계(초급 1~2학년, 중급 3~4학년, 고급 5~6학년)로 stages 3개. 각 단계마다
+     name(단계 이름, 12자 이내, 프로그램 특성에 맞게), grade(예: '1~2학년'),
+     goal(목표 1문장, 약 {n}자), content(교육 내용 3줄, 한 줄 약 {n}자, 줄바꿈은 \\n), outcome(기대 성과 1문장, 약 {n}자).""",
+                {"type": "OBJECT", "required": ["stages"], "properties": {"stages": {
+                    "type": "ARRAY",
+                    "items": _obj({"name": _s(), "grade": _s(), "goal": _s(), "content": _s(), "outcome": _s()})}}}),
+    "methods": ("""주요 강의 방법: 학생 수준에 따른 강의 방법, 다른 강사(또는 유사 강의)와의 차별점, 학생 대상 평가 및 환류 방법을 기술한다.
+   - practice(실습 중심), project(프로젝트 기반 학습), media(시청각 자료 및 실제 사례), custom(맞춤형 지도)에는
+     초급·중급·고급 수준별 강의 방법과 다른 강의와의 차별점이 드러나게 각 항목 약 {n}자(2문장).
+   - process_eval(과정 평가: 출석·참여도·수행 과정), result_eval(결과물 평가·피드백·환류 방법)도 각 항목 약 {n}자(2문장).""",
+                _obj({"practice": _s(), "project": _s(), "media": _s(), "custom": _s(),
+                      "process_eval": _s(), "result_eval": _s()})),
+    "operation": ("""운영 방법: 프로그램 운영 시간(총 차시, 1일 차시), 운영 공간, 학생 참여 방법 및 안전 지도계획, 학교·학부모 소통을 기술한다.
+   - time(주 횟수, 1일 차시와 시간, 연간 총 차시를 2줄), space(운영 공간 1~2줄),
+     participation(학생 참여 방법 3줄), safety(안전 지도계획 3줄), communication(학교·학부모 소통 3줄). 한 줄은 약 {n}자.""",
+                  _obj({"operation_time": _s(), "space": _s(), "participation": _s(), "safety": _s(), "communication": _s()})),
+}
+# '운영 시간' 키 이름이 다른 항목과 겹치지 않도록 AI 응답에서는 operation_time 으로 받는다 (화면에는 time 으로 돌려줌)
+
+FLAT_SPEC = {
+    "goal": "운영 목표: 프로그램을 통하여 학생들에게 길러질 수 있는 역량과, 학생의 심리·발달 정도를 고려한 프로그램 목표를 기술한다. 지식·기능·태도가 고루 드러나게 한 줄은 약 {n}자, 5~8줄.",
+    "content": "주요 교육 내용: 학생의 수준(초급 1~2학년, 중급 3~4학년, 고급 5~6학년)에 따른 교육 내용과 목표·기대 성과를 기술한다. 한 줄은 약 {n}자, 6~9줄.",
+    "methods": "주요 강의 방법: 학생 수준에 따른 강의 방법, 다른 강사(또는 유사 강의)와의 차별점, 학생 대상 평가 및 환류 방법을 기술한다. 한 줄은 약 {n}자, 5~8줄.",
+    "operation": "운영 방법: 프로그램 운영 시간(총 차시, 1일 차시), 운영 공간, 학생 참여 방법, 안전 지도계획, 학교·학부모 소통을 기술한다. 한 줄은 약 {n}자, 6~9줄.",
+    "reason": "교구재 선정 이유: 위 교재·교구·재료를 왜 선택했는지(학생 수준·안전성·교육 목표와의 연결·가격 대비 효과)를 기술한다. 전체 약 {n}자, 2~4줄.",
+    "gear_content": "교구재 내용: 위 교구재(교구·재료)의 구성과 특징, 학생이 무엇을 만들거나 체험하는지를 기술한다. 전체 약 {n}자, 2~4줄.",
+    "gear_use": "교구재 활용 방법: 위 교구재를 수업에서 어떻게 활용하는지(차시별·단계별 활용, 모둠 활동, 보관·안전 관리)를 기술한다. 전체 약 {n}자, 2~4줄.",
+}
+FLAT_SCHEMA = _obj({"lines": _arr()})
+
+MODE_TEXT = {
+    "fill": "[작성 방식] '빈 칸만 채우기'입니다. 아래 [현재 내용] 중 내용이 있는 칸은 강사가 직접 쓴 것이므로 그 취지와 어긋나지 않게 이어지도록 쓰고, 비어 있는 칸(빈 문자열)을 중심으로 충실히 작성하세요. (내용이 있는 칸은 화면에서 그대로 유지됩니다)",
+    "improve": "[작성 방식] '현재 내용 다듬기·보강'입니다. 아래 [현재 내용]의 의도와 핵심 표현을 살리면서 문장을 매끄럽게 고치고, 부족한 부분은 구체적으로 보강하세요. 비어 있는 칸은 새로 작성하세요.",
+    "new": "[작성 방식] '새로 작성'입니다. 아래 [현재 내용]이 있다면 그것과 다른 방향·표현·예시로 새롭게 추천하세요(같은 문장을 반복하지 않는다).",
+}
+
+
+def _clip(v, n):
+    return " ".join(str(v or "").replace("\u200b", " ").split())[:n] if "\n" not in str(v or "") else \
+        "\n".join(" ".join(x.split())[:n] for x in str(v).replace("\u200b", "").split("\n") if x.strip())
+
+
+def _section_prompt(section, programs, mode, chars, note, extra, current, materials, flat):
+    names = ", ".join(programs)
+    if flat:
+        spec = FLAT_SPEC[section].format(n=chars)
+        out_hint = "응답은 {\"lines\": [...]} 형태로, 줄마다 배열 한 칸에 담는다."
+    else:
+        spec = DETAIL_SPEC[section][0].format(n=chars)
+        out_hint = "응답은 요청한 JSON 구조 그대로 채운다."
+    cur_lines = []
+    for k, v in (current or {}).items():
+        cur_lines.append(f"- {str(k)[:40]}: {_clip(v, 500) or '(비어 있음)'}")
+    cur = "\n".join(cur_lines) if cur_lines else "(없음)"
+    extra_txt = ("현재 내용에 없더라도 이 프로그램에 어울리는 내용을 AI가 판단해 추가·추천해도 된다." if extra
+                 else "현재 내용에 없는 새로운 주제를 마음대로 늘리지 말고, 요청한 칸의 범위 안에서만 작성한다.")
+    mat = f"\n[교재·교구·재료 목록]\n{_clip(materials, 700)}\n" if materials and section in ("reason", "gear_content", "gear_use") else ""
+    return f"""당신은 초등학교 방과후학교(늘봄학교) 프로그램 운영 계획서를 작성하는 강사 지원 도우미입니다.
+'{SECTION_LABELS[section]}' 항목만 작성해 JSON으로 답하세요.
+
+[프로그램] {names}
+{"(여러 프로그램이면 하나의 통합 프로그램으로 운영한다고 보고, 각 프로그램의 특징이 골고루 드러나게 작성)" if len(programs) > 1 else ""}
+{mat}
+[작성 조건]
+{spec}
+
+{MODE_TEXT[mode]}
+{extra_txt}
+{("[강사의 추가 요청] " + note) if note else ""}
+
+[현재 내용]
+{cur}
+
+[주의]
+- 선택한 프로그램의 특성에 맞는 구체적인 내용으로 쓰고, 다른 프로그램에도 그대로 쓸 수 있는 뻔한 문구는 피한다.
+- 특정 업체·상품·교재명을 단정하지 말고(단, 위 [교재·교구·재료 목록]에 있는 이름은 사용 가능), 과장하거나 확인되지 않은 실적·수상 경력을 쓰지 않는다.
+- 문체는 '~한다/~할 수 있다' 형태의 간결한 문장으로 통일한다. 줄 앞에 기호(-, ▷ 등)는 붙이지 않는다.
+- 글자 수 기준(약 {chars}자)을 지킨다. 이 내용은 A4 표 칸 안에 들어가야 하므로 기준을 크게 넘기지 않는다.
+- {out_hint}"""
+
+
+def generate_section(section, programs, options, current, materials="", flat=False):
+    if section not in SECTION_LABELS:
+        raise ExtractError("알 수 없는 항목입니다.")
+    programs = clean_programs(programs)
+    if not programs:
+        raise ExtractError("프로그램을 입력해주세요.")
+    mode = options.get("mode") if options.get("mode") in MODES else "new"
+    try:
+        chars = int(options.get("chars") or DEFAULT_CHARS[section])
+    except (TypeError, ValueError):
+        chars = DEFAULT_CHARS[section]
+    chars = max(15, min(chars, 400))
+    note = " ".join(str(options.get("note") or "").split())[:300]
+    extra = bool(options.get("extra"))
+    flat = bool(flat) or section not in DETAIL_SPEC
+    if not isinstance(current, dict):
+        current = {}
+    current = {str(k)[:40]: v for k, v in list(current.items())[:30]}
+    schema = FLAT_SCHEMA if flat else DETAIL_SPEC[section][1]
+    prompt = _section_prompt(section, programs, mode, chars, note, extra, current, materials, flat)
+    # '새로 작성'은 매번 다른 결과가 나오도록 온도를 조금 높임
+    data = _call_json(_body(prompt, schema, temperature=0.85 if mode == "new" else 0.6))
+
+    if flat:
+        return {"lines": _lines(data.get("lines"), 600)[:12] if isinstance(data, dict) else []}
+    if section == "goal":
+        return {"goal": normalize({"goal": data})["goal"]}
+    if section == "content":
+        return {"stages": normalize({"stages": data.get("stages")})["stages"]}
+    if section == "methods":
+        return {"methods": normalize({"methods": data})["methods"]}
+    o = dict(data)
+    o["time"] = o.pop("operation_time", "")
+    return {"operation": normalize({"operation": o})["operation"]}

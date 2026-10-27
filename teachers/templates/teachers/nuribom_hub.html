@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=26">
+<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=27">
 <style>
   body { background: #e9ecef; }
   .nb-bar {
@@ -30,7 +30,7 @@
     .nb-wrap { padding: 0 !important; overflow: visible !important; }
     .nb-paper { box-shadow: none !important; width: auto !important; margin: 0 !important; padding: 0 !important; }
     .nb-sheet { width: auto !important; margin: 0 !important; }
-    #nbOverlay, .nb-ctx { display: none !important; }
+    #nbOverlay, #nbAiLayer, .nb-ctx { display: none !important; }
     .nb-paper tr { break-inside: avoid; }
     .nb-paper .cell:focus { background: none !important; }
     #nb-sec2, #nb-sec3, #nb-sec4, #nb-sec5 { break-before: page; }
@@ -47,6 +47,13 @@
     box-sizing: border-box; box-shadow: 0 2px 12px rgba(0,0,0,.18);
   }
   #nbOverlay { position: absolute; left: 0; top: 0; right: 0; height: 0; pointer-events: none; }
+  #nbAiLayer { position: absolute; left: 0; top: 0; right: 0; height: 0; pointer-events: none; z-index: 6; }
+  .nb-ai-btn {
+    position: absolute; pointer-events: auto; border: 1px solid #6f42c1; background: #f3ecff; color: #5a32a3;
+    border-radius: 12px; font-size: .68rem; line-height: 1; padding: 3px 8px; white-space: nowrap; cursor: pointer;
+    opacity: .85; box-shadow: 0 1px 3px rgba(0,0,0,.12);
+  }
+  .nb-ai-btn:hover { opacity: 1; background: #6f42c1; color: #fff; }
   .nb-band {
     position: absolute; left: -16px; right: -16px; height: 28px; background: #e9ecef;
     display: flex; align-items: center; justify-content: center; gap: 14px;
@@ -117,6 +124,7 @@
       {% include "teachers/_nuribom_doc.html" %}
     </div>
     <div id="nbOverlay" aria-hidden="true"></div>
+    <div id="nbAiLayer"></div>
   </div>
   {% include "teachers/_nuribom_plan_templates.html" %}
 </div>
@@ -145,6 +153,59 @@
       <div class="modal-footer py-2">
         <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">취소</button>
         <button type="button" class="btn btn-primary btn-sm" id="nbSplitOk">나누기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="nbAiModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="bi bi-stars me-1"></i> <span id="nbAiTitle">AI로 작성</span></h6>
+        <button type="button" class="btn-close" id="nbAiClose" data-bs-dismiss="modal" aria-label="닫기"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label class="form-label small mb-1" for="nbAiProg">프로그램 (여러 개면 &amp; 로 구분)</label>
+          <input type="text" class="form-control form-control-sm" id="nbAiProg" maxlength="120" placeholder="예) 로봇과학">
+        </div>
+        <div class="small text-muted mb-2" id="nbAiState"></div>
+
+        <div class="small fw-semibold mb-1">작성 방식</div>
+        <div class="mb-2" id="nbAiModes">
+          <div class="form-check"><input class="form-check-input" type="radio" name="nbAiMode" id="nbAiModeFill" value="fill"><label class="form-check-label small" for="nbAiModeFill">빈 칸만 채우기 <span class="text-muted">(직접 쓴 내용은 그대로 유지)</span></label></div>
+          <div class="form-check"><input class="form-check-input" type="radio" name="nbAiMode" id="nbAiModeImprove" value="improve"><label class="form-check-label small" for="nbAiModeImprove">내가 쓴 내용을 바탕으로 다듬고 보강</label></div>
+          <div class="form-check"><input class="form-check-input" type="radio" name="nbAiMode" id="nbAiModeNew" value="new"><label class="form-check-label small" for="nbAiModeNew">새로 작성 <span class="text-muted">(현재 내용과 다르게 추천)</span></label></div>
+        </div>
+
+        <div class="mb-2">
+          <label class="form-label small mb-1" for="nbAiChars"><span id="nbAiUnit">글자 수</span> (대략 몇 글자)</label>
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <input type="number" class="form-control form-control-sm" id="nbAiChars" min="15" max="400" style="width:90px">
+            <span class="small text-muted">자</span>
+            <div class="btn-group btn-group-sm" id="nbAiPresets">
+              <button type="button" class="btn btn-outline-secondary" data-k="0.65">짧게</button>
+              <button type="button" class="btn btn-outline-secondary" data-k="1">보통</button>
+              <button type="button" class="btn btn-outline-secondary" data-k="1.6">자세히</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" id="nbAiExtra" checked>
+          <label class="form-check-label small" for="nbAiExtra">현재 내용에 없는 내용도 AI가 추천해서 넣어도 됩니다</label>
+        </div>
+
+        <div class="mb-1">
+          <label class="form-label small mb-1" for="nbAiNote">추가 요청 (선택)</label>
+          <textarea class="form-control form-control-sm" id="nbAiNote" rows="2" maxlength="300" placeholder="예) 코딩 요소를 강조해주세요 / 안전 지도 비중을 늘려주세요"></textarea>
+        </div>
+        <div class="small mt-3 d-none" id="nbAiStatus"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-secondary btn-sm" id="nbAiCancel" data-bs-dismiss="modal">취소</button>
+        <button type="button" class="btn btn-primary btn-sm" id="nbAiGo"><i class="bi bi-stars me-1"></i>내용 생성</button>
       </div>
     </div>
   </div>
@@ -469,6 +530,10 @@
   }
 
   function paginate() {
+    paginateCore();
+    if (window.nbPlaceAi) window.nbPlaceAi();
+  }
+  function paginateCore() {
     clearPages();
     resetPlanStretch();
     // 쪽 구성 맞추기 (쪽 구분 표시를 꺼도 인쇄 결과는 같도록 항상 적용)
@@ -1540,6 +1605,228 @@
     });
     schedulePaginate();
   }
+
+  // ---------- 항목별 AI 작성 (운영 목표 / 주요 교육 내용 / 주요 강의 방법 / 운영 방법 / 교구재 선정 이유·내용·활용 방법) ----------
+  var AI_SECTIONS = {
+    goal: {label: '운영 목표', unit: '한 줄당', def: 55},
+    content: {label: '주요 교육 내용', unit: '한 줄(문장)당', def: 45},
+    methods: {label: '주요 강의 방법', unit: '항목당', def: 120},
+    operation: {label: '운영 방법', unit: '한 줄당', def: 45},
+    reason: {label: '교구재 선정 이유', unit: '전체', def: 160},
+    gear_content: {label: '교구재 내용', unit: '전체', def: 160},
+    gear_use: {label: '교구재 활용 방법', unit: '전체', def: 160}
+  };
+  var AI_FIRST = {'운영목표': 'goal', '주요교육내용': 'content', '주요강의방법': 'methods', '운영방법': 'operation'};
+  var AI_SLOT = {
+    '지식영역': 'goal.knowledge', '기능영역': 'goal.skill', '태도영역': 'goal.attitude',
+    '실습중심': 'methods.practice', '프로젝트기반학습': 'methods.project',
+    '시청각자료및실제사례': 'methods.media', '맞춤형지도': 'methods.custom',
+    '과정평가': 'methods.process_eval', '결과물평가': 'methods.result_eval',
+    '운영시간': 'operation.time', '운영공간': 'operation.space',
+    '학생참여방법': 'operation.participation', '안전지도계획': 'operation.safety',
+    '학교학부모소통': 'operation.communication'
+  };
+  var AI_GEAR = {reason: '교구재선정이유', gear_content: '교구재내용', gear_use: '교구재활용방법'};
+
+  function lastTd(tr) { return tr && tr.children.length ? tr.children[tr.children.length - 1] : null; }
+  // 항목의 입력 칸 목록: {flat, slots:[{key, td}], rows}
+  function aiTarget(sec) {
+    var t = planTable(); if (!t) return null;
+    var rows = Array.prototype.slice.call(t.querySelectorAll(':scope > tbody > tr'));
+    if (AI_GEAR[sec]) {
+      var gr = rows.filter(function (r) { return r.children[0] && normT(r.children[0].textContent) === AI_GEAR[sec]; })[0];
+      var gtd = lastTd(gr);
+      return gtd ? {flat: true, slots: [{key: 'text', td: gtd}], rows: [gr]} : null;
+    }
+    var cur = null, mine = [];
+    rows.forEach(function (r) {
+      var f = r.children[0] ? normT(r.children[0].textContent) : '';
+      if (AI_FIRST[f]) cur = AI_FIRST[f];
+      else if (f.indexOf('▶교재및콘텐츠') === 0) cur = null;
+      if (cur === sec) mine.push(r);
+    });
+    if (!mine.length) return null;
+    var slots = [], stage = -1;
+    mine.forEach(function (tr) {
+      var tds = Array.prototype.slice.call(tr.children);
+      if (tds.length < 2) return;
+      var content = tds[tds.length - 1];
+      var labels = tds.slice(0, -1).map(function (td) { return normT(td.textContent); });
+      var key = null;
+      labels.forEach(function (l) { if (AI_SLOT[l]) key = AI_SLOT[l]; });
+      if (key) { slots.push({key: key, td: content}); return; }
+      var sub = labels.indexOf('목표') >= 0 ? 'goal' : labels.indexOf('내용') >= 0 ? 'content' : labels.indexOf('성과') >= 0 ? 'outcome' : null;
+      if (!sub) return;
+      if (sub === 'goal') {
+        stage++;
+        var stageTd = tds.filter(function (td) { return td.getAttribute('rowspan') === '3'; })[0];
+        if (stageTd) slots.push({key: 'stage' + stage + '.title', td: stageTd});
+      }
+      if (stage >= 0) slots.push({key: 'stage' + stage + '.' + sub, td: content});
+    });
+    if (!slots.length) {   // 안내 문구만 있는 처음 모양: 칸 하나에 줄로 작성
+      return {flat: true, slots: [{key: 'text', td: lastTd(mine[0])}], rows: mine};
+    }
+    return {flat: false, slots: slots, rows: mine};
+  }
+  function slotLines(td) {
+    var cell = td.querySelector('.cell'); if (!cell) return [];
+    return Array.prototype.map.call(cell.querySelectorAll(':scope > .hp'), function (p) {
+      return p.textContent.replace(/\u200b/g, '').trim();
+    }).filter(Boolean);
+  }
+  // 처음의 안내 문구('▷ …')만 있으면 빈 칸으로 본다
+  function slotText(td) {
+    var l = slotLines(td);
+    if (l.length && l.every(function (x) { return /^▷/.test(x); })) return '';
+    return l.map(function (x) { return x.replace(/^[-▷·]\s*/, ''); }).join('\n');
+  }
+  function aiMaterialsText() {
+    var t = planTable(); if (!t) return '';
+    var on = false, out = [];
+    Array.prototype.forEach.call(t.querySelectorAll(':scope > tbody > tr'), function (r) {
+      var f = r.children[0] ? normT(r.children[0].textContent) : '';
+      if (f.indexOf('▶교재및콘텐츠') === 0) { on = true; return; }
+      if (f === '교구재선정이유') on = false;
+      if (!on) return;
+      var cells = Array.prototype.map.call(r.children, function (td) { return td.textContent.replace(/\u200b/g, '').trim(); }).filter(Boolean);
+      if (cells.length) out.push(cells.join(' / '));
+    });
+    return out.join('\n');
+  }
+
+  var aiEl = document.getElementById('nbAiModal');
+  var aiSec = null, aiTimer = null;
+  function aiStatus(msg, cls) {
+    var el = document.getElementById('nbAiStatus');
+    el.className = 'small mt-3 ' + (cls || 'text-muted');
+    el.textContent = msg;
+    el.classList.toggle('d-none', !msg);
+  }
+  function aiLock(busy) {
+    ['nbAiGo', 'nbAiCancel', 'nbAiClose'].forEach(function (id) { document.getElementById(id).disabled = busy; });
+  }
+  function openAi(sec) {
+    var tg = aiTarget(sec);
+    if (!tg) { alert('이 항목의 칸을 찾지 못했습니다. 표 모양이 바뀌었는지 확인해주세요.'); return; }
+    var info = AI_SECTIONS[sec], filled = 0, blank = 0;
+    tg.slots.forEach(function (sl) { if (slotText(sl.td)) filled++; else blank++; });
+    aiSec = sec;
+    document.getElementById('nbAiTitle').textContent = 'AI로 ' + info.label + ' 작성';
+    document.getElementById('nbAiProg').value = currentPrograms().join(' & ');
+    document.getElementById('nbAiState').textContent = '현재 ' + tg.slots.length + '칸 중 ' + filled + '칸에 내용이 있고 ' + blank + '칸이 비어 있습니다.' +
+      (filled ? ' (직접 편집한 내용도 내용이 있는 칸으로 봅니다)' : '');
+    var fill = document.getElementById('nbAiModeFill'), imp = document.getElementById('nbAiModeImprove'), nw = document.getElementById('nbAiModeNew');
+    fill.disabled = !(filled && blank);
+    imp.disabled = !filled;
+    (filled === 0 ? nw : blank > 0 ? fill : imp).checked = true;
+    document.getElementById('nbAiUnit').textContent = info.unit + ' 글자 수';
+    document.getElementById('nbAiChars').value = info.def;
+    document.getElementById('nbAiNote').value = '';
+    document.getElementById('nbAiExtra').checked = true;
+    aiStatus('');
+    aiLock(false);
+    bootstrap.Modal.getOrCreateInstance(aiEl).show();
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('#nbAiPresets button'), function (b) {
+    b.addEventListener('click', function () {
+      var def = AI_SECTIONS[aiSec] ? AI_SECTIONS[aiSec].def : 50;
+      document.getElementById('nbAiChars').value = Math.round(def * parseFloat(b.dataset.k));
+    });
+  });
+
+  // AI 결과를 칸에 넣기 (작성 방식이 '빈 칸만 채우기'면 내용이 있는 칸은 건드리지 않음)
+  function aiValueFor(key, data) {
+    var parts = key.split('.'), v = null;
+    if (/^stage\d$/.test(parts[0])) {
+      var st = (data.stages || [])[parseInt(parts[0].slice(5), 10)];
+      if (!st) return null;
+      if (parts[1] === 'title') return [st.name, st.grade ? '(' + st.grade + ')' : ''].filter(Boolean);
+      return splitLines(st[parts[1]]);
+    }
+    var grp = data[parts[0]];
+    if (!grp) return null;
+    v = grp[parts[1]];
+    var lines = Array.isArray(v) ? v : splitLines(v);
+    return (parts[0] === 'goal' || parts[0] === 'operation') ? bulleted(lines) : lines;
+  }
+  function aiApply(sec, data, mode) {
+    var tg = aiTarget(sec); if (!tg) return 0;   // 생성하는 동안 표가 바뀌었을 수 있어 다시 찾음
+    histPush();
+    clearPages();
+    resetPlanStretch();
+    var n = 0;
+    tg.slots.forEach(function (sl) {
+      if (mode === 'fill' && slotText(sl.td)) return;
+      var lines = tg.flat ? (data.lines || []) : aiValueFor(sl.key, data);
+      if (!lines || !lines.length) return;
+      if (tg.flat && sec !== 'reason' && sec !== 'gear_content' && sec !== 'gear_use') lines = bulleted(lines);
+      setCellLines(sl.td, lines);
+      n++;
+    });
+    schedulePaginate();
+    return n;
+  }
+  document.getElementById('nbAiGo').addEventListener('click', function () {
+    var sec = aiSec; if (!sec) return;
+    var tg = aiTarget(sec); if (!tg) return;
+    var programs = document.getElementById('nbAiProg').value.split(/\s*[&,]\s*/).map(function (x) { return x.trim(); }).filter(Boolean);
+    if (!programs.length) { aiStatus('프로그램을 입력해주세요. (상단 [프로그램 선택]에서 먼저 골라도 됩니다)', 'text-danger'); return; }
+    var modeEl = document.querySelector('input[name=nbAiMode]:checked');
+    var mode = modeEl ? modeEl.value : 'new';
+    var current = {};
+    tg.slots.forEach(function (sl) { current[sl.key] = slotText(sl.td); });
+    var body = {
+      section: sec, programs: programs, flat: tg.flat, current: current,
+      materials: AI_GEAR[sec] ? aiMaterialsText() : '',
+      options: {
+        mode: mode, chars: parseInt(document.getElementById('nbAiChars').value, 10) || AI_SECTIONS[sec].def,
+        note: document.getElementById('nbAiNote').value, extra: document.getElementById('nbAiExtra').checked
+      }
+    };
+    aiLock(true);
+    var t0 = Date.now();
+    clearInterval(aiTimer);
+    aiTimer = setInterval(function () {
+      aiStatus('AI가 내용을 작성하고 있습니다… ' + Math.floor((Date.now() - t0) / 1000) + '초 (보통 5~20초)', 'text-primary');
+    }, 500);
+    aiStatus('AI가 내용을 작성하고 있습니다…', 'text-primary');
+    fetch("{% url 'nuribom_ai_section' %}", {
+      method: 'POST', credentials: 'same-origin',
+      headers: {'X-CSRFToken': csrf(), 'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      return r.json().catch(function () { return {ok: false, error: '서버 응답을 읽지 못했습니다. (오류 ' + r.status + ')'}; });
+    }).then(function (j) {
+      if (!j.ok) { aiStatus('작성에 실패했습니다: ' + (j.error || '') + ' (다시 [내용 생성]을 눌러 재시도할 수 있습니다.)', 'text-danger'); return; }
+      var n = aiApply(sec, j.data || {}, mode);
+      if (!n) { aiStatus('넣을 내용이 없어 아무것도 바뀌지 않았습니다. 작성 방식을 바꿔 다시 시도해주세요.', 'text-danger'); return; }
+      bootstrap.Modal.getOrCreateInstance(aiEl).hide();
+    }).catch(function () {
+      aiStatus('작성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', 'text-danger');
+    }).then(function () { clearInterval(aiTimer); aiLock(false); });
+  });
+
+  // 각 항목 아래쪽 오른쪽에 'AI 활용' 버튼 (문서 밖 레이어라서 저장·PDF에는 들어가지 않음)
+  var aiLayer = document.getElementById('nbAiLayer');
+  function nbPlaceAi() {
+    aiLayer.innerHTML = '';
+    var sheet = aiLayer.parentNode.getBoundingClientRect();
+    Object.keys(AI_SECTIONS).forEach(function (sec) {
+      var tg = aiTarget(sec); if (!tg || !tg.rows.length) return;
+      var last = tg.rows[tg.rows.length - 1], td = lastTd(last); if (!td) return;
+      var r = td.getBoundingClientRect(); if (!r.height) return;
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'nb-ai-btn';
+      b.innerHTML = '✨ AI 활용'; b.title = AI_SECTIONS[sec].label + ' 내용을 AI로 작성';
+      b.style.top = (r.bottom - sheet.top - 22) + 'px';
+      b.style.right = (sheet.right - r.right + 5) + 'px';
+      b.addEventListener('click', function () { openAi(sec); });
+      aiLayer.appendChild(b);
+    });
+  }
+  window.nbPlaceAi = nbPlaceAi;
+  window.addEventListener('resize', function () { schedulePaginate(); });
 
   // 선택 창
   var progSel = [];

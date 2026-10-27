@@ -1012,3 +1012,30 @@ def nuribom_generate(request):
     except ExtractError as e:
         return JsonResponse({"ok": False, "error": str(e)}, status=400)
     return JsonResponse({"ok": True, "plan": plan})
+
+
+
+@login_required
+@require_POST
+def nuribom_ai_section(request):
+    """운영 계획서의 항목 하나(운영 목표·교육 내용·강의 방법·운영 방법·교구재 선정 이유/내용/활용 방법)를 AI로 작성"""
+    import json
+    from .services.doc_extract import ExtractError
+    from .services.plan_generate import generate_section
+
+    try:
+        payload = json.loads(request.body or b"{}")
+        section = str(payload.get("section") or "")
+        programs = payload.get("programs") or []
+        options = payload.get("options") or {}
+        current = payload.get("current") or {}
+        if not isinstance(programs, list) or not isinstance(options, dict) or not isinstance(current, dict):
+            raise ValueError
+    except ValueError:
+        return JsonResponse({"ok": False, "error": "요청을 읽지 못했습니다."}, status=400)
+    try:
+        data = generate_section(section, programs, options, current,
+                                materials=str(payload.get("materials") or ""), flat=bool(payload.get("flat")))
+    except ExtractError as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True, "data": data})
