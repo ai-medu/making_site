@@ -805,6 +805,8 @@ def nuribom_hub(request):
     return render(request, "teachers/nuribom_hub.html", {
         "teacher": teacher, "hub_data": data,
         "nb_year1": f"{year % 100:02d}", "nb_year2": f"{(year + 1) % 100:02d}",
+        "nb_today": (lambda t: f"{t.year}년    {t.month}월     {t.day}일")(timezone.localdate()),
+        "nb_name_spaced": " ".join(data["name"].replace(" ", "")),
     })
 
 
@@ -994,6 +996,51 @@ def bulk_create_documents(request, kind):
         messages.success(request, msg)
         return JsonResponse({"ok": True, "created": created, "skipped": skipped, "redirect": reverse(list_name)})
     return JsonResponse({"ok": False, "error": "등록하지 못했습니다. 입력이 부족한 항목입니다: " + ", ".join(skipped)}, status=400)
+
+
+@login_required
+@require_POST
+def nuribom_ai_intro(request):
+    """등록된 학력·자격·경력을 바탕으로 자기소개서를 AI로 작성"""
+    import json
+    from .services.doc_extract import ExtractError
+    from .services.plan_generate import generate_intro
+
+    try:
+        payload = json.loads(request.body or b"{}")
+        programs = payload.get("programs") or []
+        options = payload.get("options") or {}
+        if not isinstance(programs, list) or not isinstance(options, dict):
+            raise ValueError
+    except ValueError:
+        return JsonResponse({"ok": False, "error": "요청을 읽지 못했습니다."}, status=400)
+    try:
+        data = generate_intro(programs, options, str(payload.get("profile") or ""), str(payload.get("current") or ""))
+    except ExtractError as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True, "intro": data})
+
+
+@login_required
+@require_POST
+def nuribom_generate_gear(request):
+    """선택한 프로그램과 교재·교구·재료 목록을 바탕으로 교구재 선정 이유·내용·활용 방법을 한 번에 AI로 작성"""
+    import json
+    from .services.doc_extract import ExtractError
+    from .services.plan_generate import generate_gear
+
+    try:
+        payload = json.loads(request.body or b"{}")
+        programs = payload.get("programs") or []
+        if not isinstance(programs, list):
+            raise ValueError
+    except ValueError:
+        return JsonResponse({"ok": False, "error": "요청을 읽지 못했습니다."}, status=400)
+    try:
+        gear = generate_gear(programs, str(payload.get("materials") or ""))
+    except ExtractError as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True, "gear": gear})
 
 
 @login_required

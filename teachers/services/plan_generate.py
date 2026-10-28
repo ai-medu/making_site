@@ -379,3 +379,121 @@ def generate_plan_rows(pdf_bytes, title, start, count, total, topic_max, line_ma
     want = end - start + 1
     rows = rows[:want] + [{"topic": "", "lines": []}] * max(0, want - len(rows))
     return rows
+
+
+# ---------------------------------------------------------------------------
+# 교구재 선정 이유 · 교구재 내용 · 교구재 활용 방법을 한 번에 작성 (같은 교구재를 설명하는 글이라 일관되게)
+# ---------------------------------------------------------------------------
+GEAR_SCHEMA = _obj({"reason": _arr(), "content": _arr(), "use": _arr()})
+
+
+def _gear_prompt(programs, materials, chars):
+    names = ", ".join(programs)
+    mat = _clip(materials, 900) if materials else ""
+    return f"""당신은 초등학교 방과후학교(늘봄학교) 프로그램 운영 계획서를 작성하는 강사 지원 도우미입니다.
+'교구재 선정 이유', '교구재 내용', '교구재 활용 방법' 세 항목을 한 번에 작성해 JSON으로 답하세요.
+
+[프로그램] {names}
+{("[교재·교구·재료 목록]" + chr(10) + mat) if mat else "[교재·교구·재료 목록] (아직 입력되지 않음 - 특정 상품명은 쓰지 말고 이 프로그램에서 흔히 쓰는 교구의 종류로 설명)"}
+
+[작성 조건] 세 항목은 같은 교구재를 설명하는 글이므로 서로 내용이 이어지고 모순이 없어야 합니다.
+- reason(교구재 선정 이유): 위 교재·교구·재료를 왜 선택했는지(학생 수준, 안전성, 교육 목표와의 연결, 가격 대비 효과). 2~4줄, 한 줄은 약 {chars}자.
+- content(교구재 내용): 교구재의 구성과 특징, 학생이 무엇을 만들거나 체험하는지. 2~4줄, 한 줄은 약 {chars}자.
+- use(교구재 활용 방법): 수업에서 어떻게 활용하는지(차시별·단계별 활용, 모둠 활동, 보관·안전 관리). 2~4줄, 한 줄은 약 {chars}자.
+
+[주의]
+- 위 목록에 있는 이름만 사용하고, 목록에 없는 업체·상품·가격은 지어내지 않습니다. 과장하거나 확인되지 않은 실적을 쓰지 않습니다.
+- 문체는 '~한다/~할 수 있다' 형태의 간결한 문장으로 통일하고, 줄 앞에 기호(-, ▷ 등)는 붙이지 않습니다.
+- 각 항목은 줄마다 배열 한 칸에 담습니다."""
+
+
+def generate_gear(programs, materials="", chars=60):
+    programs = clean_programs(programs)
+    if not programs:
+        raise ExtractError("프로그램을 선택해주세요.")
+    try:
+        chars = max(20, min(int(chars), 120))
+    except (TypeError, ValueError):
+        chars = 60
+    data = _call_json(_body(_gear_prompt(programs, materials, chars), GEAR_SCHEMA, temperature=0.6), call_timeout=15)
+    d = data if isinstance(data, dict) else {}
+    return {k: _lines(d.get(k), 600)[:6] for k in ("reason", "content", "use")}
+
+
+# ---------------------------------------------------------------------------
+# 자기소개서 작성 (등록된 학력·자격·경력을 바탕으로, 서식 안내 3가지에 맞춰)
+# ---------------------------------------------------------------------------
+INTRO_SCHEMA = _obj({"slogan": _s(), "paragraphs": _arr()})
+INTRO_SECTIONS = {
+    "motive": "강사를 지망하게 된 계기와 교육에 대한 포부",
+    "growth": "교육 분야 전반 또는 프로그램 분야와 관련된 자기 계발 및 전문성 신장을 위한 노력(교육 이수, (민간)자격증 취득 등)",
+    "guidance": "학생 지도 관리, 안전 관리 등에 대한 이해와 초등학생 강사로서의 경험",
+    "school": "학교와 학부모에 대한 이해 등 초등학교 강사로서의 적합성",
+    "mission": "학생에 대한 이해, 강사로서의 사명감과 다짐",
+}
+INTRO_DEFAULT = ["motive", "growth", "guidance", "school", "mission"]
+
+
+def _intro_prompt(programs, chars, keys, slogan, strict, note, mode, profile, current):
+    names = ", ".join(programs)
+    secs = "\n".join("  %d. %s" % (i, INTRO_SECTIONS[k]) for i, k in enumerate(keys, 1))
+    prof = _clip(profile, 1800) if profile else "(등록된 정보가 없음)"
+    if slogan:
+        slogan_rule = "slogan에는 자기소개서 맨 위에 둘 한 줄 제목(20~35자, 강사의 다짐이 드러나는 문장)을 씁니다."
+    else:
+        slogan_rule = "slogan은 빈 문자열로 둡니다."
+    if strict:
+        fact_rule = ("위 [등록된 정보]에 있는 사실(자격증명, 경력 기관·기간, 학력)만 근거로 사용하고, "
+                     "없는 수상·실적·경력·자격·수치는 절대 지어내지 않습니다. 정보가 부족한 항목은 구체적 실적 없이 마음가짐 중심으로 씁니다.")
+    else:
+        fact_rule = "등록된 정보를 중심으로 쓰되, 일반적으로 쓰이는 교육 경험 표현은 사용해도 됩니다. 단 구체적 수상·수치는 지어내지 않습니다."
+    note_rule = ("- [강사의 추가 요청] " + note) if note else ""
+    if mode == "improve" and current:
+        mode_rule = ("- [작성 방식] 아래 [현재 내용]을 바탕으로 의도와 핵심 내용을 살리되 문장을 다듬고 위 조건에 맞게 보강합니다.\n"
+                     "[현재 내용]\n" + _clip(current, 1800))
+    else:
+        mode_rule = "- [작성 방식] 새로 작성합니다."
+    return f"""당신은 초등학교 방과후학교(늘봄학교) 강사 지원 서류의 '자기소개서'를 작성하는 도우미입니다.
+JSON으로 답하세요.
+
+[서식 안내(원문)]
+- 최대 1면 작성
+- 교육 분야 전반 또는 프로그램 분야와 관련된 자기 계발 및 전문성 신장을 위한 노력(교육 이수, (민간)자격증 취득 등) 등을 자유롭게 기술
+- 학생 지도 관리, 안전 관리 등에 대한 이해, 초등학생 강사로서 경험, 학교에 대한 이해도 등 초등학교 강사로서 적합성을 자유롭게 기술
+- 학생에 대한 이해, 강사로서 사명감 등 기술
+
+[프로그램] {names}
+
+[등록된 정보 - 학력·자격·경력]
+{prof}
+
+[작성 조건]
+- 전체 분량은 공백 포함 약 {chars}자 (±10%). A4 한 쪽 안에 들어가야 하므로 넘기지 않습니다.
+- 아래 항목을 순서대로, 항목마다 문단 하나씩 작성합니다. 각 문단은 위 서식 안내의 해당 내용을 자연스럽게 담습니다.
+{secs}
+- {slogan_rule}
+- 1인칭('저는', '~하겠습니다', '~합니다')의 정중한 문체로, 서류 심사자가 읽는 글이므로 진정성 있고 구체적으로 씁니다.
+- {fact_rule}
+- 특정 학교·학생의 실명, 연락처 등 개인정보는 쓰지 않습니다.
+{note_rule}
+{mode_rule}
+- paragraphs 배열에는 문단을 순서대로 담고, 문단 앞에 기호(※, -, 번호)는 붙이지 않습니다."""
+
+
+def generate_intro(programs, options, profile="", current=""):
+    programs = clean_programs(programs)
+    if not programs:
+        raise ExtractError("프로그램을 입력해주세요.")
+    try:
+        chars = max(400, min(int(options.get("chars") or 1000), 1500))
+    except (TypeError, ValueError):
+        chars = 1000
+    keys = [k for k in (options.get("sections") or []) if k in INTRO_SECTIONS] or INTRO_DEFAULT
+    note = " ".join(str(options.get("note") or "").split())[:300]
+    mode = "improve" if options.get("mode") == "improve" else "new"
+    prompt = _intro_prompt(programs, chars, keys, bool(options.get("slogan")), bool(options.get("strict", True)),
+                           note, mode, str(profile or ""), str(current or ""))
+    data = _call_json(_body(prompt, INTRO_SCHEMA, temperature=0.8 if mode == "new" else 0.6), call_timeout=20)
+    d = data if isinstance(data, dict) else {}
+    paras = [" ".join(str(x).split()) for x in (d.get("paragraphs") or []) if str(x).strip()][:8]
+    return {"slogan": " ".join(str(d.get("slogan") or "").split())[:80], "paragraphs": [x[:900] for x in paras]}
