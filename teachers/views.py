@@ -789,7 +789,9 @@ def nuribom_hub(request):
             for e in Education.objects.filter(teacher=teacher)
         ],
         "certificates": [
-            {"id": c.id, "type": c.cert_type, "date": d(c.issued_date), "name": c.name, "issuer": c.issued_by}
+            {"id": c.id, "type": c.cert_type, "date": d(c.issued_date), "name": c.name, "issuer": c.issued_by,
+             "proof": reverse("proof_file", args=["certificate", c.id]) if c.proof_file else "",
+             "proof_img": bool(c.proof_file and c.proof_is_image)}
             for c in Certificate.objects.filter(teacher=teacher).order_by(F("issued_date").desc(nulls_last=True), "-id")
         ],
         "careers": [
@@ -996,6 +998,25 @@ def bulk_create_documents(request, kind):
         messages.success(request, msg)
         return JsonResponse({"ok": True, "created": created, "skipped": skipped, "redirect": reverse(list_name)})
     return JsonResponse({"ok": False, "error": "등록하지 못했습니다. 입력이 부족한 항목입니다: " + ", ".join(skipped)}, status=400)
+
+
+@login_required
+@require_POST
+def nuribom_proof_upload(request, pk):
+    """늘봄허브 '민간자격증 증빙'에서 자격증에 사진을 바로 추가 (자격증 증빙 파일로 저장됨)"""
+    cert = _proof_obj(request, "certificate", pk)
+    f = request.FILES.get("proof_file")
+    if not f:
+        return JsonResponse({"ok": False, "error": "사진 파일을 선택해주세요."}, status=400)
+    ext = os.path.splitext(f.name)[1].lower().lstrip(".")
+    if ext not in ("jpg", "jpeg", "png", "webp"):
+        return JsonResponse({"ok": False, "error": "사진(JPG, PNG) 파일만 올릴 수 있습니다."}, status=400)
+    err = _check_proof_file(f)
+    if err:
+        return JsonResponse({"ok": False, "error": err}, status=400)
+    _save_proof(request, cert)
+    cert.refresh_from_db()
+    return JsonResponse({"ok": True, "proof": reverse("proof_file", args=["certificate", cert.id]), "proof_img": cert.proof_is_image})
 
 
 @login_required
