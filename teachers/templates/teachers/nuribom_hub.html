@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=34">
+<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=35">
 <style>
   body { background: #e9ecef; }
   .nb-bar {
@@ -51,6 +51,13 @@
   /* 연간 활동 지도 계획안: 글자를 조금 키우고 줄 사이를 넉넉하게 (2쪽 안에 들어가도록 칸 위아래 여백은 줄임) */
   #nb-sec3 .c1, #nb-sec3 .c5 { font-size: 9.5pt; }
   #nb-sec3 .p5, #nb-sec3 .p55 { line-height: 1.3; }
+  /* 표 선: 화면 배율(125%, 150% 등)에서 1px 선이 어떤 곳은 굵고 어떤 곳은 얇게 그려지는 것을 막기 위해,
+     선 굵기를 '화면 픽셀 정확히 1칸'(= 1 / 배율)으로 통일 (값은 아래 스크립트가 배율에 맞춰 넣음). 인쇄·PDF는 1px */
+  :root { --nb-line: 1px; }
+  @media screen {
+    #nbDoc td { border-top-width: var(--nb-line) !important; border-right-width: var(--nb-line) !important;
+                border-bottom-width: var(--nb-line) !important; border-left-width: var(--nb-line) !important; }
+  }
   #nbOverlay { position: absolute; left: 0; top: 0; right: 0; height: 0; pointer-events: none; }
   #nbAiLayer { position: absolute; left: 0; top: 0; right: 0; height: 0; pointer-events: none; z-index: 6; }
   .nb-ai-btn {
@@ -125,10 +132,15 @@
       </select>
       <select class="form-select form-select-sm" id="nbSize" title="글자 크기(pt)">
         <option value="">크기</option>
-        <option>8</option><option>9</option><option>10</option><option>10.5</option><option>11</option><option>12</option>
+        <option>8</option><option>9</option><option>9.5</option><option>10</option><option>10.5</option><option>11</option><option>12</option>
         <option>13</option><option>14</option><option>15</option><option>16</option><option>18</option><option>20</option>
       </select>
-      <span class="small text-muted">칸을 끌어서 블록 지정하거나 글자를 선택한 뒤 바꿉니다</span>
+      <select class="form-select form-select-sm" id="nbLine" title="줄 간격">
+        <option value="">줄 간격</option>
+        <option value="100">100%</option><option value="110">110%</option><option value="120">120%</option><option value="130">130%</option>
+        <option value="140">140%</option><option value="150">150%</option><option value="160">160%</option><option value="170">170%</option>
+        <option value="180">180%</option><option value="200">200%</option>
+      </select>
     </div>
     <div class="row2">
       <button type="button" class="btn btn-outline-primary btn-sm" data-target="nb-sec1">강사 기본 정보</button>
@@ -581,7 +593,7 @@
           if (!(fs > 0) || !(lh > 0)) return;
           p.setAttribute('data-lh0', (lh / fs).toFixed(3));
         }
-        p.style.lineHeight = kl >= 1 ? '' : String((parseFloat(p.getAttribute('data-lh0')) * kl).toFixed(3));
+        p.style.lineHeight = kl >= 1 ? (p.getAttribute('data-lh-set') || '') : String((parseFloat(p.getAttribute('data-lh0')) * kl).toFixed(3));
       });
       el.querySelectorAll('.hp > span').forEach(function (sp) {
         if (!sp.hasAttribute('data-fs0')) sp.setAttribute('data-fs0', parseFloat(getComputedStyle(sp).fontSize).toFixed(2));
@@ -787,6 +799,7 @@
     selCells = Array.from(set);
     selCells.forEach(function (td) { td.classList.add('nb-sel'); });
     selTable = table; selRect = {r0: r0, r1: r1, c0: c0, c1: c1};
+    clearTimeout(fmtTimer); fmtTimer = setTimeout(updateFmtBar, 60);
   }
   function equalizeWidths(table, rect) {
     var cols = colsOf(table), g = buildGrid(table);
@@ -1614,18 +1627,94 @@
   var fmtRange = null;
   document.addEventListener('selectionchange', function () {
     var sel = window.getSelection();
-    if (!sel || !sel.rangeCount || sel.isCollapsed) return;
+    if (!sel || !sel.rangeCount) return;
     var r = sel.getRangeAt(0);
-    if (doc.contains(r.commonAncestorContainer)) fmtRange = r.cloneRange();   // 상단 목록을 눌러도 선택했던 글자를 기억
+    if (!doc.contains(r.commonAncestorContainer)) return;      // 상단 목록을 눌러 선택이 문서 밖으로 가도 마지막 선택을 기억
+    fmtRange = r.cloneRange();
+    clearTimeout(fmtTimer); fmtTimer = setTimeout(updateFmtBar, 60);
   });
+  var fmtTimer = null;
   function setSpanSize(sp, px) {
     sp.style.fontSize = px + 'px';
     sp.setAttribute('data-fs-set', px + 'px');   // 쪽 맞춤이 글자를 줄였다가 되돌릴 때 이 크기로
     sp.setAttribute('data-fs0', String(px));
   }
+  function setParaLine(p, ratio) {
+    p.style.lineHeight = String(ratio);
+    p.setAttribute('data-lh-set', String(ratio));   // 쪽 맞춤이 줄 간격을 줄였다가 되돌릴 때 이 값으로
+    p.setAttribute('data-lh0', String(ratio));
+  }
+  // 지금 선택(블록 지정한 칸 또는 선택한 글자)에 포함된 글자 조각과 문단
+  function fmtTargets() {
+    var spans = [], paras = [];
+    if (selCells.length) {
+      selCells.forEach(function (td) {
+        Array.prototype.forEach.call(td.querySelectorAll('.cell span'), function (x) { spans.push(x); });
+        Array.prototype.forEach.call(td.querySelectorAll('.cell .hp'), function (x) { paras.push(x); });
+      });
+    } else if (fmtRange && doc.contains(fmtRange.commonAncestorContainer)) {
+      var r = fmtRange;
+      Array.prototype.forEach.call(doc.querySelectorAll('.cell span'), function (x) {
+        if (r.collapsed ? x.contains(r.startContainer) : (r.intersectsNode(x) && x.textContent.replace(/\u200b/g, '').length)) spans.push(x);
+      });
+      Array.prototype.forEach.call(doc.querySelectorAll('.cell .hp'), function (x) { if (r.intersectsNode(x)) paras.push(x); });
+    }
+    return {spans: spans, paras: paras};
+  }
+  var FONT_ALIAS = {
+    'Gulim': '굴림', '굴림': '굴림', 'GulimChe': '굴림체', '굴림체': '굴림체', 'Malgun Gothic': '맑은 고딕', '맑은 고딕': '맑은 고딕',
+    'Batang': '바탕', '바탕': '바탕', 'HCR Batang': '함초롬바탕', '함초롬바탕': '함초롬바탕', 'Dotum': '돋움', '돋움': '돋움'
+  };
+  function spanFont(sp) {
+    var fam = getComputedStyle(sp).fontFamily.split(',')[0].replace(/["']/g, '').trim();
+    return FONT_ALIAS[fam] || fam;
+  }
+  function spanPt(sp) {
+    var top = sp.parentNode && sp.parentNode.classList && sp.parentNode.classList.contains('hp');
+    var px = (top && sp.hasAttribute('data-fs0')) ? parseFloat(sp.getAttribute('data-fs0')) : parseFloat(getComputedStyle(sp).fontSize);
+    return Math.round(px * 72 / 96 * 2) / 2;
+  }
+  function paraLine(p) {
+    var r = p.hasAttribute('data-lh0') ? parseFloat(p.getAttribute('data-lh0')) : 0;
+    if (!(r > 0)) { var cs = getComputedStyle(p), lh = parseFloat(cs.lineHeight), fs = parseFloat(cs.fontSize); r = (lh > 0 && fs > 0) ? lh / fs : 0; }
+    return r > 0 ? Math.round(r * 20) * 5 : 0;
+  }
+  function showFmtValue(id, val) {          // 모두 같은 값이면 표시, 섞여 있으면 비움. 목록에 없는 값은 임시 항목으로 추가
+    var el = document.getElementById(id);
+    Array.prototype.slice.call(el.querySelectorAll('option[data-dyn]')).forEach(function (o) { o.remove(); });
+    if (val === null || val === '' || val === undefined) { el.value = ''; return; }
+    val = String(val);
+    var has = Array.prototype.some.call(el.options, function (o) { return o.value === val || (!o.hasAttribute('value') && o.textContent === val); });
+    if (!has) {
+      var o = document.createElement('option');
+      o.value = val; o.textContent = id === 'nbLine' ? val + '%' : val; o.setAttribute('data-dyn', '1'); o.hidden = true;
+      el.appendChild(o);
+    }
+    el.value = val;
+  }
+  function commonOf(list) {
+    if (!list.length) return null;
+    for (var i = 1; i < list.length; i++) if (list[i] !== list[0]) return null;
+    return list[0];
+  }
+  function updateFmtBar() {
+    var t = fmtTargets();
+    showFmtValue('nbFont', commonOf(t.spans.map(spanFont)));
+    showFmtValue('nbSize', commonOf(t.spans.map(spanPt)));
+    showFmtValue('nbLine', commonOf(t.paras.map(paraLine).filter(function (x) { return x > 0; })));
+  }
   function applyFormat(kind, value) {
     if (!value) return;
     var px = kind === 'size' ? Math.round(parseFloat(value) * 96 / 72 * 100) / 100 : 0;
+    if (kind === 'line') {                    // 줄 간격은 문단 단위 (선택한 글자가 걸친 문단 전체)
+      var paras = fmtTargets().paras;
+      if (!paras.length) { alert('줄 간격을 바꿀 칸을 끌어서 블록으로 지정하거나, 바꿀 문단을 먼저 선택(클릭)해주세요.'); updateFmtBar(); return; }
+      histPush(); clearPages(); resetPlanStretch();
+      paras.forEach(function (pp) { setParaLine(pp, parseFloat(value) / 100); });
+      schedulePaginate();
+      setTimeout(updateFmtBar, 80);
+      return;
+    }
     if (selCells.length) {
       histPush(); clearPages(); resetPlanStretch();
       selCells.forEach(function (td) {
@@ -1635,6 +1724,7 @@
         });
       });
       schedulePaginate();
+      setTimeout(updateFmtBar, 80);
       return;
     }
     var rng = fmtRange;
@@ -1662,14 +1752,19 @@
       if (!el.getAttribute('style')) el.removeAttribute('style');
     });
     schedulePaginate();
+    setTimeout(updateFmtBar, 80);
   }
-  ['nbFont', 'nbSize'].forEach(function (id) {
-    var el = document.getElementById(id);
-    el.addEventListener('change', function () {
-      applyFormat(id === 'nbFont' ? 'font' : 'size', el.value);
-      el.value = '';
-    });
+  [['nbFont', 'font'], ['nbSize', 'size'], ['nbLine', 'line']].forEach(function (pair) {
+    document.getElementById(pair[0]).addEventListener('change', function () { applyFormat(pair[1], this.value); });
   });
+
+  // 표 선 굵기를 화면 배율에 맞춰 '화면 픽셀 1칸'으로 (배율이 바뀌면 다시 계산)
+  function setLineWidth() {
+    var d = window.devicePixelRatio || 1;
+    document.documentElement.style.setProperty('--nb-line', (1 / d).toFixed(4) + 'px');
+  }
+  setLineWidth();
+  window.addEventListener('resize', setLineWidth);
 
   // ---------- 프로그램 선택 → 프로그램명 + 운영 계획서 내용 자동 작성 ----------
   var PRESET_PROGRAMS = ['로봇과학', '로봇코딩', '과학탐구', '생명과학', '과학실험', '3D펜', '항공드론', '창의수학'];
@@ -2507,7 +2602,7 @@
     function add(text, title, id, pos) {
       var b = document.createElement('button');
       b.type = 'button'; b.className = 'nb-ai-btn nb-pick-btn';
-      b.textContent = text; b.title = title;
+      b.innerHTML = text.split('\n').join('<br>'); b.title = title;
       Object.keys(pos).forEach(function (k) { b.style[k] = pos[k]; });
       b.addEventListener('click', function () { triggerPick(id); });
       aiLayer.appendChild(b);
@@ -2525,9 +2620,9 @@
     if (car) {
       var rk = car.getBoundingClientRect();
       // 칸이 좁아서 두 줄('경력 / 선택')로 표시
-      if (rk.height) add('경력 선택', '등록한 경력 중 표에 넣을 것을 고릅니다' + countText('nbCareerCount'), 'nbCareerPick',
+      if (rk.height) add('경력\n선택', '등록한 경력 중 표에 넣을 것을 고릅니다' + countText('nbCareerCount'), 'nbCareerPick',
         {top: (rk.top + rk.height / 2 - sheet.top + 14) + 'px', left: (rk.left + rk.width / 2 - sheet.left) + 'px', transform: 'translateX(-50%)',
-         width: Math.max(36, Math.min(rk.width - 10, 64)) + 'px', whiteSpace: 'normal', textAlign: 'center', padding: '3px 2px', lineHeight: '1.2'});
+         whiteSpace: 'nowrap', textAlign: 'center', padding: '3px 9px', lineHeight: '1.25', borderRadius: '10px'});
     }
     // 프로그램명: '프로그램명 : )' 오른쪽
     var pt = planTable();
