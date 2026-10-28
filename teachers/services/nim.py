@@ -12,10 +12,12 @@ from django.conf import settings
 
 NIM_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 # 앞에서부터 시도. 모델이 없거나(404) 사용량 초과(429)이면 다음 모델로 넘어감. settings.NIM_MODELS 로 바꿀 수 있음
+# (카탈로그에 보여도 계정에서 못 쓰거나(404) 서비스가 끝난(410) 모델이 많아, 실제로 응답한 모델만 둠 - 2026-10 확인)
 DEFAULT_MODELS = [
-    "meta/llama-3.3-70b-instruct",
-    "mistralai/mistral-large-2-instruct",
-    "qwen/qwen2.5-72b-instruct",
+    "nvidia/nemotron-3.5-super-vl-120b-a12b",
+    "nvidia/nemotron-3-ultra-550b-a55b",
+    "nvidia/nemotron-3.5-lightning-30b-a3b",
+    "minimaxai/minimax-m3.1-flash",
 ]
 
 
@@ -114,7 +116,7 @@ def chat_json(key, body, deadline, timeout=15):
             return data, None
         if resp.status_code in (401, 403):
             return None, f"인증 실패({resp.status_code}) - 키를 확인해주세요"
-        last = {429: "사용량 초과(429)", 404: "모델을 찾을 수 없음(404)"}.get(resp.status_code, f"서버 오류({resp.status_code})")
+        last = {429: "사용량 초과(429)", 404: "모델을 찾을 수 없음(404)", 410: "서비스 종료된 모델(410)"}.get(resp.status_code, f"서버 오류({resp.status_code})")
     return None, last
 
 

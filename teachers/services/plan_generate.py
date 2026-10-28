@@ -140,7 +140,7 @@ def _call_json(body, call_timeout=GENERATE_BUDGET):
     for key_obj, key in nim_keys:
         if deadline - time.monotonic() < 4:
             break
-        data, msg = nim.chat_json(key, body, deadline, timeout=max(call_timeout, 15))
+        data, msg = nim.chat_json(key, body, deadline, timeout=GENERATE_BUDGET)   # NIM 큰 모델은 20초 안팎 걸려서 남은 시간을 다 씀
         _record(key_obj, msg)
         if data is not None:
             return data
