@@ -179,8 +179,11 @@ def ai_key_toggle(request, pk):
 @ai_admin_required
 @require_POST
 def ai_key_test(request, pk):
-    from teachers.services.doc_extract import test_key
     key = get_object_or_404(AIApiKey, pk=pk)
+    if key.provider == "nvidia":
+        from teachers.services.nim import test_key
+    else:
+        from teachers.services.doc_extract import test_key
     ok, msg = test_key(key)
     (messages.success if ok else messages.error)(request, f"[{key.name}] {msg}")
     return redirect("ai_manage")

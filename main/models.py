@@ -44,6 +44,7 @@ class AIApiKey(models.Model):
     """관리자가 등록하는 AI API 키 (여러 개 등록, 사용 중인 키 순서대로 사용)"""
     PROVIDER_CHOICES = [
         ("gemini", "Google Gemini"),
+        ("nvidia", "NVIDIA NIM (예비)"),
     ]
 
     name = models.CharField("이름", max_length=100, help_text="구분하기 위한 이름 (예: 메인 키, 예비 키)")

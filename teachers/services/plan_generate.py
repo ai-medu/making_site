@@ -4,6 +4,7 @@ import time
 
 import requests
 
+from . import nim
 from .doc_extract import (
     CALL_TIMEOUT, MIN_REMAINING, TOTAL_BUDGET, ExtractError,
     _active_keys, _post_with_model_fallback, _record, _status_message,
@@ -116,14 +117,41 @@ def normalize(raw):
     }
 
 
+NIM_RESERVE = 12   # 예비(NVIDIA NIM) 키가 있으면 전체 시간 중 이만큼은 예비 호출용으로 남겨둠
+
+
 def _call_json(body, call_timeout=GENERATE_BUDGET):
-    """Gemini를 호출해 JSON 응답을 돌려줌 (키 순환·모델 대체·시간 제한 포함)
-    call_timeout: 호출 1회 최대 대기 시간. 짧은 글은 짧게 잡아, 응답이 멈춘 호출은 빨리 포기하고 다른 키로 다시 시도한다."""
+    """Gemini를 호출해 JSON 응답을 돌려줌. Gemini가 실패하면(사용량 초과 등) 등록된 NVIDIA NIM 키로 한 번 더 시도.
+    (PDF 같은 파일이 든 요청은 Gemini만 사용)"""
+    started = time.monotonic()
+    nim_keys = nim.active_keys() if nim.can_handle(body) else []
     keys = _active_keys()
-    if not keys:
+    if not keys and not nim_keys:
         raise ExtractError("AI 설정(API 키)이 아직 되어 있지 않습니다. 관리자에게 문의해주세요.")
+    err = None
+    if keys:
+        try:
+            return _call_gemini(body, call_timeout, keys, GENERATE_BUDGET - (NIM_RESERVE if nim_keys else 0))
+        except ExtractError as e:
+            if not nim_keys:
+                raise
+            err = e
+    deadline = started + GENERATE_BUDGET
+    for key_obj, key in nim_keys:
+        if deadline - time.monotonic() < 4:
+            break
+        data, msg = nim.chat_json(key, body, deadline, timeout=max(call_timeout, 15))
+        _record(key_obj, msg)
+        if data is not None:
+            return data
+    raise err or ExtractError("AI 서비스가 지금 혼잡해서 응답이 늦습니다. 잠시 후 다시 시도해주세요.")
+
+
+def _call_gemini(body, call_timeout, keys, budget):
+    """Gemini 호출 (키 순환·모델 대체·시간 제한 포함)
+    call_timeout: 호출 1회 최대 대기 시간. 짧은 글은 짧게 잡아, 응답이 멈춘 호출은 빨리 포기하고 다른 키로 다시 시도한다."""
     # 서버 작업 제한 30초 안에서 끝내야 함
-    deadline = time.monotonic() + GENERATE_BUDGET
+    deadline = time.monotonic() + budget
     last_error = None
     for _round in range(3):
         retryable = False          # 시간 초과·일시 오류가 있었으면 한 바퀴 더 돌아 재시도
