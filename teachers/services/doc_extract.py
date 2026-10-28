@@ -218,7 +218,8 @@ def _post_with_model_fallback(key, body, deadline=None, timeout=CALL_TIMEOUT):
             b = body
         resp = requests.post(GEMINI_URL.format(model=model), json=b,
                              headers={"x-goog-api-key": key}, timeout=call_timeout)
-        if resp.status_code not in (404, 503):   # 모델 없음 / 일시 과부하만 다음 모델로 넘김
+        # 모델 없음 / 일시 과부하 / 이 모델의 사용량 초과(무료 한도는 모델별로 따로 계산)면 다음 모델로 넘김
+        if resp.status_code not in (404, 503, 429):
             return resp
     return resp
 
