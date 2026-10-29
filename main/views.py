@@ -182,6 +182,8 @@ def ai_key_test(request, pk):
     key = get_object_or_404(AIApiKey, pk=pk)
     if key.provider == "nvidia":
         from teachers.services.nim import test_key
+    elif key.provider == "openrouter":
+        from teachers.services.openrouter import test_key
     else:
         from teachers.services.doc_extract import test_key
     ok, msg = test_key(key)

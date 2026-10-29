@@ -4,7 +4,7 @@ import time
 
 import requests
 
-from . import nim
+from . import nim, openrouter
 from .doc_extract import (
     CALL_TIMEOUT, MIN_REMAINING, TOTAL_BUDGET, ExtractError,
     _active_keys, _post_with_model_fallback, _record, _status_message,
@@ -124,23 +124,25 @@ def _call_json(body, call_timeout=GENERATE_BUDGET):
     """Gemini를 호출해 JSON 응답을 돌려줌. Gemini가 실패하면(사용량 초과 등) 등록된 NVIDIA NIM 키로 한 번 더 시도.
     (PDF 같은 파일이 든 요청은 Gemini만 사용)"""
     started = time.monotonic()
-    nim_keys = nim.active_keys() if nim.can_handle(body) else []
+    spare = []                                   # 예비 경로: NVIDIA NIM → OpenRouter (글 작성 요청만)
+    if nim.can_handle(body):
+        spare = [(k, kk, svc) for svc in (nim, openrouter) for k, kk in svc.active_keys()]
     keys = _active_keys()
-    if not keys and not nim_keys:
+    if not keys and not spare:
         raise ExtractError("AI 설정(API 키)이 아직 되어 있지 않습니다. 관리자에게 문의해주세요.")
     err = None
     if keys:
         try:
-            return _call_gemini(body, call_timeout, keys, GENERATE_BUDGET - (NIM_RESERVE if nim_keys else 0))
+            return _call_gemini(body, call_timeout, keys, GENERATE_BUDGET - (NIM_RESERVE if spare else 0))
         except ExtractError as e:
-            if not nim_keys:
+            if not spare:
                 raise
             err = e
     deadline = started + GENERATE_BUDGET
-    for key_obj, key in nim_keys:
+    for key_obj, key, svc in spare:
         if deadline - time.monotonic() < 4:
             break
-        data, msg = nim.chat_json(key, body, deadline, timeout=GENERATE_BUDGET)   # NIM 큰 모델은 20초 안팎 걸려서 남은 시간을 다 씀
+        data, msg = svc.chat_json(key, body, deadline)       # 모델 하나가 멈추면 12초 뒤 다음 모델로
         _record(key_obj, msg)
         if data is not None:
             return data

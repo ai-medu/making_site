@@ -13,11 +13,10 @@ from django.conf import settings
 NIM_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 # 앞에서부터 시도. 모델이 없거나(404) 사용량 초과(429)이면 다음 모델로 넘어감. settings.NIM_MODELS 로 바꿀 수 있음
 # (카탈로그에 보여도 계정에서 못 쓰거나(404) 서비스가 끝난(410) 모델이 많아, 실제로 응답한 모델만 둠 - 2026-10 확인)
+PER_MODEL = 12   # 모델 하나를 기다리는 최대 시간(초). 큰 모델은 무료 구간에서 멈추는 일이 잦아 짧게 끊고 다음으로
 DEFAULT_MODELS = [
-    "nvidia/nemotron-3.5-super-vl-120b-a12b",
-    "nvidia/nemotron-3-ultra-550b-a55b",
-    "nvidia/nemotron-3.5-lightning-30b-a3b",
-    "minimaxai/minimax-m3.1-flash",
+    "nvidia/nemotron-3.5-bolt-e4b",             # 작지만 빠름(5~7초)
+    "nvidia/nemotron-3.5-super-vl-120b-a12b",   # 품질은 더 좋지만 느리고 불안정
 ]
 
 
@@ -84,11 +83,12 @@ def _parse_json(text):
         raise
 
 
-def chat_json(key, body, deadline, timeout=15):
-    """NIM으로 JSON 응답을 받음. 성공하면 (데이터, None), 실패하면 (None, 오류 설명)"""
+def chat_json(key, body, deadline, timeout=PER_MODEL, url=NIM_URL, model_list=None, extra_headers=None):
+    """OpenAI 호환 서비스(기본: NIM)로 JSON 응답을 받음. 성공하면 (데이터, None), 실패하면 (None, 오류 설명)
+    모델 하나가 timeout 초 안에 답하지 않으면 다음 모델로 넘어간다."""
     gc = body.get("generationConfig") or {}
     last = "응답 없음"
-    for model in models():
+    for model in (model_list or models()):
         left = deadline - time.monotonic()
         if left < 3:
             return None, last
@@ -97,8 +97,8 @@ def chat_json(key, body, deadline, timeout=15):
             "temperature": gc.get("temperature", 0.6), "max_tokens": min(int(gc.get("maxOutputTokens", 4096)), 4096),
         }
         try:
-            resp = requests.post(NIM_URL, json=payload, timeout=min(timeout, left),
-                                 headers={"Authorization": f"Bearer {key}", "Accept": "application/json"})
+            resp = requests.post(url, json=payload, timeout=min(timeout, left),
+                                 headers=dict({"Authorization": f"Bearer {key}", "Accept": "application/json"}, **(extra_headers or {})))
         except requests.Timeout:
             last = "응답 지연(시간 초과)"
             continue
@@ -120,12 +120,12 @@ def chat_json(key, body, deadline, timeout=15):
     return None, last
 
 
-def test_key(key_obj):
-    """등록된 NIM 키가 동작하는지 확인 (성공여부, 메시지)"""
+def test_key(key_obj, chat=None):
+    """등록된 키가 동작하는지 확인 (성공여부, 메시지). chat: 다른 서비스의 chat_json"""
     from .doc_extract import _record
     body = {"contents": [{"parts": [{"text": "다음 JSON 으로만 답하세요: {\"ok\": true}"}]}],
             "generationConfig": {"temperature": 0, "maxOutputTokens": 50}}
-    data, err = chat_json(key_obj.api_key, body, time.monotonic() + 20)
+    data, err = (chat or chat_json)(key_obj.api_key, body, time.monotonic() + 25)
     if err:
         _record(key_obj, err)
         return False, f"사용할 수 없습니다: {err}"

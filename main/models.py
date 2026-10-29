@@ -45,6 +45,7 @@ class AIApiKey(models.Model):
     PROVIDER_CHOICES = [
         ("gemini", "Google Gemini"),
         ("nvidia", "NVIDIA NIM (예비)"),
+        ("openrouter", "OpenRouter (예비)"),
     ]
 
     name = models.CharField("이름", max_length=100, help_text="구분하기 위한 이름 (예: 메인 키, 예비 키)")
