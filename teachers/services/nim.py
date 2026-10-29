@@ -83,7 +83,27 @@ def _parse_json(text):
         raise
 
 
-def chat_json(key, body, deadline, timeout=PER_MODEL, url=NIM_URL, model_list=None, extra_headers=None):
+def _read_stream(resp, hard_deadline):
+    """스트리밍 응답(SSE)의 본문 글자만 모음. 서비스가 대기 중에 보내는 신호(주석 줄)는 무시하고, 정해진 시간이 지나면 끊는다"""
+    parts = []
+    for raw in resp.iter_lines():
+        if time.monotonic() > hard_deadline:
+            resp.close()
+            raise requests.Timeout()
+        line = raw.decode("utf-8", "ignore").strip() if isinstance(raw, bytes) else str(raw).strip()
+        if not line.startswith("data:"):
+            continue
+        chunk = line[5:].strip()
+        if chunk == "[DONE]":
+            break
+        try:
+            parts.append(json.loads(chunk)["choices"][0]["delta"].get("content") or "")
+        except (ValueError, KeyError, IndexError, TypeError, AttributeError):
+            continue
+    return "".join(parts)
+
+
+def chat_json(key, body, deadline, timeout=PER_MODEL, url=NIM_URL, model_list=None, extra_headers=None, stream=False, extra_payload=None):
     """OpenAI 호환 서비스(기본: NIM)로 JSON 응답을 받음. 성공하면 (데이터, None), 실패하면 (None, 오류 설명)
     모델 하나가 timeout 초 안에 답하지 않으면 다음 모델로 넘어간다."""
     gc = body.get("generationConfig") or {}
@@ -93,12 +113,17 @@ def chat_json(key, body, deadline, timeout=PER_MODEL, url=NIM_URL, model_list=No
         if left < 3:
             return None, last
         payload = {
-            "model": model, "messages": _messages(body), "stream": False,
+            "model": model, "messages": _messages(body), "stream": bool(stream),
             "temperature": gc.get("temperature", 0.6), "max_tokens": min(int(gc.get("maxOutputTokens", 4096)), 4096),
         }
+        payload.update(extra_payload or {})
+        hard = time.monotonic() + min(timeout, left)
         try:
-            resp = requests.post(url, json=payload, timeout=min(timeout, left),
+            resp = requests.post(url, json=payload, timeout=(5, min(timeout, left)), stream=bool(stream),
                                  headers=dict({"Authorization": f"Bearer {key}", "Accept": "application/json"}, **(extra_headers or {})))
+            content = None
+            if resp.status_code == 200:
+                content = _read_stream(resp, hard) if stream else None
         except requests.Timeout:
             last = "응답 지연(시간 초과)"
             continue
@@ -106,7 +131,9 @@ def chat_json(key, body, deadline, timeout=PER_MODEL, url=NIM_URL, model_list=No
             return None, "연결 실패"
         if resp.status_code == 200:
             try:
-                data = _parse_json(resp.json()["choices"][0]["message"]["content"])
+                if content is None:
+                    content = resp.json()["choices"][0]["message"]["content"]
+                data = _parse_json(content)
             except (KeyError, IndexError, ValueError, TypeError):
                 data = None
             want_obj = ((gc.get("responseSchema") or {}).get("type") == "OBJECT")

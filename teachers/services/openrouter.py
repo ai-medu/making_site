@@ -9,8 +9,8 @@ from . import nim
 URL = "https://openrouter.ai/api/v1/chat/completions"
 # 무료(:free) 모델만 사용 - 유료 모델이 불려 요금이 나가지 않게 함. settings.OPENROUTER_MODELS 로 바꿀 수 있음 (2026-10 목록 기준)
 DEFAULT_MODELS = [
-    "google/gemma-4-26b-a4b-it:free",
     "nvidia/nemotron-3.5-lightning:free",
+    "google/gemma-4-26b-a4b-it:free",     # 구글 쪽 한도로 429가 잦음 - 그럴 땐 바로 다음으로
     "google/gemma-4-31b-it:free",
     "openrouter/free",
 ]
@@ -28,7 +28,9 @@ def active_keys():
 
 
 def chat_json(key, body, deadline, timeout=nim.PER_MODEL):
-    return nim.chat_json(key, body, deadline, timeout=timeout, url=URL, model_list=models(), extra_headers=HEADERS)
+    # 스트리밍으로 받아 시간을 확실히 끊고, '생각 과정(reasoning)'은 꺼서 답이 빨리 나오게 함
+    return nim.chat_json(key, body, deadline, timeout=timeout, url=URL, model_list=models(), extra_headers=HEADERS,
+                         stream=True, extra_payload={"reasoning": {"enabled": False}})
 
 
 def test_key(key_obj):
