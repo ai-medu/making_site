@@ -6,9 +6,27 @@ from .models import Child
 from .models import Profile, InstitutionProfile
 
 class CustomAuthenticationForm(AuthenticationForm):
+    inactive_notice = ""
+
+    def clean(self):
+        # 기본 인증은 비활성(정지·승인 대기) 계정을 '아이디/비밀번호 오류'로만 처리하므로, 비밀번호가 맞으면 사유를 알려줌
+        try:
+            return super().clean()
+        except forms.ValidationError:
+            username = self.cleaned_data.get("username")
+            password = self.cleaned_data.get("password")
+            user = User.objects.filter(username=username, is_active=False).first() if username else None
+            if user and password and user.check_password(password):
+                self.confirm_login_allowed(user)
+            raise
+
     def confirm_login_allowed(self, user):
         if not user.is_active:
-            raise forms.ValidationError("관리자의 승인이 필요합니다. 승인이 완료될 때까지 기다려주세요.", code='inactive')
+            if getattr(getattr(user, "profile", None), "suspended_at", None):
+                self.inactive_notice = "장기간 미접속으로 정지된 계정입니다. 관리자에게 문의해주세요."
+            else:
+                self.inactive_notice = "관리자의 승인이 필요합니다. 승인이 완료될 때까지 기다려주세요."
+            raise forms.ValidationError(self.inactive_notice, code='inactive')
 
 class SignUpForm(UserCreationForm):
     email = forms.EmailField(label="이메일", required=True)

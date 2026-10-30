@@ -2,16 +2,18 @@ from django.urls import path
 from django.contrib.auth.views import LoginView, LogoutView
 from django.contrib.auth import views as auth_views
 from .views import signup, profile, change_password, check_username,approve_users,institution_signup
+from .forms import CustomAuthenticationForm
 from . import views
 
 urlpatterns = [
     path('signup/', signup, name='signup'),
     path('profile/', profile, name='profile'),  # 마이페이지 URL 추가
-    path('login/', LoginView.as_view(template_name='registration/login.html'), name='login'),  # 로그인 뷰
+    path('login/', LoginView.as_view(template_name='registration/login.html', authentication_form=CustomAuthenticationForm), name='login'),  # 로그인 뷰
     path('logout/', LogoutView.as_view(), name='logout'),  # 로그아웃 뷰
     path('change-password/', change_password, name='change_password'),  # 비밀번호 변경 페이지
     path('check-username/', check_username, name='check_username'),  # ✅ 추가
     path('approve_users/', approve_users, name='approve_users'), #관리자 승인 페이지
+    path('suspended_users/', views.suspended_users, name='suspended_users'),  # 정지 회원 명단
     path('kakao/unlink/', views.kakao_unlink, name='kakao_unlink'),
     path('redirect/', views.redirect_after_login, name='redirect_after_login'),
     path('admin/dashboard/', views.admin_dashboard, name='admin_dashboard'),

@@ -142,6 +142,10 @@ def kakao_callback(request):
                 profile.save()
 
         if profile:
+            # 정지·승인 대기 계정은 로그인 불가
+            if not profile.user.is_active:
+                messages.error(request, _inactive_message(profile.user))
+                return redirect("login")
             # 기존 사용자 로그인
             login(request, profile.user)
 
@@ -235,7 +239,7 @@ def admin_dashboard(request):
     # 회원 통계
     total_users = User.objects.count()
     active_users = User.objects.filter(is_active=True).count()
-    pending_users = User.objects.filter(is_active=False).count()
+    pending_users = _pending_qs().count()
     teachers = User.objects.filter(profile__user_type='teacher').count()
     center_teachers = User.objects.filter(profile__user_type='center_teacher').count()
     
@@ -285,10 +289,29 @@ from django.contrib import messages
 from django.contrib.auth.models import User
 from django.shortcuts import render, redirect
 
+def _inactive_message(user):
+    if getattr(getattr(user, "profile", None), "suspended_at", None):
+        return "장기간 미접속으로 정지된 계정입니다. 관리자에게 문의해주세요."
+    return "관리자의 승인이 필요합니다. 승인이 완료될 때까지 기다려주세요."
+
+
+def _pending_qs():
+    """가입 승인 대기자 (정지된 회원은 제외)"""
+    return User.objects.filter(is_active=False).filter(
+        Q(profile__isnull=True) | Q(profile__suspended_at__isnull=True))
+
+
+def _mark_seen(user, key):
+    from .models import AdminSeen
+    AdminSeen.objects.update_or_create(user=user, key=key, defaults={"seen_at": timezone.now()})
+
+
 @staff_member_required
 def approve_users(request):
     # 가입 승인 대기자
-    inactive_users = User.objects.filter(is_active=False)
+    inactive_users = _pending_qs()
+    if request.method == 'GET':
+        _mark_seen(request.user, "approve")
 
     # 회원탈퇴 요청자 (활성 계정이면서 탈퇴 요청한 경우)
     withdrawal_users = User.objects.filter(is_active=True, profile__withdrawal_requested=True)
@@ -322,6 +345,25 @@ def approve_users(request):
         'inactive_users': inactive_users,
         'withdrawal_users': withdrawal_users,
     })
+
+@staff_member_required
+def suspended_users(request):
+    """정지된 회원 명단 + 정지 해제"""
+    from . import suspension
+    if request.method == 'POST':
+        user = User.objects.filter(id=request.POST.get('user_id'), profile__suspended_at__isnull=False).first()
+        if not user:
+            messages.error(request, "해당 정지 회원을 찾을 수 없습니다.")
+        elif request.POST.get('action') == 'restore':
+            suspension.restore(user)
+            messages.success(request, f'{user.first_name or user.username}님의 정지를 해제했습니다.')
+        return redirect('suspended_users')
+
+    _mark_seen(request.user, "suspended")
+    users = (User.objects.filter(profile__suspended_at__isnull=False)
+             .select_related('profile').order_by('-profile__suspended_at'))
+    return render(request, 'accounts/suspended_users.html', {'users': users})
+
 
 def check_username(request):
     username = request.GET.get('username', None)
@@ -564,8 +606,12 @@ def admin_user_activate(request, user_id):
     except User.DoesNotExist:
         return JsonResponse({"success": False, "error": "user_not_found"})
 
-    user.is_active = True
-    user.save(update_fields=["is_active"])
+    if getattr(getattr(user, "profile", None), "suspended_at", None):
+        from . import suspension
+        suspension.restore(user)
+    else:
+        user.is_active = True
+        user.save(update_fields=["is_active"])
 
     return JsonResponse({"success": True})
 

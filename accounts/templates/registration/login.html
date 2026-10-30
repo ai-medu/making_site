@@ -11,14 +11,18 @@
                     <form method="post" action="{% url 'login' %}">
                         {% csrf_token %}
 
-                        {% if form.errors %}
+                        {% if form.inactive_notice %}
+                            <div class="alert alert-danger">
+                                <strong>로그인 불가:</strong> {{ form.inactive_notice }}
+                            </div>
+                        {% elif form.errors %}
                             <div class="alert alert-danger">
                                 <strong>로그인 실패:</strong> 아이디 또는 비밀번호가 올바르지 않습니다.
                             </div>
                         {% endif %}
                         {% if messages %}
                             {% for message in messages %}
-                                <div class="alert alert-success">{{ message }}</div>
+                                <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-success{% endif %}">{{ message }}</div>
                             {% endfor %}
                         {% endif %}
 

@@ -24,7 +24,11 @@ class Profile(models.Model):
 
     # ✅ 탈퇴 상태
     withdrawal_requested = models.BooleanField(default=False)
-    
+
+    # ✅ 계정 정지 (장기 미접속·미거래) - 정지되면 User.is_active 도 False 가 되어 로그인이 막힘
+    suspended_at = models.DateTimeField("정지일시", null=True, blank=True)
+    suspend_reason = models.CharField("정지 사유", max_length=200, blank=True)
+
     def __str__(self):
         return f'{self.user.username} 프로필'
     
@@ -95,3 +99,13 @@ class InstitutionProfile(models.Model):
 
     def __str__(self):
         return self.institution_name
+
+
+class AdminSeen(models.Model):
+    """관리자가 승인/정지 화면을 마지막으로 확인한 시각 - 메뉴의 '새로 추가된 수' 계산용"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    key = models.CharField(max_length=30)          # approve / suspended
+    seen_at = models.DateTimeField()
+
+    class Meta:
+        unique_together = ("user", "key")

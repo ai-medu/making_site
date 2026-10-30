@@ -20,6 +20,27 @@ def _can_access_menu(user, menu):
     return False
 
 
+def _admin_new_counts(user):
+    out = {'approve': 0, 'suspended': 0}
+    try:
+        from django.db.models import Q
+        from django.contrib.auth.models import User
+        from accounts.models import AdminSeen
+        seen = {x.key: x.seen_at for x in AdminSeen.objects.filter(user=user)}
+        pending = User.objects.filter(is_active=False).filter(
+            Q(profile__isnull=True) | Q(profile__suspended_at__isnull=True))
+        if 'approve' in seen:
+            pending = pending.filter(date_joined__gt=seen['approve'])
+        out['approve'] = pending.count()
+        susp = User.objects.filter(profile__suspended_at__isnull=False)
+        if 'suspended' in seen:
+            susp = susp.filter(profile__suspended_at__gt=seen['suspended'])
+        out['suspended'] = susp.count()
+    except Exception:
+        pass
+    return out
+
+
 def menu_items(request):
     user = request.user
 
@@ -71,6 +92,17 @@ def menu_items(request):
                 ('area=gwangju' in menu.url and linkhub_new_gwangju) or
                 ('area=jeonnam' in menu.url and linkhub_new_jeonnam)
             )
+
+    # 관리 메뉴: 회원승인·회원정지 옆에 '새로 추가된 수'(관리자가 마지막으로 그 화면을 본 이후 늘어난 수)
+    if user.is_staff:
+        counts = _admin_new_counts(user)
+        for menu in top_menus:
+            for sub in menu.visible_sub_menus:
+                if sub.url.rstrip('/') == '/accounts/approve_users':
+                    sub.new_count = counts['approve']
+                elif sub.url.rstrip('/') == '/accounts/suspended_users':
+                    sub.new_count = counts['suspended']
+            menu.new_count = sum(getattr(sub, 'new_count', 0) for sub in menu.visible_sub_menus)
 
     return {
         'global_menu': top_menus,
