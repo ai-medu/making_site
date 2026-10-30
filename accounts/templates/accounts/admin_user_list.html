@@ -175,6 +175,9 @@
           <button type="button" id="bulkTypeUpdateBtn" class="btn btn-sm btn-outline-primary" disabled>
             <i class="bi bi-arrow-repeat me-1"></i>선택 회원 유형 변경
           </button>
+          <button type="button" id="bulkDeleteBtn" class="btn btn-sm btn-outline-danger" disabled>
+            <i class="bi bi-trash me-1"></i>선택 회원 삭제(탈퇴)
+          </button>
           <button type="button" id="clearSelectionBtn" class="btn btn-sm btn-outline-secondary" disabled>
             선택 해제
           </button>
@@ -202,7 +205,7 @@
             {% for u in page_obj %}
             <tr>
               <td class="text-center">
-                {% if u.profile %}
+                {% if u.profile and not u.is_staff %}
                   <input type="checkbox" class="form-check-input user-select-checkbox" value="{{ u.id }}" aria-label="{{ u.username }} 선택">
                 {% else %}
                   <input type="checkbox" class="form-check-input" disabled>
@@ -250,6 +253,14 @@
                   <span class="badge bg-success">
                     <i class="bi bi-check-lg me-1"></i>완료
                   </span>
+                {% elif u.profile.suspended_at %}
+                  <button type="button"
+                          class="btn btn-sm btn-outline-danger btn-approve"
+                          data-user-id="{{ u.id }}"
+                          data-suspended="1"
+                          title="{{ u.profile.suspend_reason }}">
+                    <i class="bi bi-person-x me-1"></i>정지
+                  </button>
                 {% else %}
                   <button type="button"
                           class="btn btn-sm btn-outline-secondary btn-approve"
@@ -345,6 +356,7 @@ const selectedCountEl = document.getElementById("selectedCount");
 const bulkTypeSelect = document.getElementById("bulkTypeSelect");
 const bulkTypeUpdateBtn = document.getElementById("bulkTypeUpdateBtn");
 const clearSelectionBtn = document.getElementById("clearSelectionBtn");
+const bulkDeleteBtn = document.getElementById("bulkDeleteBtn");
 
 if (searchInput) {
   searchInput.addEventListener("keydown", (event) => {
@@ -383,6 +395,10 @@ function syncSelectionUi() {
 
   if (clearSelectionBtn) {
     clearSelectionBtn.disabled = selectedCount === 0;
+  }
+
+  if (bulkDeleteBtn) {
+    bulkDeleteBtn.disabled = selectedCount === 0;
   }
 
   if (selectAllUsers) {
@@ -468,12 +484,54 @@ if (bulkTypeUpdateBtn && bulkTypeSelect) {
   });
 }
 
+if (bulkDeleteBtn) {
+  bulkDeleteBtn.addEventListener("click", () => {
+    const selectedIds = getSelectedUserIds();
+    if (selectedIds.length === 0) return;
+
+    if (!confirm(`선택한 ${selectedIds.length}명의 회원을 삭제(탈퇴)할까요?
+
+삭제하면 되돌릴 수 없고, 해당 회원의 서류·교구 출고 내역 등 연결된 자료도 함께 삭제됩니다.`)) {
+      return;
+    }
+    if (!confirm("정말 삭제하시겠습니까? 마지막 확인입니다.")) return;
+
+    const payload = new FormData();
+    selectedIds.forEach((userId) => payload.append("user_ids[]", userId));
+
+    bulkDeleteBtn.disabled = true;
+    fetch("{% url 'admin_user_bulk_delete' %}", {
+      method: "POST",
+      headers: { "X-CSRFToken": "{{ csrf_token }}" },
+      body: payload,
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.success) {
+          alert("삭제에 실패했습니다.");
+          bulkDeleteBtn.disabled = false;
+          return;
+        }
+        const skipped = data.skipped_count || 0;
+        alert(skipped > 0
+          ? `${data.deleted_count}명 삭제 완료, ${skipped}명은 삭제할 수 없는 계정입니다.`
+          : `${data.deleted_count}명이 삭제되었습니다.`);
+        location.reload();
+      })
+      .catch(() => {
+        alert("요청 중 오류가 발생했습니다.");
+        bulkDeleteBtn.disabled = false;
+      });
+  });
+}
+
 syncSelectionUi();
 
 /* 승인 버튼 */
 document.querySelectorAll(".btn-approve").forEach(btn => {
   btn.addEventListener("click", () => {
-    if (!confirm("해당 회원을 완료 상태로 변경할까요?")) return;
+    const msg = btn.dataset.suspended ? "이 회원의 정지를 해제할까요?" : "해당 회원을 완료 상태로 변경할까요?";
+    if (!confirm(msg)) return;
 
     fetch(`/accounts/admin/activate/${btn.dataset.userId}/`, {
       method: "POST",

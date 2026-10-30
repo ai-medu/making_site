@@ -653,6 +653,25 @@ def admin_user_bulk_create(request):
 
 @staff_member_required
 @require_POST
+def admin_user_bulk_delete(request):
+    """선택한 회원 삭제(탈퇴 처리) - 본인·관리자 계정은 제외"""
+    ids = set()
+    for raw in request.POST.getlist("user_ids[]"):
+        try:
+            ids.add(int(raw))
+        except (TypeError, ValueError):
+            continue
+    if not ids:
+        return JsonResponse({"success": False, "error": "no_users_selected"}, status=400)
+    qs = User.objects.filter(id__in=ids, is_staff=False, is_superuser=False).exclude(id=request.user.id)
+    deleted_count = qs.count()
+    qs.delete()
+    return JsonResponse({"success": True, "deleted_count": deleted_count,
+                         "skipped_count": len(ids) - deleted_count})
+
+
+@staff_member_required
+@require_POST
 def admin_user_bulk_update_type(request):
     raw_ids = request.POST.getlist("user_ids[]")
     new_type = request.POST.get("user_type", "").strip()

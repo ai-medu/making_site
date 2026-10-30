@@ -44,6 +44,11 @@ urlpatterns = [
         name="admin_user_bulk_create",
     ),
     path(
+        "members/bulk-delete/",
+        views.admin_user_bulk_delete,
+        name="admin_user_bulk_delete",
+    ),
+    path(
         "members/bulk-update-type/",
         views.admin_user_bulk_update_type,
         name="admin_user_bulk_update_type",
