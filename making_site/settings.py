@@ -109,8 +109,8 @@ INSTALLED_APPS = [
 ]
 
 CRONJOBS = [
-    # 매일 오전 8시 linkhub 수집 + 만료 자동삭제
-    ('0 8 * * *', 'django.core.management.call_command', ['collect_linkhub']),
+    # 매일 한국 시간 오전 8시(서버는 UTC라 전날 23시) linkhub 수집 + 만료 자동삭제
+    ('0 23 * * *', 'django.core.management.call_command', ['collect_linkhub']),
 ]
 
 # 🔐 API 키는 .env로 빼는 걸 추천

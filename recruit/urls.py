@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views
+from . import views, dispatch_views
 
 urlpatterns = [
     path("", views.recruit_list, name="recruit_list"),
@@ -9,6 +9,13 @@ urlpatterns = [
 
     # ⭐ 복사
     path("<int:pk>/copy/", views.recruit_copy, name="recruit_copy"),
+
+    # 출강 강사 모집
+    path("dispatch/", dispatch_views.dispatch_list, name="dispatch_list"),
+    path("dispatch/add/", dispatch_views.dispatch_add, name="dispatch_add"),
+    path("dispatch/<int:pk>/edit/", dispatch_views.dispatch_edit, name="dispatch_edit"),
+    path("dispatch/<int:pk>/delete/", dispatch_views.dispatch_delete, name="dispatch_delete"),
+    path("dispatch/<int:pk>/toggle/", dispatch_views.dispatch_toggle, name="dispatch_toggle"),
 
     path("timetable/", views.recruit_timetable, name="recruit_timetable"),
 

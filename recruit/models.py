@@ -191,3 +191,53 @@ class InstructorApplication(models.Model):
 
     def __str__(self):
         return f"{self.applicant_name} - {self.recruit.title}"
+
+
+class DispatchRecruit(models.Model):
+    """출강 강사 모집 공고 (관리자가 등록, 강사가 확인)"""
+    STATUS_CHOICES = [("open", "모집중"), ("closed", "마감")]
+
+    title = models.CharField("제목", max_length=200, default="출강 가능하신 강사님 모집합니다!")
+    schedule = models.CharField("일정", max_length=200, blank=True)
+    place = models.CharField("장소", max_length=200, blank=True)
+    time_info = models.CharField("시간", max_length=200, blank=True)
+    target = models.CharField("대상", max_length=200, blank=True)
+    subject = models.CharField("주제", max_length=200, blank=True)
+    content = models.TextField("수업 내용", blank=True)
+    materials = models.CharField("사용 교구", max_length=200, blank=True)
+    pay_main = models.CharField("주강사 강사료", max_length=100, blank=True)
+    pay_assist = models.CharField("보조강사 강사료", max_length=100, blank=True)
+    notes = models.TextField("기타 안내", blank=True)
+    status = models.CharField("상태", max_length=10, choices=STATUS_CHOICES, default="open")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["status", "-created_at"]      # 모집중 → 마감 순, 최신 먼저
+        verbose_name = "출강강사 모집"
+        verbose_name_plural = "출강강사 모집"
+
+    def __str__(self):
+        return self.title
+
+    @property
+    def share_text(self):
+        """메신저에 붙여넣기 좋은 공고 문구"""
+        lines = [self.title, ""]
+        for label, value in (("일정", self.schedule), ("장소", self.place), ("시간", self.time_info),
+                             ("대상", self.target), ("주제", self.subject)):
+            if value:
+                lines.append(f"ㅇ {label} : {value}")
+        if self.content:
+            lines += ["", self.content]
+        if self.materials:
+            lines += ["", f"ㅇ 교구 : {self.materials}"]
+        if self.pay_main or self.pay_assist:
+            lines += ["", "ㅇ 강사료"]
+            if self.pay_main:
+                lines.append(f"  주강사 : {self.pay_main}")
+            if self.pay_assist:
+                lines.append(f"  보조강사 : {self.pay_assist}")
+        if self.notes:
+            lines += ["", self.notes]
+        return "\n".join(lines)

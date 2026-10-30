@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4 mb-5" style="max-width: 760px;">
+  <h4 class="fw-bold mb-3">{% if obj %}출강강사 모집 수정{% else %}출강강사 모집 등록{% endif %}</h4>
+  <form method="post" class="card shadow-sm border-0"><div class="card-body">
+    {% csrf_token %}
+    <div class="mb-3">
+      <label class="form-label">제목</label>
+      <input name="title" class="form-control" value="{{ obj.title|default:'출강 가능하신 강사님 모집합니다!' }}">
+    </div>
+    <div class="row g-3 mb-3">
+      <div class="col-md-6"><label class="form-label">일정</label>
+        <input name="schedule" class="form-control" placeholder="예: 8월 12일, 13일" value="{{ obj.schedule|default:'' }}"></div>
+      <div class="col-md-6"><label class="form-label">장소</label>
+        <input name="place" class="form-control" placeholder="예: 중진공 호남연수원" value="{{ obj.place|default:'' }}"></div>
+      <div class="col-md-6"><label class="form-label">시간</label>
+        <input name="time_info" class="form-control" placeholder="예: 9시~4시 (점심제공, 오전 3시간 오후 3시간)" value="{{ obj.time_info|default:'' }}"></div>
+      <div class="col-md-6"><label class="form-label">대상</label>
+        <input name="target" class="form-control" placeholder="예: 초등고학년 20명 X 2회" value="{{ obj.target|default:'' }}"></div>
+      <div class="col-md-6"><label class="form-label">주제</label>
+        <input name="subject" class="form-control" placeholder="예: 탄소중립" value="{{ obj.subject|default:'' }}"></div>
+      <div class="col-md-6"><label class="form-label">사용 교구</label>
+        <input name="materials" class="form-control" placeholder="예: AI코디니" value="{{ obj.materials|default:'' }}"></div>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">수업 내용</label>
+      <textarea name="content" rows="4" class="form-control" placeholder="예: 문제해결하는 발명품, AI 활용해서 결과물 도출 연계">{{ obj.content|default:'' }}</textarea>
+    </div>
+    <div class="row g-3 mb-3">
+      <div class="col-md-6"><label class="form-label">주강사 강사료</label>
+        <input name="pay_main" class="form-control" placeholder="예: 시간당 4만원 이상" value="{{ obj.pay_main|default:'' }}"></div>
+      <div class="col-md-6"><label class="form-label">보조강사 강사료</label>
+        <input name="pay_assist" class="form-control" placeholder="예: 시간당 대략 2만원" value="{{ obj.pay_assist|default:'' }}"></div>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">기타 안내</label>
+      <textarea name="notes" rows="3" class="form-control">{{ obj.notes|default:'' }}</textarea>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">상태</label>
+      <select name="status" class="form-select" style="max-width:200px;">
+        <option value="open" {% if not obj or obj.status == 'open' %}selected{% endif %}>모집중</option>
+        <option value="closed" {% if obj.status == 'closed' %}selected{% endif %}>마감</option>
+      </select>
+    </div>
+    <div class="d-flex gap-2 justify-content-end">
+      <a href="{% url 'dispatch_list' %}" class="btn btn-outline-secondary">취소</a>
+      <button class="btn btn-primary">저장</button>
+    </div>
+  </div></form>
+</div>
+{% endblock %}

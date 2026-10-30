@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import RecruitNotice
+from .models import RecruitNotice, DispatchRecruit
 
 @admin.register(RecruitNotice)
 class RecruitNoticeAdmin(admin.ModelAdmin):
@@ -50,3 +50,5 @@ class InstructorApplicationAdmin(admin.ModelAdmin):
     list_filter = ("status", "recruit")
     search_fields = ("applicant_name", "phone", "recruit__title")
 
+
+admin.site.register(DispatchRecruit)

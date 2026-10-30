@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4 mb-5" style="max-width: 900px;">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="fw-bold mb-0"><i class="bi bi-megaphone-fill me-2"></i>출강강사 모집</h3>
+    {% if request.user.is_staff %}
+    <a href="{% url 'dispatch_add' %}" class="btn btn-primary"><i class="bi bi-plus-circle me-1"></i>공고 등록</a>
+    {% endif %}
+  </div>
+
+  {% for r in recruits %}
+  <div class="card shadow-sm border-0 mb-3 {% if r.status == 'closed' %}bg-light{% endif %}">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+        <h5 class="fw-bold mb-0 {% if r.status == 'closed' %}text-muted{% endif %}">
+          {% if r.status == 'open' %}<span class="badge bg-success me-1">모집중</span>{% else %}<span class="badge bg-secondary me-1">마감</span>{% endif %}
+          {{ r.title }}
+        </h5>
+        <div class="text-nowrap">
+          <button type="button" class="btn btn-sm btn-outline-secondary copy-btn" data-text="{{ r.share_text }}" title="공고문 복사">
+            <i class="bi bi-clipboard"></i>
+          </button>
+          {% if request.user.is_staff %}
+          <form method="post" action="{% url 'dispatch_toggle' r.id %}" class="d-inline">{% csrf_token %}
+            <button class="btn btn-sm btn-outline-secondary" title="{% if r.status == 'open' %}마감으로{% else %}모집중으로{% endif %}">
+              <i class="bi bi-{% if r.status == 'open' %}lock{% else %}unlock{% endif %}"></i>
+            </button>
+          </form>
+          <a href="{% url 'dispatch_edit' r.id %}" class="btn btn-sm btn-outline-primary" title="수정"><i class="bi bi-pencil-square"></i></a>
+          <form method="post" action="{% url 'dispatch_delete' r.id %}" class="d-inline"
+                onsubmit="return confirm('이 모집 공고를 삭제할까요?');">{% csrf_token %}
+            <button class="btn btn-sm btn-outline-danger" title="삭제"><i class="bi bi-trash"></i></button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+
+      <table class="table table-sm table-borderless mb-2">
+        {% if r.schedule %}<tr><th style="width:90px" class="text-muted">일정</th><td>{{ r.schedule }}</td></tr>{% endif %}
+        {% if r.place %}<tr><th class="text-muted">장소</th><td>{{ r.place }}</td></tr>{% endif %}
+        {% if r.time_info %}<tr><th class="text-muted">시간</th><td>{{ r.time_info }}</td></tr>{% endif %}
+        {% if r.target %}<tr><th class="text-muted">대상</th><td>{{ r.target }}</td></tr>{% endif %}
+        {% if r.subject %}<tr><th class="text-muted">주제</th><td class="fw-semibold">{{ r.subject }}</td></tr>{% endif %}
+        {% if r.materials %}<tr><th class="text-muted">사용 교구</th><td>{{ r.materials }}</td></tr>{% endif %}
+        {% if r.pay_main or r.pay_assist %}
+        <tr><th class="text-muted">강사료</th><td>
+          {% if r.pay_main %}주강사 {{ r.pay_main }}{% endif %}{% if r.pay_main and r.pay_assist %}<br>{% endif %}
+          {% if r.pay_assist %}보조강사 {{ r.pay_assist }}{% endif %}
+        </td></tr>
+        {% endif %}
+      </table>
+      {% if r.content %}<div class="p-2 bg-light rounded small mb-2" style="white-space: pre-line;">{{ r.content }}</div>{% endif %}
+      {% if r.notes %}<div class="small text-muted" style="white-space: pre-line;">{{ r.notes }}</div>{% endif %}
+      <div class="small text-muted mt-2">등록 {{ r.created_at|date:"Y-m-d" }}</div>
+    </div>
+  </div>
+  {% empty %}
+  <div class="text-center text-muted py-5"><i class="bi bi-info-circle me-1"></i>등록된 출강강사 모집 공고가 없습니다.</div>
+  {% endfor %}
+</div>
+
+<script>
+document.querySelectorAll(".copy-btn").forEach(btn => {
+  btn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(btn.dataset.text);
+      const o = btn.innerHTML;
+      btn.innerHTML = '<i class="bi bi-check2"></i>';
+      setTimeout(() => btn.innerHTML = o, 1200);
+    } catch (e) { alert("복사하지 못했습니다."); }
+  });
+});
+</script>
+{% endblock %}
