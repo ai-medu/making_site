@@ -6,115 +6,162 @@
   .flatpickr-calendar.inline { box-shadow: none; border: 1px solid #dee2e6; margin: 0; }
   input[type=number].pay-input::-webkit-inner-spin-button,
   input[type=number].pay-input::-webkit-outer-spin-button { opacity: 1; height: 2rem; }
-  .time-row { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
-  .time-row .tl { min-width: 84px; font-weight: 600; }
-  .time-row select { width: auto; min-width: 4.6rem; }
+
+  /* 항목별 구역: 색 띠 + 제목 아이콘으로 구분 */
+  .dp-sec { --c: #2563eb; background: #fff; border: 1px solid #e2e8f0; border-left: 5px solid var(--c);
+            border-radius: .75rem; padding: 1rem 1.15rem 1.1rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(15,23,42,.06); }
+  .dp-sec-title { display: flex; align-items: center; gap: .55rem; font-weight: 700; font-size: 1.05rem; color: var(--c); margin-bottom: .85rem; }
+  .dp-sec-title .ico { width: 2rem; height: 2rem; border-radius: .5rem; display: inline-flex; align-items: center; justify-content: center;
+                       background: color-mix(in srgb, var(--c) 12%, white); }
+  .dp-sec-title small { font-weight: 400; color: #64748b; font-size: .8rem; }
+  .dp-label { font-weight: 600; font-size: .9rem; color: #334155; margin-bottom: .3rem; display: flex; align-items: center; gap: .35rem; }
+  .dp-label i { color: var(--c); }
+  .dp-sec.c-blue   { --c: #2563eb; }
+  .dp-sec.c-green  { --c: #059669; }
+  .dp-sec.c-red    { --c: #dc2626; }
+  .dp-sec.c-purple { --c: #7c3aed; }
+  .dp-sec.c-amber  { --c: #d97706; }
+  .dp-sec.c-slate  { --c: #475569; }
+
+  .time-row { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; background: #f8fafc; border: 1px solid #e2e8f0;
+              border-radius: .5rem; padding: .45rem .6rem; }
+  .time-row .tl { flex: 0 0 100%; font-weight: 600; color: #334155; font-size: .9rem; }
+  .time-row select { width: auto; min-width: 4.2rem; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container mt-4 mb-5" style="max-width: 760px;">
-  <h4 class="fw-bold mb-3">{% if obj %}출강강사 모집 수정{% else %}출강강사 모집 등록{% endif %}</h4>
-  <form method="post" id="dispatchForm" class="card shadow-sm border-0"><div class="card-body">
+<div class="container mt-4 mb-5" style="max-width: 820px;">
+  <h4 class="fw-bold mb-3"><i class="bi bi-megaphone-fill me-2 text-primary"></i>{% if obj %}출강강사 모집 수정{% else %}출강강사 모집 등록{% endif %}</h4>
+  <form method="post" id="dispatchForm">
     {% csrf_token %}
     <input type="hidden" name="schedule_json" id="scheduleJson">
 
-    <div class="mb-3">
-      <label class="form-label fw-semibold">제목</label>
+    <!-- 1. 제목 -->
+    <section class="dp-sec c-blue">
+      <div class="dp-sec-title"><span class="ico"><i class="bi bi-card-heading"></i></span>제목</div>
       <input name="title" class="form-control" value="{{ obj.title|default:'출강 가능하신 강사님 모집합니다!' }}">
-    </div>
+    </section>
 
-    <!-- 일정 -->
-    <div class="mb-3">
-      <label class="form-label fw-semibold">일정 <span class="text-muted fw-normal small">(달력에서 여러 날짜를 클릭해 선택)</span></label>
-      <input id="dateInput" type="text" class="d-none">
-      <div id="selectedDatesText" class="small text-primary mt-2"></div>
-    </div>
-
-    <!-- 시간 -->
-    <div class="mb-3">
-      <label class="form-label fw-semibold">시간 <span class="text-muted fw-normal small">(24시간 형식)</span></label>
-      <div id="timeEmpty" class="small text-muted">일정을 먼저 선택해주세요.</div>
-      <div id="timeBox" class="d-none">
-        <div class="form-check mb-2" id="sameWrap">
-          <input class="form-check-input" type="checkbox" id="sameTime" checked>
-          <label class="form-check-label" for="sameTime">선택한 모든 날짜 시간 동일</label>
+    <!-- 2. 일정·시간 -->
+    <section class="dp-sec c-green">
+      <div class="dp-sec-title"><span class="ico"><i class="bi bi-calendar-check"></i></span>일정과 시간
+        <small>달력에서 날짜를 여러 개 클릭해 선택하세요</small></div>
+      <div class="row g-3">
+        <div class="col-md-auto">
+          <div class="dp-label"><i class="bi bi-calendar3"></i>일정</div>
+          <input id="dateInput" type="text" class="d-none">
         </div>
-        <div id="timeRows" class="d-flex flex-column gap-2"></div>
+        <div class="col-md">
+          <div class="dp-label"><i class="bi bi-clock"></i>시간 <span class="text-muted fw-normal small">(24시간 형식)</span></div>
+          <div id="selectedDatesText" class="small text-success fw-semibold mb-2"></div>
+          <div id="timeEmpty" class="small text-muted">왼쪽 달력에서 일정을 먼저 선택해주세요.</div>
+          <div id="timeBox" class="d-none">
+            <div class="form-check mb-2" id="sameWrap">
+              <input class="form-check-input" type="checkbox" id="sameTime" checked>
+              <label class="form-check-label" for="sameTime">선택한 모든 날짜 시간 동일</label>
+            </div>
+            <div id="timeRows" class="d-flex flex-column gap-2"></div>
+          </div>
+        </div>
       </div>
-    </div>
+    </section>
 
-    <!-- 장소 -->
-    <div class="mb-3">
-      <label class="form-label fw-semibold">장소</label>
+    <!-- 3. 장소 -->
+    <section class="dp-sec c-red">
+      <div class="dp-sec-title"><span class="ico"><i class="bi bi-geo-alt-fill"></i></span>장소</div>
       <div class="input-group mb-2">
+        <span class="input-group-text"><i class="bi bi-building"></i></span>
         <input id="placeName" name="place" class="form-control" placeholder="장소명 (예: 중진공 호남연수원)" value="{{ obj.place|default:'' }}">
-        <button type="button" class="btn btn-outline-primary" id="placeSearchBtn"><i class="bi bi-search me-1"></i>주소 검색</button>
+        <button type="button" class="btn btn-danger" id="placeSearchBtn"><i class="bi bi-search me-1"></i>주소 검색</button>
       </div>
-      <input id="placeAddress" name="place_address" class="form-control" placeholder="[주소 검색]을 누르면 주소가 입력됩니다" value="{{ obj.place_address|default:'' }}">
-    </div>
-
-    <div class="row g-3 mb-3">
-      <div class="col-md-6"><label class="form-label fw-semibold">대상</label>
-        <input name="target" class="form-control" placeholder="예: 초등고학년 20명 X 2회" value="{{ obj.target|default:'' }}"></div>
-      <div class="col-md-6"><label class="form-label fw-semibold">주제</label>
-        <input name="subject" class="form-control" placeholder="예: 탄소중립" value="{{ obj.subject|default:'' }}"></div>
-    </div>
-
-    <!-- 프로그램 -->
-    <div class="mb-3">
-      <label class="form-label fw-semibold">프로그램</label>
-      <div class="d-flex flex-wrap gap-2 align-items-center" id="programBox">
-        {% for p in program_choices %}
-        <input type="checkbox" class="btn-check" name="programs" id="prog{{ forloop.counter }}" value="{{ p }}" {% if p in selected_programs %}checked{% endif %}>
-        <label class="btn btn-sm btn-outline-primary rounded-pill" for="prog{{ forloop.counter }}">{{ p }}</label>
-        {% endfor %}
-        <input type="checkbox" class="btn-check" id="progCustomToggle" {% if custom_programs %}checked{% endif %}>
-        <label class="btn btn-sm btn-outline-secondary rounded-pill" for="progCustomToggle">직접입력</label>
+      <div class="input-group">
+        <span class="input-group-text"><i class="bi bi-signpost-2"></i></span>
+        <input id="placeAddress" name="place_address" class="form-control" placeholder="[주소 검색]을 누르면 주소가 입력됩니다" value="{{ obj.place_address|default:'' }}">
       </div>
-      <input id="progCustom" name="program_custom" class="form-control mt-2 {% if not custom_programs %}d-none{% endif %}"
-             placeholder="직접 입력 (여러 개는 쉼표로 구분)" value="{{ custom_programs }}">
-    </div>
+    </section>
 
-    <div class="mb-3">
-      <label class="form-label fw-semibold">사용교구 및 프로그램</label>
-      <input name="materials" class="form-control" placeholder="예: AI코디니 교구 활용" value="{{ obj.materials|default:'' }}">
-    </div>
+    <!-- 4. 수업 정보 -->
+    <section class="dp-sec c-purple">
+      <div class="dp-sec-title"><span class="ico"><i class="bi bi-mortarboard-fill"></i></span>수업 정보</div>
+      <div class="row g-3 mb-3">
+        <div class="col-md-6">
+          <div class="dp-label"><i class="bi bi-people"></i>대상</div>
+          <input name="target" class="form-control" placeholder="예: 초등고학년 20명 X 2회" value="{{ obj.target|default:'' }}">
+        </div>
+        <div class="col-md-6">
+          <div class="dp-label"><i class="bi bi-lightbulb"></i>주제</div>
+          <input name="subject" class="form-control" placeholder="예: 탄소중립" value="{{ obj.subject|default:'' }}">
+        </div>
+      </div>
 
-    <div class="mb-3">
-      <label class="form-label fw-semibold">수업 내용</label>
-      <textarea name="content" rows="4" class="form-control" placeholder="예: 문제해결하는 발명품, AI 활용해서 결과물 도출 연계">{{ obj.content|default:'' }}</textarea>
-    </div>
+      <div class="mb-3">
+        <div class="dp-label"><i class="bi bi-grid-3x3-gap"></i>프로그램 <span class="text-muted fw-normal small">(여러 개 선택 가능)</span></div>
+        <div class="d-flex flex-wrap gap-2 align-items-center" id="programBox">
+          {% for p in program_choices %}
+          <input type="checkbox" class="btn-check" name="programs" id="prog{{ forloop.counter }}" value="{{ p }}" {% if p in selected_programs %}checked{% endif %}>
+          <label class="btn btn-sm btn-outline-primary rounded-pill" for="prog{{ forloop.counter }}">{{ p }}</label>
+          {% endfor %}
+          <input type="checkbox" class="btn-check" id="progCustomToggle" {% if custom_programs %}checked{% endif %}>
+          <label class="btn btn-sm btn-outline-secondary rounded-pill" for="progCustomToggle"><i class="bi bi-pencil me-1"></i>직접입력</label>
+        </div>
+        <input id="progCustom" name="program_custom" class="form-control mt-2 {% if not custom_programs %}d-none{% endif %}"
+               placeholder="직접 입력 (여러 개는 쉼표로 구분)" value="{{ custom_programs }}">
+      </div>
 
-    <div class="row g-3 mb-3">
-      <div class="col-md-6"><label class="form-label fw-semibold">주강사 시간당 강사료</label>
-        <div class="input-group">
-          <input type="number" name="pay_main" class="form-control pay-input" min="0" step="5000" value="{{ obj.pay_main|default:50000 }}">
-          <span class="input-group-text">원</span>
-        </div></div>
-      <div class="col-md-6"><label class="form-label fw-semibold">보조강사 시간당 강사료</label>
-        <div class="input-group">
-          <input type="number" name="pay_assist" class="form-control pay-input" min="0" step="5000" value="{{ obj.pay_assist|default:30000 }}">
-          <span class="input-group-text">원</span>
-        </div></div>
-    </div>
+      <div class="mb-3">
+        <div class="dp-label"><i class="bi bi-tools"></i>사용교구 및 프로그램</div>
+        <input name="materials" class="form-control" placeholder="예: AI코디니 교구 활용" value="{{ obj.materials|default:'' }}">
+      </div>
 
-    <div class="mb-3">
-      <label class="form-label fw-semibold">기타 안내</label>
-      <textarea name="notes" rows="3" class="form-control">{{ obj.notes|default:'' }}</textarea>
-    </div>
-    <div class="mb-3">
-      <label class="form-label fw-semibold">상태</label>
-      <select name="status" class="form-select" style="max-width:200px;">
-        <option value="open" {% if not obj or obj.status == 'open' %}selected{% endif %}>모집중</option>
-        <option value="closed" {% if obj.status == 'closed' %}selected{% endif %}>마감</option>
-      </select>
-    </div>
+      <div>
+        <div class="dp-label"><i class="bi bi-journal-text"></i>수업 내용</div>
+        <textarea name="content" rows="4" class="form-control" placeholder="예: 문제해결하는 발명품, AI 활용해서 결과물 도출 연계">{{ obj.content|default:'' }}</textarea>
+      </div>
+    </section>
+
+    <!-- 5. 강사료 -->
+    <section class="dp-sec c-amber">
+      <div class="dp-sec-title"><span class="ico"><i class="bi bi-cash-coin"></i></span>강사료 <small>시간당 · 위아래 버튼으로 5,000원씩 조절</small></div>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="dp-label"><i class="bi bi-person-badge"></i>주강사</div>
+          <div class="input-group">
+            <input type="number" name="pay_main" class="form-control pay-input" min="0" step="5000" value="{{ obj.pay_main|default:50000 }}">
+            <span class="input-group-text">원</span>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="dp-label"><i class="bi bi-person"></i>보조강사</div>
+          <div class="input-group">
+            <input type="number" name="pay_assist" class="form-control pay-input" min="0" step="5000" value="{{ obj.pay_assist|default:30000 }}">
+            <span class="input-group-text">원</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. 기타·상태 -->
+    <section class="dp-sec c-slate">
+      <div class="dp-sec-title"><span class="ico"><i class="bi bi-info-circle-fill"></i></span>기타 안내와 상태</div>
+      <div class="mb-3">
+        <div class="dp-label"><i class="bi bi-chat-left-text"></i>기타 안내</div>
+        <textarea name="notes" rows="3" class="form-control" placeholder="추가로 알릴 내용이 있으면 적어주세요">{{ obj.notes|default:'' }}</textarea>
+      </div>
+      <div>
+        <div class="dp-label"><i class="bi bi-toggle-on"></i>상태</div>
+        <select name="status" class="form-select" style="max-width:200px;">
+          <option value="open" {% if not obj or obj.status == 'open' %}selected{% endif %}>모집중</option>
+          <option value="closed" {% if obj.status == 'closed' %}selected{% endif %}>마감</option>
+        </select>
+      </div>
+    </section>
+
     <div class="d-flex gap-2 justify-content-end">
-      <a href="{% url 'dispatch_list' %}" class="btn btn-outline-secondary">취소</a>
-      <button class="btn btn-primary">저장</button>
+      <a href="{% url 'dispatch_list' %}" class="btn btn-outline-secondary px-4"><i class="bi bi-x-lg me-1"></i>취소</a>
+      <button class="btn btn-primary px-4"><i class="bi bi-check-lg me-1"></i>저장</button>
     </div>
-  </div></form>
+  </form>
 </div>
 
 {{ obj.schedule_data|json_script:"schedInit" }}
