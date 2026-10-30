@@ -381,7 +381,7 @@ def profile(request):
     institution_profile = getattr(user, "institution_profile", None)  # 기관
 
     if request.method == "POST":
-        if profile and profile.user_type in ["parent", "student", "teacher"]:
+        if profile and profile.user_type in ["parent", "student", "teacher", "pre_teacher"]:
             # ✅ 일반 회원(강사/학부모/학생) 업데이트
             user.first_name = request.POST.get("first_name", user.first_name)
             profile.user_type = request.POST.get("user_type", profile.user_type)
@@ -511,7 +511,9 @@ def admin_user_list(request):
             Q(last_name__icontains=q)
         )
 
-    if user_type:
+    if user_type == 'admin':          # 관리자 = staff 계정
+        queryset = queryset.filter(is_staff=True)
+    elif user_type:
         queryset = queryset.filter(profile__user_type=user_type)
 
     paginator = Paginator(queryset, 20)
@@ -522,7 +524,7 @@ def admin_user_list(request):
         'q': q,
         'user_type': user_type,
         'order': order,
-        'USER_TYPE_CHOICES': Profile.USER_TYPES,
+        'USER_TYPE_CHOICES': Profile.ACTIVE_USER_TYPES,
     }
     return render(request, 'accounts/admin_user_list.html', context)
 

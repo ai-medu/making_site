@@ -10,6 +10,10 @@ class Profile(models.Model):
         ('center_teacher', '센터강사'),
         ('institution', '기관'),
     )
+    # 현재 모집·관리 대상(가입·회원목록 화면에서 선택 가능한 유형). 나머지 유형은 기존 회원 데이터 때문에만 남겨 둠
+    ACTIVE_USER_TYPES = (
+        ("teacher", "강사"),
+    )
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     user_type = models.CharField(max_length=20, choices=USER_TYPES, default='parent')
     birth_date = models.DateField(null=True, blank=True)

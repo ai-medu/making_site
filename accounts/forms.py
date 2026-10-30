@@ -34,9 +34,6 @@ class SignUpForm(UserCreationForm):
     user_type = forms.ChoiceField(
         label='회원 유형',
         choices=[
-            ('student', '학생'), 
-            ('parent', '학부모'), 
-            ('pre_teacher', '예비강사'),
             ('teacher', '강사')
             ]
         )

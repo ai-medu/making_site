@@ -132,8 +132,12 @@
                         <div class="mb-3">
                             <label class="form-label"><i class="bi bi-people"></i> 회원 유형</label>
                             <select name="user_type" class="form-select">
-                                <option value="parent" {% if user.profile.user_type == 'parent' %}selected{% endif %}>학부모</option>
-                                <option value="student" {% if user.profile.user_type == 'student' %}selected{% endif %}>학생</option>
+                                {% if user.profile.user_type == 'parent' or user.profile.user_type == 'student' %}
+                                <option value="{{ user.profile.user_type }}" selected>{{ user.profile.get_user_type_display }}</option>
+                                {% endif %}
+                                {% if user.profile.user_type == 'pre_teacher' or user.profile.user_type == 'center_teacher' %}
+                                <option value="{{ user.profile.user_type }}" selected>{{ user.profile.get_user_type_display }}</option>
+                                {% endif %}
                                 <option value="teacher" {% if user.profile.user_type == 'teacher' %}selected{% endif %}>강사</option>
                             </select>
                         </div>

@@ -49,6 +49,9 @@
               <input type="radio" class="btn-check" name="user_type" id="filterType{{ forloop.counter }}" value="{{ val }}" {% if user_type == val %}checked{% endif %}>
               <label class="btn btn-sm btn-outline-primary" for="filterType{{ forloop.counter }}">{{ label }}</label>
               {% endfor %}
+
+              <input type="radio" class="btn-check" name="user_type" id="filterTypeAdmin" value="admin" {% if user_type == 'admin' %}checked{% endif %}>
+              <label class="btn btn-sm btn-outline-primary" for="filterTypeAdmin">관리자</label>
             </div>
           </div>
 
@@ -235,7 +238,11 @@
               </td>
 
               <td>
-                {% if u.profile %}
+                {% if u.is_staff %}
+                  <span class="badge bg-dark">
+                    <i class="bi bi-shield-check me-1"></i>관리자
+                  </span>
+                {% elif u.profile %}
                   <span class="badge bg-info">
                     <i class="bi bi-person-lines-fill me-1"></i>{{ u.profile.get_user_type_display }}
                   </span>
