@@ -196,17 +196,23 @@ class InstructorApplication(models.Model):
 class DispatchRecruit(models.Model):
     """출강 강사 모집 공고 (관리자가 등록, 강사가 확인)"""
     STATUS_CHOICES = [("open", "모집중"), ("closed", "마감")]
+    PROGRAM_CHOICES = ["AI", "로봇", "코딩", "과학", "3D펜", "항공드론", "창의수학"]
+    WEEKDAYS = "월화수목금토일"
 
     title = models.CharField("제목", max_length=200, default="출강 가능하신 강사님 모집합니다!")
-    schedule = models.CharField("일정", max_length=200, blank=True)
+    # 일정: schedule_data = {"same": bool, "items": [{"date": "2026-08-12", "start": "09:00", "end": "16:00"}]}
+    schedule_data = models.JSONField("일정·시간 데이터", null=True, blank=True)
+    schedule = models.TextField("일정", blank=True)       # schedule_data 로 자동 생성되는 표시용 문구
+    time_info = models.TextField("시간", blank=True)      # 〃
     place = models.CharField("장소", max_length=200, blank=True)
-    time_info = models.CharField("시간", max_length=200, blank=True)
+    place_address = models.CharField("주소", max_length=255, blank=True)
     target = models.CharField("대상", max_length=200, blank=True)
     subject = models.CharField("주제", max_length=200, blank=True)
+    programs = models.JSONField("프로그램", default=list, blank=True)
     content = models.TextField("수업 내용", blank=True)
-    materials = models.CharField("사용 교구", max_length=200, blank=True)
-    pay_main = models.CharField("주강사 강사료", max_length=100, blank=True)
-    pay_assist = models.CharField("보조강사 강사료", max_length=100, blank=True)
+    materials = models.CharField("사용교구 및 프로그램", max_length=200, blank=True)
+    pay_main = models.PositiveIntegerField("주강사 시간당 강사료", default=50000)
+    pay_assist = models.PositiveIntegerField("보조강사 시간당 강사료", default=30000)
     notes = models.TextField("기타 안내", blank=True)
     status = models.CharField("상태", max_length=10, choices=STATUS_CHOICES, default="open")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -220,24 +226,64 @@ class DispatchRecruit(models.Model):
     def __str__(self):
         return self.title
 
+    # ---- 표시용 문구 ----
+    def _items(self):
+        from datetime import date as _date
+        out = []
+        for it in sorted((self.schedule_data or {}).get("items", []), key=lambda x: x.get("date", "")):
+            try:
+                y, m, d = map(int, it["date"].split("-"))
+                out.append((_date(y, m, d), it.get("start", ""), it.get("end", "")))
+            except (KeyError, ValueError):
+                continue
+        return out
+
+    def build_display(self):
+        """schedule_data → schedule(일정 문구), time_info(시간 문구)"""
+        from django.utils import timezone
+        items = self._items()
+        if not items:
+            return
+        this_year = timezone.localdate().year
+        label = lambda d: f"{d.month}월 {d.day}일({self.WEEKDAYS[d.weekday()]})"
+        groups, parts = {}, []
+        for d, _s, _e in items:
+            groups.setdefault((d.year, d.month), []).append(d)
+        for (y, m), ds in groups.items():
+            head = f"{y}년 " if y != this_year else ""
+            parts.append(head + f"{m}월 " + ", ".join(f"{d.day}일({self.WEEKDAYS[d.weekday()]})" for d in ds))
+        self.schedule = " / ".join(parts)
+        times = {(s, e) for _d, s, e in items}
+        if len(times) == 1:
+            s, e = next(iter(times))
+            self.time_info = f"{s}~{e}"
+        else:
+            self.time_info = chr(10).join(f"{label(d)} {s}~{e}" for d, s, e in items)
+
+    @property
+    def program_text(self):
+        return ", ".join(self.programs or [])
+
+    @property
+    def place_full(self):
+        if self.place and self.place_address:
+            return f"{self.place} ({self.place_address})"
+        return self.place or self.place_address
+
     @property
     def share_text(self):
         """메신저에 붙여넣기 좋은 공고 문구"""
         lines = [self.title, ""]
-        for label, value in (("일정", self.schedule), ("장소", self.place), ("시간", self.time_info),
-                             ("대상", self.target), ("주제", self.subject)):
+        for label, value in (("일정", self.schedule), ("장소", self.place_full), ("시간", self.time_info),
+                             ("대상", self.target), ("주제", self.subject), ("프로그램", self.program_text)):
             if value:
                 lines.append(f"ㅇ {label} : {value}")
         if self.content:
             lines += ["", self.content]
         if self.materials:
-            lines += ["", f"ㅇ 교구 : {self.materials}"]
-        if self.pay_main or self.pay_assist:
-            lines += ["", "ㅇ 강사료"]
-            if self.pay_main:
-                lines.append(f"  주강사 : {self.pay_main}")
-            if self.pay_assist:
-                lines.append(f"  보조강사 : {self.pay_assist}")
+            lines += ["", f"ㅇ 사용교구 및 프로그램 : {self.materials}"]
+        lines += ["", "ㅇ 강사료 (시간당)",
+                  f"  주강사 : {self.pay_main:,}원", f"  보조강사 : {self.pay_assist:,}원"]
         if self.notes:
             lines += ["", self.notes]
-        return "\n".join(lines)
+        return chr(10).join(lines)

@@ -1,44 +1,110 @@
 {% extends "base.html" %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
+<style>
+  .flatpickr-calendar.inline { box-shadow: none; border: 1px solid #dee2e6; margin: 0; }
+  input[type=number].pay-input::-webkit-inner-spin-button,
+  input[type=number].pay-input::-webkit-outer-spin-button { opacity: 1; height: 2rem; }
+  .time-row { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+  .time-row .tl { min-width: 84px; font-weight: 600; }
+  .time-row select { width: auto; min-width: 4.6rem; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container mt-4 mb-5" style="max-width: 760px;">
   <h4 class="fw-bold mb-3">{% if obj %}출강강사 모집 수정{% else %}출강강사 모집 등록{% endif %}</h4>
-  <form method="post" class="card shadow-sm border-0"><div class="card-body">
+  <form method="post" id="dispatchForm" class="card shadow-sm border-0"><div class="card-body">
     {% csrf_token %}
+    <input type="hidden" name="schedule_json" id="scheduleJson">
+
     <div class="mb-3">
-      <label class="form-label">제목</label>
+      <label class="form-label fw-semibold">제목</label>
       <input name="title" class="form-control" value="{{ obj.title|default:'출강 가능하신 강사님 모집합니다!' }}">
     </div>
-    <div class="row g-3 mb-3">
-      <div class="col-md-6"><label class="form-label">일정</label>
-        <input name="schedule" class="form-control" placeholder="예: 8월 12일, 13일" value="{{ obj.schedule|default:'' }}"></div>
-      <div class="col-md-6"><label class="form-label">장소</label>
-        <input name="place" class="form-control" placeholder="예: 중진공 호남연수원" value="{{ obj.place|default:'' }}"></div>
-      <div class="col-md-6"><label class="form-label">시간</label>
-        <input name="time_info" class="form-control" placeholder="예: 9시~4시 (점심제공, 오전 3시간 오후 3시간)" value="{{ obj.time_info|default:'' }}"></div>
-      <div class="col-md-6"><label class="form-label">대상</label>
-        <input name="target" class="form-control" placeholder="예: 초등고학년 20명 X 2회" value="{{ obj.target|default:'' }}"></div>
-      <div class="col-md-6"><label class="form-label">주제</label>
-        <input name="subject" class="form-control" placeholder="예: 탄소중립" value="{{ obj.subject|default:'' }}"></div>
-      <div class="col-md-6"><label class="form-label">사용 교구</label>
-        <input name="materials" class="form-control" placeholder="예: AI코디니" value="{{ obj.materials|default:'' }}"></div>
-    </div>
+
+    <!-- 일정 -->
     <div class="mb-3">
-      <label class="form-label">수업 내용</label>
+      <label class="form-label fw-semibold">일정 <span class="text-muted fw-normal small">(달력에서 여러 날짜를 클릭해 선택)</span></label>
+      <input id="dateInput" type="text" class="d-none">
+      <div id="selectedDatesText" class="small text-primary mt-2"></div>
+    </div>
+
+    <!-- 시간 -->
+    <div class="mb-3">
+      <label class="form-label fw-semibold">시간 <span class="text-muted fw-normal small">(24시간 형식)</span></label>
+      <div id="timeEmpty" class="small text-muted">일정을 먼저 선택해주세요.</div>
+      <div id="timeBox" class="d-none">
+        <div class="form-check mb-2" id="sameWrap">
+          <input class="form-check-input" type="checkbox" id="sameTime" checked>
+          <label class="form-check-label" for="sameTime">선택한 모든 날짜 시간 동일</label>
+        </div>
+        <div id="timeRows" class="d-flex flex-column gap-2"></div>
+      </div>
+    </div>
+
+    <!-- 장소 -->
+    <div class="mb-3">
+      <label class="form-label fw-semibold">장소</label>
+      <div class="input-group mb-2">
+        <input id="placeName" name="place" class="form-control" placeholder="장소명 (예: 중진공 호남연수원)" value="{{ obj.place|default:'' }}">
+        <button type="button" class="btn btn-outline-primary" id="placeSearchBtn"><i class="bi bi-search me-1"></i>주소 검색</button>
+      </div>
+      <input id="placeAddress" name="place_address" class="form-control" placeholder="[주소 검색]을 누르면 주소가 입력됩니다" value="{{ obj.place_address|default:'' }}">
+    </div>
+
+    <div class="row g-3 mb-3">
+      <div class="col-md-6"><label class="form-label fw-semibold">대상</label>
+        <input name="target" class="form-control" placeholder="예: 초등고학년 20명 X 2회" value="{{ obj.target|default:'' }}"></div>
+      <div class="col-md-6"><label class="form-label fw-semibold">주제</label>
+        <input name="subject" class="form-control" placeholder="예: 탄소중립" value="{{ obj.subject|default:'' }}"></div>
+    </div>
+
+    <!-- 프로그램 -->
+    <div class="mb-3">
+      <label class="form-label fw-semibold">프로그램</label>
+      <div class="d-flex flex-wrap gap-2 align-items-center" id="programBox">
+        {% for p in program_choices %}
+        <input type="checkbox" class="btn-check" name="programs" id="prog{{ forloop.counter }}" value="{{ p }}" {% if p in selected_programs %}checked{% endif %}>
+        <label class="btn btn-sm btn-outline-primary rounded-pill" for="prog{{ forloop.counter }}">{{ p }}</label>
+        {% endfor %}
+        <input type="checkbox" class="btn-check" id="progCustomToggle" {% if custom_programs %}checked{% endif %}>
+        <label class="btn btn-sm btn-outline-secondary rounded-pill" for="progCustomToggle">직접입력</label>
+      </div>
+      <input id="progCustom" name="program_custom" class="form-control mt-2 {% if not custom_programs %}d-none{% endif %}"
+             placeholder="직접 입력 (여러 개는 쉼표로 구분)" value="{{ custom_programs }}">
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label fw-semibold">사용교구 및 프로그램</label>
+      <input name="materials" class="form-control" placeholder="예: AI코디니 교구 활용" value="{{ obj.materials|default:'' }}">
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label fw-semibold">수업 내용</label>
       <textarea name="content" rows="4" class="form-control" placeholder="예: 문제해결하는 발명품, AI 활용해서 결과물 도출 연계">{{ obj.content|default:'' }}</textarea>
     </div>
+
     <div class="row g-3 mb-3">
-      <div class="col-md-6"><label class="form-label">주강사 강사료</label>
-        <input name="pay_main" class="form-control" placeholder="예: 시간당 4만원 이상" value="{{ obj.pay_main|default:'' }}"></div>
-      <div class="col-md-6"><label class="form-label">보조강사 강사료</label>
-        <input name="pay_assist" class="form-control" placeholder="예: 시간당 대략 2만원" value="{{ obj.pay_assist|default:'' }}"></div>
+      <div class="col-md-6"><label class="form-label fw-semibold">주강사 시간당 강사료</label>
+        <div class="input-group">
+          <input type="number" name="pay_main" class="form-control pay-input" min="0" step="5000" value="{{ obj.pay_main|default:50000 }}">
+          <span class="input-group-text">원</span>
+        </div></div>
+      <div class="col-md-6"><label class="form-label fw-semibold">보조강사 시간당 강사료</label>
+        <div class="input-group">
+          <input type="number" name="pay_assist" class="form-control pay-input" min="0" step="5000" value="{{ obj.pay_assist|default:30000 }}">
+          <span class="input-group-text">원</span>
+        </div></div>
     </div>
+
     <div class="mb-3">
-      <label class="form-label">기타 안내</label>
+      <label class="form-label fw-semibold">기타 안내</label>
       <textarea name="notes" rows="3" class="form-control">{{ obj.notes|default:'' }}</textarea>
     </div>
     <div class="mb-3">
-      <label class="form-label">상태</label>
+      <label class="form-label fw-semibold">상태</label>
       <select name="status" class="form-select" style="max-width:200px;">
         <option value="open" {% if not obj or obj.status == 'open' %}selected{% endif %}>모집중</option>
         <option value="closed" {% if obj.status == 'closed' %}selected{% endif %}>마감</option>
@@ -50,4 +116,121 @@
     </div>
   </div></form>
 </div>
+
+{{ obj.schedule_data|json_script:"schedInit" }}
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/l10n/ko.js"></script>
+<script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+<script>
+(function () {
+  const WD = "일월화수목금토";
+  const DEFAULT = { start: "09:00", end: "16:00" };
+  const init = JSON.parse(document.getElementById("schedInit").textContent || "null") || {};
+  const times = {};                       // 날짜 → {start, end}
+  (init.items || []).forEach(it => { times[it.date] = { start: it.start, end: it.end }; });
+  let common = Object.assign({}, DEFAULT);
+  const firstInit = (init.items || [])[0];
+  if (firstInit) common = { start: firstInit.start, end: firstInit.end };
+  const sameEl = document.getElementById("sameTime");
+  if (init.items && init.items.length) sameEl.checked = init.same !== false;
+
+  const pad = n => String(n).padStart(2, "0");
+  const fmtDate = ds => { const [y, m, d] = ds.split("-").map(Number); const w = WD[new Date(y, m - 1, d).getDay()]; return `${m}/${d}(${w})`; };
+  let fp;
+
+  function timeSelects(value, onChange) {
+    const [h, m] = (value || "09:00").split(":");
+    const wrap = document.createElement("span");
+    wrap.className = "d-inline-flex align-items-center gap-1";
+    const hs = document.createElement("select"), ms = document.createElement("select");
+    hs.className = ms.className = "form-select form-select-sm";
+    for (let i = 0; i < 24; i++) hs.add(new Option(pad(i), pad(i), false, pad(i) === h));
+    for (let i = 0; i < 60; i += 5) ms.add(new Option(pad(i), pad(i), false, pad(i) === m));
+    const fire = () => onChange(`${hs.value}:${ms.value}`);
+    hs.addEventListener("change", fire); ms.addEventListener("change", fire);
+    wrap.append(hs, ":", ms);
+    return wrap;
+  }
+
+  function timeRow(label, cur, onChange) {
+    const row = document.createElement("div");
+    row.className = "time-row";
+    const l = document.createElement("span"); l.className = "tl"; l.textContent = label;
+    let s = cur.start, e = cur.end;
+    row.append(l,
+      timeSelects(s, v => { s = v; onChange({ start: s, end: e }); }),
+      "~",
+      timeSelects(e, v => { e = v; onChange({ start: s, end: e }); }));
+    return row;
+  }
+
+  function dates() { return fp.selectedDates.map(d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`).sort(); }
+
+  function render() {
+    const ds = dates();
+    document.getElementById("timeEmpty").classList.toggle("d-none", ds.length > 0);
+    document.getElementById("timeBox").classList.toggle("d-none", ds.length === 0);
+    document.getElementById("sameWrap").classList.toggle("d-none", ds.length < 2);
+    document.getElementById("selectedDatesText").textContent = ds.length ? `선택한 일정 ${ds.length}일: ` + ds.map(fmtDate).join(", ") : "";
+    const rows = document.getElementById("timeRows");
+    rows.innerHTML = "";
+    const same = ds.length < 2 || sameEl.checked;
+    if (same) {
+      rows.append(timeRow(ds.length > 1 ? "전체 날짜" : "시간", common, v => { common = v; sync(); }));
+    } else {
+      ds.forEach(d => {
+        if (!times[d]) times[d] = Object.assign({}, common);
+        rows.append(timeRow(fmtDate(d), times[d], v => { times[d] = v; sync(); }));
+      });
+    }
+    sync();
+  }
+
+  function sync() {
+    const ds = dates();
+    const same = ds.length < 2 || sameEl.checked;
+    const items = ds.map(d => Object.assign({ date: d }, same ? common : (times[d] || common)));
+    document.getElementById("scheduleJson").value = JSON.stringify({ same: same, items: items });
+  }
+
+  fp = flatpickr("#dateInput", {
+    mode: "multiple", inline: true, locale: "ko", dateFormat: "Y-m-d",
+    defaultDate: (init.items || []).map(it => it.date),
+    onChange: render,
+  });
+  sameEl.addEventListener("change", () => {
+    if (!sameEl.checked) { dates().forEach(d => { times[d] = Object.assign({}, common); }); }
+    else { const f = dates()[0]; if (f && times[f]) common = Object.assign({}, times[f]); }
+    render();
+  });
+  render();
+
+  // 장소 검색 (다음 우편번호 서비스) - 장소명을 미리 넣어 검색
+  document.getElementById("placeSearchBtn").addEventListener("click", () => {
+    const nameEl = document.getElementById("placeName");
+    new daum.Postcode({
+      oncomplete: function (data) {
+        document.getElementById("placeAddress").value = data.roadAddress || data.jibunAddress;
+        if (data.buildingName && !nameEl.value.trim()) nameEl.value = data.buildingName;
+      }
+    }).open({ q: nameEl.value.trim() });
+  });
+
+  // 프로그램 직접입력
+  const customToggle = document.getElementById("progCustomToggle"), customInput = document.getElementById("progCustom");
+  customToggle.addEventListener("change", () => {
+    customInput.classList.toggle("d-none", !customToggle.checked);
+    if (customToggle.checked) customInput.focus(); else customInput.value = "";
+  });
+
+  document.getElementById("dispatchForm").addEventListener("submit", ev => {
+    sync();
+    const data = JSON.parse(document.getElementById("scheduleJson").value);
+    if (!data.items.length) { ev.preventDefault(); alert("일정을 한 날짜 이상 선택해주세요."); return; }
+    const bad = data.items.find(it => it.end <= it.start);
+    if (bad) { ev.preventDefault(); alert("종료 시간은 시작 시간보다 늦어야 합니다."); }
+  });
+})();
+</script>
 {% endblock %}
