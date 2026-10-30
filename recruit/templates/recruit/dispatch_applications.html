@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4 mb-5" style="max-width: 1000px;">
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h3 class="fw-bold mb-0"><i class="bi bi-people-fill me-2"></i>지원강사 확인</h3>
+    <a href="{% url 'dispatch_list' %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>모집 공고로</a>
+  </div>
+
+  {% if only %}
+  <div class="mb-3"><a href="{% url 'dispatch_applications' %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-list-ul me-1"></i>전체 공고 보기</a></div>
+  {% endif %}
+
+  {% if messages %}
+    {% for m in messages %}
+    <div class="alert alert-{% if m.tags == 'error' %}danger{% else %}{{ m.tags|default:'info' }}{% endif %} py-2">{{ m }}</div>
+    {% endfor %}
+  {% endif %}
+
+  {% for r in recruits %}
+  <div class="card shadow-sm border-0 mb-3">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div>
+        {% if r.status == 'open' %}<span class="badge bg-success me-1">모집중</span>{% else %}<span class="badge bg-secondary me-1">마감</span>{% endif %}
+        <span class="fw-bold">{{ r.title }}</span>
+        {% if r.deadline %}<span class="small text-muted ms-2"><i class="bi bi-calendar-x me-1"></i>마감 {{ r.deadline|date:"n/j" }}</span>{% endif %}
+      </div>
+      <div class="small">
+        지원 <b>{{ r.apps|length }}</b>명 ·
+        <span class="text-warning-emphasis">대기 {{ r.pending_n }}</span> ·
+        <span class="text-success">승인 {{ r.approved_n }}</span>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>이름</th><th>연락처</th><th>구분</th><th>전달 사항</th><th>지원일</th><th class="text-center">상태</th><th class="text-center">관리</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in r.apps %}
+          <tr>
+            <td class="fw-semibold">{{ a.user.first_name|default:a.user.username }}</td>
+            <td class="text-nowrap">{{ a.user.profile.phone_number|default:"-" }}</td>
+            <td><span class="badge bg-info text-dark">{{ a.get_role_display }}</span></td>
+            <td class="small">{{ a.memo|default:"-" }}</td>
+            <td class="small text-nowrap">{{ a.applied_at|date:"m-d H:i" }}</td>
+            <td class="text-center">
+              <span class="badge {% if a.status == 'approved' %}bg-success{% elif a.status == 'rejected' %}bg-danger{% else %}bg-warning text-dark{% endif %}">{{ a.get_status_display }}</span>
+            </td>
+            <td class="text-center text-nowrap">
+              <form method="post" action="{% url 'dispatch_application_action' a.id %}" class="d-inline">{% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                {% if a.status != 'approved' %}<button name="action" value="approved" class="btn btn-sm btn-success">승인</button>{% endif %}
+                {% if a.status != 'rejected' %}<button name="action" value="rejected" class="btn btn-sm btn-outline-danger">반려</button>{% endif %}
+                {% if a.status != 'pending' %}<button name="action" value="pending" class="btn btn-sm btn-outline-secondary">대기로</button>{% endif %}
+                <button name="action" value="delete" class="btn btn-sm btn-outline-secondary" title="삭제"
+                        onclick="return confirm('이 지원 내역을 삭제할까요?');"><i class="bi bi-trash"></i></button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7" class="text-center text-muted py-3">아직 지원한 강사가 없습니다.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% empty %}
+  <div class="text-center text-muted py-5">등록된 공고가 없습니다.</div>
+  {% endfor %}
+</div>
+{% endblock %}

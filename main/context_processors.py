@@ -49,7 +49,7 @@ def _open_counts():
     try:
         from recruit.models import InstructorRecruit, DispatchRecruit
         out['instructor'] = InstructorRecruit.objects.filter(status="open", recruit_end__gte=timezone.now()).count()
-        out['dispatch'] = DispatchRecruit.objects.filter(status="open").count()
+        out['dispatch'] = DispatchRecruit.objects.filter(status="open").exclude(deadline__lt=timezone.localdate()).count()
     except Exception:
         pass
 

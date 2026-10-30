@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import RecruitNotice, DispatchRecruit
+from .models import RecruitNotice, DispatchRecruit, DispatchApplication
 
 @admin.register(RecruitNotice)
 class RecruitNoticeAdmin(admin.ModelAdmin):
@@ -52,3 +52,4 @@ class InstructorApplicationAdmin(admin.ModelAdmin):
 
 
 admin.site.register(DispatchRecruit)
+admin.site.register(DispatchApplication)

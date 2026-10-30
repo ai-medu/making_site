@@ -214,6 +214,7 @@ class DispatchRecruit(models.Model):
     pay_main = models.PositiveIntegerField("주강사 시간당 강사료", default=50000)
     pay_assist = models.PositiveIntegerField("보조강사 시간당 강사료", default=30000)
     notes = models.TextField("기타 안내", blank=True)
+    deadline = models.DateField("모집 마감일", null=True, blank=True, help_text="마감일이 지나면 자동으로 마감됩니다.")
     status = models.CharField("상태", max_length=10, choices=STATUS_CHOICES, default="open")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -225,6 +226,24 @@ class DispatchRecruit(models.Model):
 
     def __str__(self):
         return self.title
+
+    @classmethod
+    def close_expired(cls):
+        """마감일이 지난 모집중 공고를 자동으로 마감"""
+        from django.utils import timezone
+        return cls.objects.filter(status="open", deadline__lt=timezone.localdate()).update(status="closed")
+
+    @classmethod
+    def auto_title(cls, place, subject):
+        return " ".join(x for x in (place, subject, "강사 모집") if x).strip()
+
+    @property
+    def d_day(self):
+        """마감까지 남은 일수 (마감일 없으면 None)"""
+        from django.utils import timezone
+        if not self.deadline:
+            return None
+        return (self.deadline - timezone.localdate()).days
 
     # ---- 표시용 문구 ----
     def _items(self):
@@ -284,6 +303,30 @@ class DispatchRecruit(models.Model):
             lines += ["", f"ㅇ 사용교구 및 프로그램 : {self.materials}"]
         lines += ["", "ㅇ 강사료 (시간당)",
                   f"  주강사 : {self.pay_main:,}원", f"  보조강사 : {self.pay_assist:,}원"]
+        if self.deadline:
+            lines += ["", f"ㅇ 모집 마감 : {self.deadline.year}.{self.deadline.month}.{self.deadline.day}"]
         if self.notes:
             lines += ["", self.notes]
         return chr(10).join(lines)
+
+
+class DispatchApplication(models.Model):
+    """출강강사 모집 지원 내역"""
+    ROLE_CHOICES = [("main", "주강사"), ("assist", "보조강사"), ("any", "상관없음")]
+    STATUS_CHOICES = [("pending", "대기"), ("approved", "승인"), ("rejected", "반려")]
+
+    recruit = models.ForeignKey(DispatchRecruit, on_delete=models.CASCADE, related_name="applications")
+    user = models.ForeignKey("auth.User", on_delete=models.CASCADE, related_name="dispatch_applications")
+    role = models.CharField("지원 구분", max_length=10, choices=ROLE_CHOICES, default="any")
+    memo = models.CharField("전달 사항", max_length=300, blank=True)
+    status = models.CharField("상태", max_length=10, choices=STATUS_CHOICES, default="pending")
+    applied_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["applied_at"]
+        unique_together = ("recruit", "user")
+        verbose_name = "출강강사 지원"
+        verbose_name_plural = "출강강사 지원"
+
+    def __str__(self):
+        return f"{self.user} → {self.recruit}"

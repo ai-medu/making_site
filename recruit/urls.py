@@ -16,6 +16,10 @@ urlpatterns = [
     path("dispatch/<int:pk>/edit/", dispatch_views.dispatch_edit, name="dispatch_edit"),
     path("dispatch/<int:pk>/delete/", dispatch_views.dispatch_delete, name="dispatch_delete"),
     path("dispatch/<int:pk>/toggle/", dispatch_views.dispatch_toggle, name="dispatch_toggle"),
+    path("dispatch/<int:pk>/apply/", dispatch_views.dispatch_apply, name="dispatch_apply"),
+    path("dispatch/<int:pk>/apply/cancel/", dispatch_views.dispatch_apply_cancel, name="dispatch_apply_cancel"),
+    path("dispatch/applications/", dispatch_views.dispatch_applications, name="dispatch_applications"),
+    path("dispatch/applications/<int:pk>/action/", dispatch_views.dispatch_application_action, name="dispatch_application_action"),
 
     path("timetable/", views.recruit_timetable, name="recruit_timetable"),
 
