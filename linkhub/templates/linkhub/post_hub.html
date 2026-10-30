@@ -55,7 +55,7 @@
 
             <!-- 공고수집 -->
             <button type="button" id="collectRunBtn" class="btn btn-primary btn-sm"
-                data-url="{% url 'linkhub:collect_run' %}" data-csrf="{{ csrf_token }}">
+                data-url="{% url 'linkhub:collect_run' %}" data-status-url="{% url 'linkhub:collect_status' %}" data-csrf="{{ csrf_token }}">
                 <i class="bi bi-arrow-repeat"></i> 공고수집
             </button>
 
@@ -562,12 +562,19 @@ document.getElementById('collectRunBtn')?.addEventListener('click', async functi
             method: 'POST', headers: {'X-CSRFToken': btn.dataset.csrf}
         });
         const data = await res.json();
-        if (data.ok) {
-            alert('수집 완료!\n' + (data.output || ''));
-            location.reload();
-        } else {
-            alert('오류: ' + (data.error || ''));
+        if (!data.ok) { alert('오류: ' + (data.error || '')); return; }
+        // 수집은 1~2분 걸리므로 끝날 때까지 상태를 확인
+        for (let i = 0; i < 200; i++) {
+            await new Promise(r => setTimeout(r, 3000));
+            const st = await (await fetch(btn.dataset.statusUrl)).json();
+            if (!st.running) {
+                alert('수집 완료!
+' + (st.output || ''));
+                location.reload();
+                return;
+            }
         }
+        alert('수집이 오래 걸리고 있습니다. 잠시 후 새로고침해서 확인해주세요.');
     } catch(e) { alert('요청 실패'); }
     finally { btn.innerHTML = orig; btn.disabled = false; }
 });

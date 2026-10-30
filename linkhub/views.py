@@ -591,21 +591,65 @@ def _crontab_is_active():
         return False
 
 
+# 수집은 1분 넘게 걸려 요청 안에서 기다리면 서버(gunicorn 30초 제한)가 끊어버리므로, 백그라운드로 돌리고 상태만 확인한다
+COLLECT_PID = "collect_run.pid"
+COLLECT_LOG = "collect_run.log"
+COLLECT_MAX_SEC = 600
+
+
+def _collect_state():
+    """(실행 중 여부, 로그 끝부분)"""
+    import os
+    import time
+    base = settings.BASE_DIR
+    pid_path, log_path = os.path.join(base, COLLECT_PID), os.path.join(base, COLLECT_LOG)
+    running = False
+    try:
+        with open(pid_path) as f:
+            pid = int(f.read().strip())
+        if time.time() - os.path.getmtime(pid_path) < COLLECT_MAX_SEC:
+            # 서버(리눅스)에서는 프로세스 상태를 직접 확인 - 끝난 프로세스(Z)는 실행 중이 아님
+            try:
+                with open(f"/proc/{pid}/stat") as sf:
+                    running = sf.read().rsplit(")", 1)[-1].split()[0] != "Z"
+            except OSError:
+                running = False
+    except (OSError, ValueError):
+        running = False
+    tail = ""
+    try:
+        with open(log_path, encoding="utf-8", errors="ignore") as f:
+            tail = "".join(f.readlines()[-8:])
+    except OSError:
+        pass
+    return running, tail
+
+
 @staff_member_required
 @require_POST
 def collect_run(request):
-    """공고수집 버튼 → collect_linkhub 커맨드 실행"""
+    """공고수집 버튼 → collect_linkhub 커맨드를 백그라운드로 실행"""
+    import os
+    running, _ = _collect_state()
+    if running:
+        return JsonResponse({"ok": True, "started": False, "running": True})
     try:
-        result = subprocess.run(
+        log = open(os.path.join(settings.BASE_DIR, COLLECT_LOG), "w", encoding="utf-8")
+        proc = subprocess.Popen(
             [sys.executable, "manage.py", "collect_linkhub"],
-            capture_output=True, text=True, cwd=settings.BASE_DIR, timeout=120
+            stdout=log, stderr=subprocess.STDOUT, cwd=settings.BASE_DIR, start_new_session=True,
         )
-        output = result.stdout + result.stderr
-        return JsonResponse({"ok": True, "output": output})
-    except subprocess.TimeoutExpired:
-        return JsonResponse({"ok": False, "error": "수집 시간 초과"}, status=500)
+        with open(os.path.join(settings.BASE_DIR, COLLECT_PID), "w") as f:
+            f.write(str(proc.pid))
+        return JsonResponse({"ok": True, "started": True, "running": True})
     except Exception as e:
         return JsonResponse({"ok": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+def collect_status(request):
+    running, tail = _collect_state()
+    return JsonResponse({"ok": True, "running": running, "output": "" if running else tail})
 
 
 @staff_member_required
