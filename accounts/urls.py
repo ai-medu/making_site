@@ -1,7 +1,7 @@
 from django.urls import path
 from django.contrib.auth.views import LoginView, LogoutView
 from django.contrib.auth import views as auth_views
-from .views import signup, profile, change_password, check_username,approve_users,institution_signup
+from .views import signup, profile, change_password, check_username,approve_users
 from .forms import CustomAuthenticationForm
 from . import views
 
@@ -24,7 +24,6 @@ urlpatterns = [
     path('parents/children/', views.child_list, name='child_list'),               # ✅ 자녀 관리
     path("parents/children/<int:pk>/edit/", views.child_edit, name="child_edit"),
     path("parents/children/<int:pk>/delete/", views.child_delete, name="child_delete"),
-    path('signup/institution/', institution_signup, name='institution_signup'),
     
     # ✅ 비밀번호 재설정
     path("password_reset/", auth_views.PasswordResetView.as_view(template_name="registration/password_reset_form.html"),name="password_reset"),
