@@ -41,6 +41,37 @@ def _admin_new_counts(user):
     return out
 
 
+def _open_counts():
+    """모집 메뉴 옆에 보여줄 '모집중' 개수 (공고 수집 쪽은 계산이 무거워 5분간 보관)"""
+    from django.core.cache import cache
+    from django.utils import timezone
+    out = {}
+    try:
+        from recruit.models import InstructorRecruit, DispatchRecruit
+        out['instructor'] = InstructorRecruit.objects.filter(status="open", recruit_end__gte=timezone.now()).count()
+        out['dispatch'] = DispatchRecruit.objects.filter(status="open").count()
+    except Exception:
+        pass
+
+    def linkhub_counts():
+        res = {'gwangju': 0, 'jeonnam': 0}
+        try:
+            from linkhub.models import CollectedPost
+            for p in CollectedPost.objects.only("region", "post_date"):
+                if p.get_auto_status() not in ("모집중", "마감임박"):
+                    continue
+                if (p.region or "").startswith("광주"):
+                    res['gwangju'] += 1
+                if "전라남도" in (p.region or ""):
+                    res['jeonnam'] += 1
+        except Exception:
+            pass
+        return res
+
+    out.update(cache.get_or_set('menu_linkhub_open_counts', linkhub_counts, 300))
+    return out
+
+
 def menu_items(request):
     user = request.user
 
@@ -92,6 +123,19 @@ def menu_items(request):
                 ('area=gwangju' in menu.url and linkhub_new_gwangju) or
                 ('area=jeonnam' in menu.url and linkhub_new_jeonnam)
             )
+
+    # 모집 메뉴: 이름 옆에 모집중인 공고 수
+    open_counts = _open_counts()
+    for menu in top_menus:
+        for sub in menu.visible_sub_menus:
+            if sub.url.startswith('/recruit/instructor'):
+                sub.open_count = open_counts.get('instructor', 0)
+            elif sub.url.startswith('/recruit/dispatch'):
+                sub.open_count = open_counts.get('dispatch', 0)
+            elif 'area=gwangju' in sub.url:
+                sub.open_count = open_counts.get('gwangju', 0)
+            elif 'area=jeonnam' in sub.url:
+                sub.open_count = open_counts.get('jeonnam', 0)
 
     # 관리 메뉴: 회원승인·회원정지 옆에 '새로 추가된 수'(관리자가 마지막으로 그 화면을 본 이후 늘어난 수)
     if user.is_staff:
