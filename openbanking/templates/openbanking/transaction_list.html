@@ -8,17 +8,36 @@
     <a href="{% url 'openbanking_dashboard' %}" class="btn btn-sm btn-outline-secondary">← 대시보드</a>
   </div>
 
-  <div class="d-flex gap-2 mb-3 flex-wrap">
+  <form method="get" class="d-flex gap-2 mb-2 flex-wrap align-items-center">
+    {% if selected_account_id %}<input type="hidden" name="account" value="{{ selected_account_id }}">{% endif %}
+    {% if only_unmatched %}<input type="hidden" name="unmatched" value="1">{% endif %}
+    {% if selected_month %}<input type="hidden" name="month" value="{{ selected_month }}">{% endif %}
+    <input type="search" name="q" value="{{ q }}" class="form-control form-control-sm" style="max-width:280px"
+           placeholder="입금내용·학교/기관명·금액 검색">
+    <button class="btn btn-sm btn-primary"><i class="bi bi-search me-1"></i>검색</button>
+    {% if q %}<a href="?{% if selected_account_id %}account={{ selected_account_id }}&{% endif %}{% if only_unmatched %}unmatched=1&{% endif %}{% if selected_month %}month={{ selected_month }}{% endif %}" class="btn btn-sm btn-outline-secondary">검색 초기화</a>{% endif %}
+  </form>
+
+  <div class="d-flex gap-2 mb-2 flex-wrap">
     {% for acc in accounts %}
-      <a href="?account={{ acc.id }}{% if only_unmatched %}&unmatched=1{% endif %}"
+      <a href="?account={{ acc.id }}{% if only_unmatched %}&unmatched=1{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}{% if selected_month %}&month={{ selected_month }}{% endif %}"
          class="btn btn-sm {% if selected_account_id == acc.id|stringformat:'s' %}btn-primary{% else %}btn-outline-primary{% endif %}">
         {{ acc.bank_name }} {{ acc.account_num_masked }}
       </a>
     {% endfor %}
-    <a href="?{% if selected_account_id %}account={{ selected_account_id }}&{% endif %}unmatched={% if only_unmatched %}0{% else %}1{% endif %}"
+    <a href="?{% if selected_account_id %}account={{ selected_account_id }}&{% endif %}unmatched={% if only_unmatched %}0{% else %}1{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}{% if selected_month %}&month={{ selected_month }}{% endif %}"
        class="btn btn-sm {% if only_unmatched %}btn-warning{% else %}btn-outline-warning{% endif %}">
       미매칭만 보기
     </a>
+  </div>
+
+  <div class="d-flex gap-1 mb-3 flex-wrap">
+    <a href="?{% if selected_account_id %}account={{ selected_account_id }}&{% endif %}{% if only_unmatched %}unmatched=1&{% endif %}{% if q %}q={{ q|urlencode }}{% endif %}"
+       class="btn btn-sm {% if not selected_month %}btn-dark{% else %}btn-outline-dark{% endif %}">전체</a>
+    {% for m in months %}
+    <a href="?{% if selected_account_id %}account={{ selected_account_id }}&{% endif %}{% if only_unmatched %}unmatched=1&{% endif %}{% if q %}q={{ q|urlencode }}&{% endif %}month={{ m }}"
+       class="btn btn-sm {% if selected_month == m %}btn-dark{% else %}btn-outline-dark{% endif %}">{{ m }}</a>
+    {% endfor %}
   </div>
 
   <div class="table-responsive">
@@ -32,8 +51,15 @@
           <th>작업</th>
         </tr>
       </thead>
+      {% for g in month_groups %}
       <tbody>
-        {% for t in transactions %}
+        <tr class="table-secondary">
+          <td colspan="5" class="fw-bold">
+            {{ g.month }}
+            <span class="fw-normal small ms-2">{{ g.rows|length }}건 · 합계 {{ g.total|intcomma }}원{% if g.unmatched %} · <span class="text-danger">미매칭 {{ g.unmatched }}건</span>{% endif %}</span>
+          </td>
+        </tr>
+        {% for t in g.rows %}
         <tr id="tran-row-{{ t.id }}">
           <td class="text-nowrap">{{ t.tran_date }}</td>
           <td>{{ t.print_content }}</td>
@@ -56,10 +82,11 @@
             <button class="btn btn-sm btn-outline-danger delete-tran-btn ms-1" data-tran-id="{{ t.id }}">삭제</button>
           </td>
         </tr>
-        {% empty %}
-          <tr><td colspan="5" class="text-center text-muted py-4">거래내역이 없습니다.</td></tr>
         {% endfor %}
       </tbody>
+      {% empty %}
+      <tbody><tr><td colspan="5" class="text-center text-muted py-4">거래내역이 없습니다.</td></tr></tbody>
+      {% endfor %}
     </table>
   </div>
 </div>

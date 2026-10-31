@@ -6,6 +6,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
@@ -173,11 +174,43 @@ def transaction_list(request):
     if only_unmatched:
         transactions = transactions.filter(matched_release__isnull=True)
 
-    transactions = transactions[:200]
+    # 검색: 입금내용·매칭된 학교/기관명·금액
+    q = (request.GET.get("q") or "").strip()
+    if q:
+        cond = Q(print_content__icontains=q) | Q(matched_release__institution__name__icontains=q)
+        digits = q.replace(",", "").replace("원", "").strip()
+        if digits.isdigit():
+            cond |= Q(tran_amt=int(digits))
+        transactions = transactions.filter(cond)
+
+    # 월 목록(검색·계좌·미매칭 필터 반영, 월 필터는 제외)
+    months = [d.strftime("%Y-%m") for d in transactions.dates("tran_date", "month", order="DESC")]
+    selected_month = request.GET.get("month") or ""
+    if selected_month:
+        try:
+            y, m = selected_month.split("-")
+            transactions = transactions.filter(tran_date__year=int(y), tran_date__month=int(m))
+        except ValueError:
+            selected_month = ""
+
+    # 월별 그룹 (최신 월 먼저)
+    month_groups = []
+    for t in transactions[:2000]:
+        key = t.tran_date.strftime("%Y-%m")
+        if not month_groups or month_groups[-1]["month"] != key:
+            month_groups.append({"month": key, "rows": [], "total": 0, "unmatched": 0})
+        g = month_groups[-1]
+        g["rows"].append(t)
+        g["total"] += t.tran_amt
+        if not t.matched_release_id:
+            g["unmatched"] += 1
 
     return render(request, "openbanking/transaction_list.html", {
         "accounts": accounts,
-        "transactions": transactions,
+        "month_groups": month_groups,
+        "months": months,
+        "selected_month": selected_month,
+        "q": q,
         "selected_account_id": selected_account_id,
         "only_unmatched": only_unmatched,
     })
