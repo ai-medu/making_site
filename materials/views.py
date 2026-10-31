@@ -453,12 +453,18 @@ def release_list(request):
     # 오픈뱅킹 수동매칭용 JSON API
     if request.headers.get("X-Requested-With") == "XMLHttpRequest" and request.GET.get("format") == "json":
         from django.db.models import Sum, F as Fexp
-        unpaid = MaterialRelease.objects.filter(payment_status="unpaid").select_related("institution")
         # ✅ 개별 출고(release) 건이 아니라 (기관/학교 + 주문월) 단위 "그룹"으로 묶어서 반환
         # (release_list 화면과 동일한 그룹 기준을 사용해야 오픈뱅킹 수동매칭 목록도 일치함)
+        # 미수금 출고가 하나라도 있는 그룹이면, 금액은 그룹 전체(수금 처리된 건 포함)로 합산
+        unpaid_keys = set(
+            MaterialRelease.objects.filter(payment_status="unpaid").values_list("institution_id", "order_month")
+        )
+        all_rel = MaterialRelease.objects.select_related("institution").all()
         groups = {}
-        for r in unpaid:
+        for r in all_rel:
             key = (r.institution_id, r.order_month)
+            if key not in unpaid_keys:
+                continue
             total = r.items.aggregate(s=Sum(Fexp('unit_price') * Fexp('quantity')))["s"] or 0
             if key not in groups:
                 groups[key] = {

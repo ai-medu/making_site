@@ -200,9 +200,8 @@ def manual_match(request):
     group_releases = MaterialRelease.objects.filter(
         institution_id=institution_id,
         order_month=order_month,
-        payment_status="unpaid",
     ).order_by("-id")
-    if not group_releases.exists():
+    if not group_releases.filter(payment_status="unpaid").exists():
         return JsonResponse({"success": False, "message": "해당 출고 그룹을 찾을 수 없습니다."})
 
     tran.matched_release = group_releases.first()
