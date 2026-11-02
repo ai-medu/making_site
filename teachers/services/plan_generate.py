@@ -100,7 +100,8 @@ def generate_program_texts(name, category="", grades="", keywords="", current=No
 [주제 키워드] {keywords or '(없음)'}
 {('[강사가 이미 적어 둔 내용 - 이를 존중하여 보완]' + chr(10) + memo) if memo else ''}
 
-[항목별 작성 조건] 각 항목은 공백 포함 450~490자(절대 500자를 넘기지 않음), 줄바꿈(\\n)으로 3~5개 문단/줄로 나눈다.
+[항목별 작성 조건] 각 항목은 공백 포함 450~490자(절대 500자를 넘기지 않음)로 충분히 길게 쓴다.
+한 문장이 40~50자라면 항목마다 10~11문장이 되어야 한다. 200자 안팎의 짧은 글은 안 된다. 줄바꿈(\\n)으로 4~5개 줄로 나눈다.
 - goal(운영 목표): 프로그램으로 학생에게 길러질 역량(지식·기능·태도)과 학생의 발달 수준을 고려한 목표.
 - content(주요 교육 내용): 학생 수준(저·중·고학년)에 따른 활동 내용, 차시 흐름과 대표 활동, 결과물.
 - curriculum(교육과정 연계): 관련 교과(과학·수학·실과·정보 등)의 단원·성취기준 및 핵심 역량과의 연계.
@@ -111,10 +112,27 @@ def generate_program_texts(name, category="", grades="", keywords="", current=No
 - 특정 업체·상품·교재명, 확인되지 않은 실적·수상 경력은 쓰지 않는다.
 - 문체는 '~한다/~합니다' 중 하나로 통일하고, 줄 앞에 기호(-, ▷ 등)를 붙이지 않는다."""
     schema = _obj({"goal": _s(), "content": _s(), "curriculum": _s(), "notice": _s()})
+    started = time.monotonic()
     raw = _call_json(_body(prompt, schema))
     if not isinstance(raw, dict):
         raise ExtractError("AI 응답을 해석하지 못했습니다. 다시 시도해주세요.")
-    return {k: _text(raw.get(k), 500) for k in ("goal", "content", "curriculum", "notice")}
+    out = {k: _text(raw.get(k), 500) for k in ("goal", "content", "curriculum", "notice")}
+    short = {k: v for k, v in out.items() if len(v) < 400}
+    if short and time.monotonic() - started < 10:      # 너무 짧게 나오면 시간이 남을 때 한 번 더 늘려 쓰게 함
+        labels = {"goal": "운영 목표", "content": "주요 교육 내용", "curriculum": "교육과정 연계", "notice": "안내사항"}
+        draft = "\n".join(f"[{k}] {labels[k]} (현재 {len(v)}자)\n{v}" for k, v in short.items())
+        more = _call_json(_body(
+            f"""'{name}' 프로그램 모집 공고 항목의 글이 너무 짧습니다. 아래 각 항목을 내용을 살려 구체적으로 늘려서,
+항목마다 공백 포함 470~495자(500자 초과 금지)가 되도록 다시 쓰세요. 새 문장을 추가해 분량을 채우고 줄바꿈(\\n)으로 4~5줄로 나눕니다.
+문체는 그대로 유지하고 줄 앞에 기호를 붙이지 않습니다. JSON 키는 goal, content, curriculum, notice 이며 늘리지 않을 항목은 빈 문자열로 둡니다.
+
+{draft}""", schema))
+        if isinstance(more, dict):
+            for k in short:
+                v = _text(more.get(k), 500)
+                if len(v) > len(out[k]):
+                    out[k] = v
+    return out
 
 
 def _text(v, limit=700):
