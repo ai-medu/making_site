@@ -1595,6 +1595,24 @@
     var g2 = buildGrid(table);
     shiftRunEdge(g2, run, k < b ? b + 1 : b, k + 1);
   }
+  // 어느 줄에도 경계가 없는 세로선(쓰이지 않는 열 경계)은 이웃 열과 합쳐 표를 단순하게 유지
+  function cleanupCols(table) {
+    for (var k = colsOf(table).length - 1; k >= 1; k--) {
+      var g = buildGrid(table), cols = colsOf(table);
+      if (cols.length !== g.ncols) return;
+      var ok = true, cells = new Set();
+      for (var r = 0; r < g.rows.length && ok; r++) {
+        var a = g.grid[r][k - 1], b2 = g.grid[r][k];
+        if (a && b2 && a !== b2) ok = false;
+        else if (!!a !== !!b2) ok = false;
+        else if (a) cells.add(a);
+      }
+      if (!ok) continue;
+      cells.forEach(function (c) { if ((c.colSpan || 1) > 1) c.colSpan -= 1; });
+      cols[k - 1].style.width = ((parseFloat(cols[k - 1].style.width) || 0) + (parseFloat(cols[k].style.width) || 0)) + 'px';
+      cols[k].remove();
+    }
+  }
   function hasEdgeAt(g, r, b) {
     var L = g.grid[r] && g.grid[r][b - 1], Rt = g.grid[r] && g.grid[r][b];
     return !!L && !!Rt && L !== Rt;
@@ -1626,7 +1644,7 @@
         while (r1 < g0.rows.length - 1 && hasEdgeAt(g0, r1 + 1, b0)) r1++;
         var outside = false;
         for (var rr = 0; rr < g0.rows.length; rr++) { if ((rr < r0 || rr > r1) && hasEdgeAt(g0, rr, b0)) { outside = true; break; } }
-        if (outside) { drag.iso = {run: [r0, r1]}; drag.snap = info.table.innerHTML; }
+        drag.iso = {run: [r0, r1]}; drag.snap = info.table.innerHTML;     // 좁은 옆 열에 막히지 않도록 항상 전용 경계선 방식
       }
     } else {
       drag = {type: 'row', y: e.clientY, row: info.row, h0: info.row.getBoundingClientRect().height, table: info.table};
@@ -1650,6 +1668,7 @@
     if (!drag) return;
     var d = drag; drag = null;
     document.body.style.userSelect = '';
+    if (d.type === 'col' && d.table) { try { cleanupCols(d.table); } catch (err) { /* 정리 실패는 무시 */ } }
     if (d.type === 'row' && d.table && d.table.id === 'nb-sec2') {
       d.row.setAttribute('data-h0', d.row.style.height);
       d.table.setAttribute('data-nb-nostretch', '1');   // 직접 조절한 높이는 자동으로 늘리지 않음
