@@ -689,7 +689,10 @@
 
   // 한 묶음(새 쪽이 시작되는 곳부터 다음 새 쪽 전까지)이 정해진 쪽 수 안에 들어가도록, 넘칠 때만 줄 간격과 글자 크기를 조금씩 줄인다
   // (글꼴이 달라 글줄이 늘어나도 '1쪽 / 2쪽 / 3쪽 ...' 구성이 유지되게 함. 원래 값은 data-lh0 / data-fs0에 보관)
-  var FIT_STEPS = [[1, 1], [0.92, 1], [0.84, 1], [0.8, 1], [0.8, 0.96], [0.8, 0.92], [0.78, 0.9], [0.76, 0.88], [0.74, 0.86], [0.72, 0.84], [0.7, 0.82]];
+  // 글자 크기는 줄이지 않고(영역마다 글자 크기가 달라 보이는 것을 막음), 줄 간격만 글줄이 겹치지 않는 선(LH_MIN)까지 줄인다.
+  // 그래도 넘치면 다음 쪽으로 이어진다.
+  var FIT_STEPS = [[1, 1], [0.96, 1], [0.92, 1], [0.88, 1], [0.84, 1], [0.8, 1], [0.76, 1], [0.72, 1]];
+  var LH_MIN = 1.12;
   function setScale(els, kl, kf) {
     els.forEach(function (el) {
       el.querySelectorAll('.hp').forEach(function (p) {
@@ -698,7 +701,8 @@
           if (!(fs > 0) || !(lh > 0)) return;
           p.setAttribute('data-lh0', (lh / fs).toFixed(3));
         }
-        p.style.lineHeight = kl >= 1 ? (p.getAttribute('data-lh-set') || '') : String((parseFloat(p.getAttribute('data-lh0')) * kl).toFixed(3));
+        var lh0 = parseFloat(p.getAttribute('data-lh0'));
+        p.style.lineHeight = kl >= 1 ? (p.getAttribute('data-lh-set') || '') : String(Math.max(Math.min(lh0, LH_MIN), lh0 * kl).toFixed(3));
       });
       el.querySelectorAll('.hp > span').forEach(function (sp) {
         if (!sp.hasAttribute('data-fs0')) sp.setAttribute('data-fs0', parseFloat(getComputedStyle(sp).fontSize).toFixed(2));
