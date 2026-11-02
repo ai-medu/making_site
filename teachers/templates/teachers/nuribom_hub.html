@@ -1653,9 +1653,14 @@
               w0: parseFloat(cols[info.boundary - 1].style.width), w1: parseFloat(cols[info.boundary].style.width), iso: null};
       // 이 경계선이 다른 줄 묶음(예: 아래 도서·교구·재료 표)에도 있으면, 끄는 줄 묶음만 움직이도록 분리
       var g0 = info.g, b0 = info.boundary, r0 = info.td._r, r1 = info.td._r + (info.td.rowSpan || 1) - 1;
+      var lo0 = 0, hi0 = g0.rows.length - 1;     // 범위를 지정해 둔 상태에서 그 안의 경계선을 끌면, 지정한 줄들만 움직임
+      if (selCells.length > 1 && selTable === info.table && selCells.indexOf(info.td) >= 0 && b0 > selRect.c0 && b0 <= selRect.c1 + 1) {
+        lo0 = selRect.r0; hi0 = selRect.r1;
+        r0 = Math.max(r0, lo0); r1 = Math.min(r1, hi0);
+      }
       if (hasEdgeAt(g0, r0, b0)) {
-        while (r0 > 0 && hasEdgeAt(g0, r0 - 1, b0)) r0--;
-        while (r1 < g0.rows.length - 1 && hasEdgeAt(g0, r1 + 1, b0)) r1++;
+        while (r0 > lo0 && hasEdgeAt(g0, r0 - 1, b0)) r0--;
+        while (r1 < hi0 && hasEdgeAt(g0, r1 + 1, b0)) r1++;
         var outside = false;
         for (var rr = 0; rr < g0.rows.length; rr++) { if ((rr < r0 || rr > r1) && hasEdgeAt(g0, rr, b0)) { outside = true; break; } }
         drag.iso = {run: [r0, r1]}; drag.snap = info.table.innerHTML;     // 좁은 옆 열에 막히지 않도록 항상 전용 경계선 방식
