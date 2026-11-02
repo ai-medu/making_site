@@ -174,6 +174,30 @@
   {% include "teachers/_nuribom_plan_templates.html" %}
 </div>
 
+<div class="modal fade" id="nbLoadModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="bi bi-folder2-open me-1"></i>저장본 불러오기</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        {% if request.user.is_staff %}
+        <div class="btn-group btn-group-sm w-100 mb-2" role="group">
+          <input type="radio" class="btn-check" name="nbLoadScope" id="nbScopeMine" value="0" checked>
+          <label class="btn btn-outline-primary" for="nbScopeMine">{% if teacher == request.user %}내{% else %}{{ teacher.first_name }} 강사{% endif %} 저장본</label>
+          <input type="radio" class="btn-check" name="nbLoadScope" id="nbScopeAll" value="1">
+          <label class="btn btn-outline-primary" for="nbScopeAll">전체 강사 이력서</label>
+        </div>
+        <input type="search" id="nbLoadSearch" class="form-control form-control-sm mb-2 d-none" placeholder="강사 이름 검색">
+        {% endif %}
+        <div id="nbLoadList" class="list-group list-group-flush small"></div>
+        <div class="text-muted small mt-2">저장할 때마다 새 저장본이 만들어지고, 강사별로 최근 20개까지 보관됩니다.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal fade" id="nbSplitModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-sm">
     <div class="modal-content">
@@ -1479,17 +1503,88 @@
       .then(function () { btn.disabled = false; });
   });
 
-  document.getElementById('nbLoad').addEventListener('click', function () {
-    fetch("{% url 'nuribom_load' %}" + qs, {credentials: 'same-origin'})
+  // 저장본 하나를 화면에 적용 (ask: 지금 화면 내용이 사라진다고 확인할지)
+  function loadDraft(id, ask) {
+    return fetch("{% url 'nuribom_load' %}?id=" + id, {credentials: 'same-origin'})
       .then(function (r) { return r.json(); }).then(function (j) {
-        if (!j.ok) { alert(j.error || '불러오지 못했습니다.'); return; }
-        if (!confirm('저장된 내용(' + j.updated + ')을 불러옵니다.\n지금 화면의 수정 내용은 사라집니다. 계속할까요?')) return;
+        if (!j.ok) { alert(j.error || '불러오지 못했습니다.'); return false; }
+        if (ask && !confirm('저장본(' + j.updated + ')을 불러옵니다.\n지금 화면의 수정 내용은 사라집니다. 계속할까요?')) return false;
         doc.innerHTML = sanitize(j.html);
         schedulePaginate();
         showSaved(j.updated);
         onScroll();
-      }).catch(function () { alert('불러오지 못했습니다.'); });
+        return true;
+      }).catch(function () { alert('불러오지 못했습니다.'); return false; });
+  }
+
+  var loadModalEl = document.getElementById('nbLoadModal');
+  var loadListEl = document.getElementById('nbLoadList');
+  var loadSearchEl = document.getElementById('nbLoadSearch');
+  var loadRows = [];
+  function loadScopeAll() { var r = document.getElementById('nbScopeAll'); return !!(r && r.checked); }
+  function renderLoadList() {
+    var kw = loadSearchEl ? loadSearchEl.value.trim() : '';
+    var all = loadScopeAll();
+    loadListEl.innerHTML = '';
+    var rows = loadRows.filter(function (d) { return !kw || d.teacher.indexOf(kw) >= 0 || (d.title || '').indexOf(kw) >= 0; });
+    if (!rows.length) {
+      loadListEl.innerHTML = '<div class="text-center text-muted py-4">' + (loadRows.length ? '검색 결과가 없습니다.' : '저장된 내용이 없습니다.') + '</div>';
+      return;
+    }
+    rows.forEach(function (d) {
+      var row = document.createElement('div');
+      row.className = 'list-group-item d-flex align-items-center gap-2 px-1';
+      var info = document.createElement('div'); info.className = 'flex-grow-1';
+      var t1 = document.createElement('div'); t1.className = 'fw-semibold';
+      t1.textContent = (all ? d.teacher + ' · ' : '') + d.updated + (d.title ? ' · ' + d.title : '');
+      info.appendChild(t1);
+      var open = document.createElement('button');
+      open.type = 'button'; open.className = 'btn btn-sm btn-outline-primary'; open.textContent = '불러오기';
+      open.addEventListener('click', function () {
+        var other = String(d.teacher_id) !== String(data.hub_teacher);
+        if (other) {      // 다른 강사의 이력서(관리자): 그 강사 화면으로 이동해 불러오기 (저장도 그 강사 것으로)
+          if (!confirm(d.teacher + ' 강사의 이력서 화면으로 이동해 이 저장본을 불러옵니다. 계속할까요?')) return;
+          location.href = location.pathname + '?teacher=' + d.teacher_id + '&load=' + d.id;
+          return;
+        }
+        loadDraft(d.id, true).then(function (ok) { if (ok) bootstrap.Modal.getOrCreateInstance(loadModalEl).hide(); });
+      });
+      var del = document.createElement('button');
+      del.type = 'button'; del.className = 'btn btn-sm btn-outline-danger'; del.title = '이 저장본 삭제';
+      del.innerHTML = '<i class="bi bi-trash"></i>';
+      del.addEventListener('click', function () {
+        if (!confirm('이 저장본을 삭제할까요?')) return;
+        fetch("{% url 'nuribom_draft_delete' 0 %}".replace('/0/', '/' + d.id + '/'), {
+          method: 'POST', credentials: 'same-origin', headers: {'X-CSRFToken': csrf()}
+        }).then(function (r) { return r.json(); }).then(function (j) {
+          if (j.ok) { loadRows = loadRows.filter(function (x) { return x.id !== d.id; }); renderLoadList(); }
+          else alert(j.error || '삭제하지 못했습니다.');
+        });
+      });
+      row.appendChild(info); row.appendChild(open); row.appendChild(del);
+      loadListEl.appendChild(row);
+    });
+  }
+  function fetchLoadList() {
+    var all = loadScopeAll();
+    if (loadSearchEl) loadSearchEl.classList.toggle('d-none', !all);
+    loadListEl.innerHTML = '<div class="text-center text-muted py-4">불러오는 중...</div>';
+    var url = "{% url 'nuribom_drafts' %}" + (all ? '?all=1' : qs);
+    fetch(url, {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (j) {
+      loadRows = j.drafts || []; renderLoadList();
+    }).catch(function () { loadListEl.innerHTML = '<div class="text-center text-danger py-4">목록을 불러오지 못했습니다.</div>'; });
+  }
+  document.querySelectorAll('input[name=nbLoadScope]').forEach(function (r) { r.addEventListener('change', fetchLoadList); });
+  if (loadSearchEl) loadSearchEl.addEventListener('input', renderLoadList);
+  document.getElementById('nbLoad').addEventListener('click', function () {
+    bootstrap.Modal.getOrCreateInstance(loadModalEl).show();
+    fetchLoadList();
   });
+  // 관리자가 목록에서 다른 강사의 저장본을 골라 이동해 온 경우: 자동으로 불러오기
+  (function () {
+    var lid = new URLSearchParams(location.search).get('load');
+    if (lid && /^\d+$/.test(lid)) setTimeout(function () { loadDraft(lid, false); }, 800);
+  })();
 
   document.getElementById('nbPdf').addEventListener('click', function () {
     var old = document.title;
@@ -2732,7 +2827,62 @@
     }
   }
   var placeBeforePick = window.nbPlaceAi;
-  window.nbPlaceAi = function () { placeBeforePick(); placePickButtons(); };
+  window.nbPlaceAi = function () { placeBeforePick(); placePickButtons(); placeRefreshButton(); };
+
+  // ---------- 1. 강사 기본 정보: 현재정보불러오기 ----------
+  // 저장본을 불러온 뒤에도, 지금 등록된 학력·자격·경력·이름으로 기본 정보 표를 다시 채운다.
+  // (같은 페이지를 숨은 프레임으로 열어 자동 입력이 끝난 표만 가져옴)
+  var refreshBusy = false;
+  function placeRefreshButton() {
+    var sec = document.getElementById('nb-sec1');
+    var title = sec && Array.prototype.find.call(sec.querySelectorAll('td'), function (td) {
+      return !td.querySelector('table') && /1\.\s*강사\s*기본\s*정보/.test(td.textContent);
+    });
+    if (!title) return;
+    var r = title.getBoundingClientRect(), sheet = aiLayer.parentNode.getBoundingClientRect();
+    if (!r.height) return;
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'nb-ai-btn nb-pick-btn';
+    b.innerHTML = '🔄 현재정보불러오기'; b.title = '지금 등록된 이름·학력·자격증·경력으로 강사 기본 정보를 다시 채웁니다';
+    b.style.top = (r.top + r.height / 2 - sheet.top - 13) + 'px';
+    b.style.right = (sheet.right - r.right + 10) + 'px';
+    b.addEventListener('click', refreshBasic);
+    aiLayer.appendChild(b);
+  }
+  function refreshBasic() {
+    if (refreshBusy) return;
+    if (!confirm('지금 등록된 정보로 "1. 강사 기본 정보"를 다시 채웁니다.\n이 표에서 직접 수정한 내용은 사라집니다(다른 서류는 그대로). 계속할까요?')) return;
+    refreshBusy = true;
+    var fr = document.createElement('iframe');
+    fr.style.cssText = 'position:fixed;left:-9999px;top:0;width:1200px;height:800px;border:0;visibility:hidden';
+    fr.setAttribute('aria-hidden', 'true');
+    var done = function (msg) { refreshBusy = false; fr.remove(); if (msg) alert(msg); };
+    fr.addEventListener('load', function () {
+      var tries = 0;
+      (function wait() {      // 프레임 안의 자동 입력이 끝날 때까지 잠깐 기다림
+        var d = fr.contentDocument, src = d && d.getElementById('nb-sec1');
+        if (!src || !src.querySelector('table.hwp-tbl')) {
+          if (++tries > 40) return done('현재 정보를 가져오지 못했습니다. 잠시 후 다시 시도해주세요.');
+          return setTimeout(wait, 150);
+        }
+        setTimeout(function () {
+          try {
+            var fresh = src.cloneNode(true);
+            restorePush(fresh);                 // 쪽 구분용 여백 제거
+            fresh.querySelectorAll('.nb-sel').forEach(function (e) { e.classList.remove('nb-sel'); });
+            var live = document.getElementById('nb-sec1');
+            live.innerHTML = fresh.innerHTML;
+            schedulePaginate();
+            onScroll();
+            if (window.nbPlaceAi) setTimeout(window.nbPlaceAi, 450);
+            done('현재 정보로 불러왔습니다. 저장해야 보관됩니다.');
+          } catch (e) { done('현재 정보를 반영하지 못했습니다.'); }
+        }, 600);
+      })();
+    });
+    fr.src = location.pathname + qs;
+    document.body.appendChild(fr);
+  }
   // ---------- 자기소개서 AI 작성 ----------
   var introModalEl = document.getElementById('nbIntroModal');
   var introBusy = null;

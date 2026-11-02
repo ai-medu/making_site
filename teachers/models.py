@@ -269,13 +269,19 @@ class Education(ProofMixin, models.Model):
 
 
 class NuribomDraft(models.Model):
-    """늘봄허브 등록 서류 작성 내용(강사별 1개) 저장"""
-    teacher = models.OneToOneField(User, on_delete=models.CASCADE, related_name="nuribom_draft")
+    """늘봄허브 등록 서류 작성 내용 저장 — 저장할 때마다 새 버전(강사별 최근 MAX_PER_TEACHER개 보관)"""
+    MAX_PER_TEACHER = 20
+
+    teacher = models.ForeignKey(User, on_delete=models.CASCADE, related_name="nuribom_drafts")
+    title = models.CharField("저장 이름", max_length=100, blank=True, default="")
     html = models.TextField(blank=True, default="")
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        ordering = ["-updated_at", "-id"]
+
     def __str__(self):
-        return f"늘봄허브 서류 - {self.teacher.first_name}"
+        return f"늘봄허브 서류 - {self.teacher.first_name} ({self.updated_at:%Y-%m-%d %H:%M})"
 
 
 @receiver(post_delete, sender=Certificate)

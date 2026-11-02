@@ -750,15 +750,28 @@ def nuribom_save(request):
     html = request.POST.get("html", "")
     if len(html) > 3_000_000:
         return JsonResponse({"ok": False, "error": "저장할 내용이 너무 큽니다."}, status=400)
-    draft, _ = NuribomDraft.objects.update_or_create(teacher=teacher, defaults={"html": html})
+    title = (request.POST.get("title") or "").strip()[:100]
+    draft = NuribomDraft.objects.create(teacher=teacher, html=html, title=title)
+    # 오래된 저장본은 정리 (강사별 최근 N개만 보관)
+    old = NuribomDraft.objects.filter(teacher=teacher).values_list("id", flat=True)[NuribomDraft.MAX_PER_TEACHER:]
+    NuribomDraft.objects.filter(id__in=list(old)).delete()
     return JsonResponse({"ok": True, "updated": timezone.localtime(draft.updated_at).strftime("%Y-%m-%d %H:%M")})
+
+
+def _can_use_draft(request, draft):
+    return request.user.is_staff or draft.teacher_id == request.user.id
 
 
 @login_required
 def nuribom_load(request):
-    """저장된 늘봄허브 서류 불러오기"""
-    teacher = _hub_teacher(request)
-    draft = NuribomDraft.objects.filter(teacher=teacher).first()
+    """저장된 늘봄허브 서류 불러오기 (id 가 없으면 가장 최근 저장본)"""
+    draft_id = request.GET.get("id")
+    if draft_id and draft_id.isdigit():
+        draft = NuribomDraft.objects.filter(id=int(draft_id)).first()
+        if draft and not _can_use_draft(request, draft):
+            draft = None
+    else:
+        draft = NuribomDraft.objects.filter(teacher=_hub_teacher(request)).first()
     if not draft:
         return JsonResponse({"ok": False, "error": "저장된 내용이 없습니다."})
     return JsonResponse({
@@ -769,6 +782,37 @@ def nuribom_load(request):
 
 
 @login_required
+def nuribom_drafts(request):
+    """불러오기 목록 — 강사: 내 저장본 / 관리자: ?all=1 이면 전체 강사의 저장본"""
+    show_all = request.user.is_staff and request.GET.get("all") == "1"
+    qs = NuribomDraft.objects.select_related("teacher").defer("html")
+    if not show_all:
+        qs = qs.filter(teacher=_hub_teacher(request))
+    rows = []
+    for d in qs[:300]:
+        t = d.teacher
+        rows.append({
+            "id": d.id,
+            "teacher_id": t.id,
+            "teacher": f"{t.last_name}{t.first_name}".strip() or t.username,
+            "title": d.title,
+            "updated": timezone.localtime(d.updated_at).strftime("%Y-%m-%d %H:%M"),
+        })
+    return JsonResponse({"ok": True, "drafts": rows, "staff": request.user.is_staff})
+
+
+@login_required
+@require_POST
+def nuribom_draft_delete(request, pk):
+    draft = get_object_or_404(NuribomDraft, pk=pk)
+    if not _can_use_draft(request, draft):
+        return JsonResponse({"ok": False, "error": "삭제할 수 없습니다."}, status=403)
+    draft.delete()
+    return JsonResponse({"ok": True})
+
+
+@login_required
+@xframe_options_sameorigin     # '현재정보불러오기'가 같은 페이지를 숨은 프레임으로 열어 최신 정보를 가져옴
 def nuribom_hub(request):
     """늘봄허브 등록 서류 작성 페이지 (강사 제출 서류 양식을 그대로 편집)"""
     teacher = _hub_teacher(request)
@@ -803,6 +847,7 @@ def nuribom_hub(request):
     draft = NuribomDraft.objects.filter(teacher=teacher).first()
     data["saved"] = timezone.localtime(draft.updated_at).strftime("%Y-%m-%d %H:%M") if draft else ""
     data["teacher_id"] = teacher.id if teacher != request.user else ""
+    data["hub_teacher"] = teacher.id
     year = timezone.localdate().year    # 연간 활동 지도 계획안: 올해 3월부터 내년 2월까지
     return render(request, "teachers/nuribom_hub.html", {
         "teacher": teacher, "hub_data": data,
