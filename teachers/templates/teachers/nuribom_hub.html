@@ -1546,26 +1546,54 @@
     }
     return null;
   }
-  // 같은 경계선을 가진 이어진 줄 묶음만 따로 움직일 수 있게, 필요하면 너비 0짜리 보조 열을 끼워 넣는다
-  // dir<0: 경계를 왼쪽으로 끄는 경우, dir>0: 오른쪽으로 끄는 경우
-  function isolateBoundary(table, b, run, dir) {
-    var g = buildGrid(table), cols = colsOf(table);
+  // 이어진 줄 묶음(run)의 경계선만 따로 움직이기: 끄는 위치에 그 줄 묶음 전용 경계선을 새로 만들고,
+  // 나머지 줄의 칸은 그 위를 가로질러(colspan) 원래 모양을 유지한다. (마우스를 움직일 때마다 시작 상태에서 다시 계산)
+  function colEdges(cols) {
+    var p = [0];
+    cols.forEach(function (c, i) { p.push(p[i] + (parseFloat(c.style.width) || 0)); });
+    return p;
+  }
+  function shiftRunEdge(g, run, b, j) {      // run 줄들의 b번 경계선을 j번 경계선으로 옮김
     var done = new Set();
-    for (var r = 0; r < g.rows.length; r++) {
-      var L = g.grid[r][b - 1], Rt = g.grid[r][b];
-      if (!L || !Rt) continue;
-      var inRun = r >= run[0] && r <= run[1];
-      var tgt;
-      if (L === Rt) tgt = L;
-      else if (dir < 0) tgt = inRun ? Rt : L;
-      else tgt = inRun ? L : Rt;
-      if (done.has(tgt)) continue;
-      done.add(tgt);
-      tgt.colSpan = (tgt.colSpan || 1) + 1;
+    for (var r = run[0]; r <= run[1]; r++) {
+      var L = g.grid[r] && g.grid[r][b - 1], Rt = g.grid[r] && g.grid[r][b];
+      if (!L || !Rt || L === Rt || done.has(L)) continue;
+      done.add(L);
+      L.colSpan = (L.colSpan || 1) + (j - b);
+      Rt.colSpan = (Rt.colSpan || 1) - (j - b);
     }
-    var z = cols[b - 1].cloneNode(true);
-    z.style.width = '0.01px';
-    cols[b - 1].parentNode.insertBefore(z, cols[b]);
+  }
+  function dragRunLine(d, dx) {
+    var table = d.table, b = d.b, run = d.iso.run;
+    table.innerHTML = d.snap;                          // 시작 상태로 되돌린 뒤 다시 적용
+    if (Math.abs(dx) < 0.5) return;
+    var g = buildGrid(table), cols = colsOf(table), pos = colEdges(cols);
+    var lo = -Infinity, hi = Infinity;
+    for (var r = run[0]; r <= run[1]; r++) {
+      var L = g.grid[r][b - 1], Rt = g.grid[r][b];
+      if (!L || !Rt || L === Rt) continue;
+      lo = Math.max(lo, pos[L._c] + MIN_COL);
+      hi = Math.min(hi, pos[Rt._c + (Rt.colSpan || 1)] - MIN_COL);
+    }
+    if (!(lo <= hi)) return;
+    var X = Math.max(lo, Math.min(hi, pos[b] + dx));
+    var j = -1;
+    for (var q = 0; q < pos.length; q++) { if (Math.abs(pos[q] - X) < 0.5) { j = q; break; } }
+    if (j === b) return;
+    if (j >= 0) { shiftRunEdge(g, run, b, j); return; }
+    var k = 0;
+    while (k < pos.length - 1 && !(pos[k] < X && X < pos[k + 1])) k++;
+    var seen = new Set();                              // k번 열을 둘로 쪼개고, 그 열을 지나는 모든 칸은 한 칸씩 더 걸치게 함
+    for (var rr = 0; rr < g.rows.length; rr++) {
+      var c = g.grid[rr][k];
+      if (c && !seen.has(c)) { seen.add(c); c.colSpan = (c.colSpan || 1) + 1; }
+    }
+    var nc = cols[k].cloneNode(true);
+    nc.style.width = (pos[k + 1] - X) + 'px';
+    cols[k].style.width = (X - pos[k]) + 'px';
+    cols[k].parentNode.insertBefore(nc, cols[k].nextSibling);
+    var g2 = buildGrid(table);
+    shiftRunEdge(g2, run, k < b ? b + 1 : b, k + 1);
   }
   function hasEdgeAt(g, r, b) {
     var L = g.grid[r] && g.grid[r][b - 1], Rt = g.grid[r] && g.grid[r][b];
@@ -1598,7 +1626,7 @@
         while (r1 < g0.rows.length - 1 && hasEdgeAt(g0, r1 + 1, b0)) r1++;
         var outside = false;
         for (var rr = 0; rr < g0.rows.length; rr++) { if ((rr < r0 || rr > r1) && hasEdgeAt(g0, rr, b0)) { outside = true; break; } }
-        if (outside) drag.iso = {run: [r0, r1]};
+        if (outside) { drag.iso = {run: [r0, r1]}; drag.snap = info.table.innerHTML; }
       }
     } else {
       drag = {type: 'row', y: e.clientY, row: info.row, h0: info.row.getBoundingClientRect().height, table: info.table};
@@ -1609,19 +1637,8 @@
     if (!drag) return;
     if (drag.type === 'col') {
       var dx = e.clientX - drag.x;
-      if (drag.iso && Math.abs(dx) >= 1) {          // 움직이기 시작하면 방향에 맞게 분리
-        var dir = dx < 0 ? -1 : 1, bb = drag.b;
-        try { isolateBoundary(drag.table, bb, drag.iso.run, dir); } catch (err) { /* 분리 실패 시 기존처럼 전체가 움직임 */ drag.iso = null; }
-        if (drag.iso) {
-          var nc = colsOf(drag.table);
-          drag.cols = nc;
-          if (dir < 0) { drag.b = bb; drag.w0 = parseFloat(nc[bb - 1].style.width); drag.w1 = 0.01; drag.lo = MIN_COL - drag.w0; drag.hi = 0; }
-          else { drag.b = bb + 1; drag.w0 = 0.01; drag.w1 = parseFloat(nc[bb + 1].style.width); drag.lo = 0; drag.hi = drag.w1 - MIN_COL; }
-          drag.iso = null;
-        }
-      }
+      if (drag.iso) { dragRunLine(drag, dx); return; }
       var lo = drag.lo != null ? drag.lo : MIN_COL - drag.w0, hi = drag.hi != null ? drag.hi : drag.w1 - MIN_COL;
-      if (drag.iso) return;                         // 아직 방향이 정해지지 않음
       dx = Math.max(lo, Math.min(hi, dx));
       drag.cols[drag.b - 1].style.width = (drag.w0 + dx) + 'px';
       drag.cols[drag.b].style.width = (drag.w1 - dx) + 'px';
