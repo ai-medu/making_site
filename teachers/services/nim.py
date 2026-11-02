@@ -140,6 +140,8 @@ def chat_json(key, body, deadline, timeout=PER_MODEL, url=NIM_URL, model_list=No
             if data is None or (want_obj and not isinstance(data, dict)):
                 last = "응답 해석 실패"
                 continue
+            from .ai_trace import set_model
+            set_model(("OpenRouter" if "openrouter" in url else "NVIDIA NIM") + f" · {model}")
             return data, None
         if resp.status_code in (401, 403):
             return None, f"인증 실패({resp.status_code}) - 키를 확인해주세요"

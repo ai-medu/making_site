@@ -117,6 +117,7 @@
     <div class="row1">
       <span class="title"><i class="bi bi-file-earmark-text me-1"></i>늘봄허브 등록 서류</span>
       <span class="saved" id="nbSaved"></span>
+      <span class="saved" id="nbAiModel" title="가장 최근에 글을 작성한 AI 모델"></span>
     </div>
     <div class="rowA">
       <div class="actions">
@@ -543,6 +544,33 @@
 </div>
 
 {{ hub_data|json_script:"nb-data" }}
+<script>
+// AI가 글을 작성하면, 응답한 모델 이름을 화면 위쪽과 알림으로 보여줌
+(function () {
+  var AI_URL = /\/nuribom-hub\/(generate|generate-gear|ai-intro|ai-section)\/|\/plans\/\d+\/rows\/|\/extract-document\//;
+  var origFetch = window.fetch;
+  function showModel(name) {
+    var el = document.getElementById('nbAiModel');
+    if (el) el.textContent = '🤖 ' + name;
+    var t = document.getElementById('nbAiToast');
+    if (!t) {
+      t = document.createElement('div'); t.id = 'nbAiToast';
+      t.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:2000;background:#212529;color:#fff;padding:8px 14px;border-radius:8px;font-size:.85rem;box-shadow:0 2px 8px rgba(0,0,0,.3);transition:opacity .4s';
+      document.body.appendChild(t);
+    }
+    t.textContent = '🤖 AI 모델: ' + name; t.style.opacity = '1';
+    clearTimeout(t._h); t._h = setTimeout(function () { t.style.opacity = '0'; }, 6000);
+  }
+  window.fetch = function (input) {
+    var p = origFetch.apply(this, arguments);
+    var url = typeof input === 'string' ? input : (input && input.url) || '';
+    if (AI_URL.test(url)) {
+      p.then(function (r) { return r.clone().json(); }).then(function (j) { if (j && j.model) showModel(j.model); }).catch(function () {});
+    }
+    return p;
+  };
+})();
+</script>
 <script>
 (function () {
   var data = JSON.parse(document.getElementById('nb-data').textContent);

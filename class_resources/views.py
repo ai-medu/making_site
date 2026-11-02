@@ -174,4 +174,5 @@ def plan_api_rows(request, pk):
         return JsonResponse({"ok": False, "error": str(e)}, status=400)
     except (OSError, ValueError):
         return JsonResponse({"ok": False, "error": "계획서 파일을 열 수 없습니다."}, status=400)
-    return JsonResponse({"ok": True, "rows": rows})
+    from teachers.services.ai_trace import pop_model
+    return JsonResponse({"ok": True, "rows": rows, "model": pop_model()})

@@ -883,7 +883,8 @@ def extract_document(request, kind):
         result = extract(kind, f.name, f.content_type, f.read())
     except ExtractError as e:
         return JsonResponse({"ok": False, "error": str(e)}, status=400)
-    return JsonResponse({"ok": True, "items": result.get("items", []), "note": result.get("note", "")})
+    from .services.ai_trace import pop_model
+    return JsonResponse({"ok": True, "items": result.get("items", []), "note": result.get("note", ""), "model": pop_model()})
 
 
 
@@ -1097,7 +1098,8 @@ def nuribom_ai_intro(request):
         data = generate_intro(programs, options, str(payload.get("profile") or ""), str(payload.get("current") or ""))
     except ExtractError as e:
         return JsonResponse({"ok": False, "error": str(e)}, status=400)
-    return JsonResponse({"ok": True, "intro": data})
+    from .services.ai_trace import pop_model
+    return JsonResponse({"ok": True, "intro": data, "model": pop_model()})
 
 
 @login_required
@@ -1119,7 +1121,8 @@ def nuribom_generate_gear(request):
         gear = generate_gear(programs, str(payload.get("materials") or ""))
     except ExtractError as e:
         return JsonResponse({"ok": False, "error": str(e)}, status=400)
-    return JsonResponse({"ok": True, "gear": gear})
+    from .services.ai_trace import pop_model
+    return JsonResponse({"ok": True, "gear": gear, "model": pop_model()})
 
 
 @login_required
@@ -1141,7 +1144,8 @@ def nuribom_generate(request):
         plan = generate_plan(programs)
     except ExtractError as e:
         return JsonResponse({"ok": False, "error": str(e)}, status=400)
-    return JsonResponse({"ok": True, "plan": plan})
+    from .services.ai_trace import pop_model
+    return JsonResponse({"ok": True, "plan": plan, "model": pop_model()})
 
 
 
@@ -1168,4 +1172,5 @@ def nuribom_ai_section(request):
                                 materials=str(payload.get("materials") or ""), flat=bool(payload.get("flat")))
     except ExtractError as e:
         return JsonResponse({"ok": False, "error": str(e)}, status=400)
-    return JsonResponse({"ok": True, "data": data})
+    from .services.ai_trace import pop_model
+    return JsonResponse({"ok": True, "data": data, "model": pop_model()})
