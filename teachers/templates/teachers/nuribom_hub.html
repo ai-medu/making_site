@@ -810,7 +810,30 @@
       });
     });
   }
+  // 안내 문구용 내어쓰기(첫 줄만 왼쪽으로 튀어나온 모양)는 '-', '※' 같은 글머리표가 있을 때만 유지하고,
+  // 글머리표 없이 쓴 문단은 첫 줄과 둘째 줄부터가 같은 위치에서 시작하도록 내어쓰기를 없앤다.
+  var BULLET_RE = /^(?:[-–—※▷▶·•*○●■□◆◇ㆍ]|\(?\d+[.)])/;
+  function flattenHang() {
+    Array.prototype.forEach.call(doc.querySelectorAll('.hp'), function (p) {
+      var txt = p.textContent.replace(/[​\s]/g, '');
+      if (!txt) return;
+      var flat = p.hasAttribute('data-nb-flat');
+      var bullet = BULLET_RE.test(txt);
+      if (!bullet && !flat) {
+        if (parseFloat(getComputedStyle(p).textIndent) < 0) {
+          p.setAttribute('data-nb-flat', '1');
+          p.style.textIndent = '0';
+          p.style.marginLeft = '2.7px';
+        }
+      } else if (bullet && flat) {   // 나중에 글머리표를 붙이면 원래 모양으로
+        p.removeAttribute('data-nb-flat');
+        p.style.textIndent = ''; p.style.marginLeft = '';
+        if (!p.getAttribute('style')) p.removeAttribute('style');
+      }
+    });
+  }
   function paginateCore() {
+    flattenHang();
     clearPages();
     tightenPlanRows();
     resetPlanStretch();
