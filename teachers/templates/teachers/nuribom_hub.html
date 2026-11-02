@@ -143,6 +143,10 @@
         <option value="140">140%</option><option value="150">150%</option><option value="160">160%</option><option value="170">170%</option>
         <option value="180">180%</option><option value="200">200%</option>
       </select>
+          <select class="form-select form-select-sm" id="nbAlign" title="문단 정렬">
+        <option value="">정렬</option>
+        <option value="left">왼쪽</option><option value="center">가운데</option><option value="right">오른쪽</option><option value="justify">양쪽</option>
+      </select>
         </div>
         <button type="button" class="btn btn-outline-primary btn-sm d-none" id="nbProgPick"><i class="bi bi-journal-richtext me-1"></i>프로그램 선택</button>
         <button type="button" class="btn btn-outline-primary btn-sm d-none" id="nbCertPick"><i class="bi bi-award me-1"></i>자격 선택 <span id="nbCertCount"></span></button>
@@ -1882,10 +1886,24 @@
     showFmtValue('nbFont', commonOf(t.spans.map(spanFont)));
     showFmtValue('nbSize', commonOf(t.spans.map(spanPt)));
     showFmtValue('nbLine', commonOf(t.paras.map(paraLine).filter(function (x) { return x > 0; })));
+    showFmtValue('nbAlign', commonOf(t.paras.map(paraAlign)));
+  }
+  function paraAlign(p) {
+    var a = getComputedStyle(p).textAlign;
+    return {start: 'left', 'justify-all': 'justify', '-webkit-center': 'center', end: 'right'}[a] || a;
   }
   function applyFormat(kind, value) {
     if (!value) return;
     var px = kind === 'size' ? Math.round(parseFloat(value) * 96 / 72 * 100) / 100 : 0;
+    if (kind === 'align') {                   // 문단 정렬: 줄 간격과 같이 문단 단위
+      var aparas = fmtTargets().paras;
+      if (!aparas.length) { alert('정렬을 바꿀 칸을 끌어서 블록으로 지정하거나, 바꿀 문단을 먼저 선택(클릭)해주세요.'); updateFmtBar(); return; }
+      histPush(); clearPages(); resetPlanStretch();
+      aparas.forEach(function (pp) { pp.style.textAlign = value; });
+      schedulePaginate();
+      setTimeout(updateFmtBar, 80);
+      return;
+    }
     if (kind === 'line') {                    // 줄 간격은 문단 단위 (선택한 글자가 걸친 문단 전체)
       var paras = fmtTargets().paras;
       if (!paras.length) { alert('줄 간격을 바꿀 칸을 끌어서 블록으로 지정하거나, 바꿀 문단을 먼저 선택(클릭)해주세요.'); updateFmtBar(); return; }
@@ -1934,7 +1952,7 @@
     schedulePaginate();
     setTimeout(updateFmtBar, 80);
   }
-  [['nbFont', 'font'], ['nbSize', 'size'], ['nbLine', 'line']].forEach(function (pair) {
+  [['nbFont', 'font'], ['nbSize', 'size'], ['nbLine', 'line'], ['nbAlign', 'align']].forEach(function (pair) {
     document.getElementById(pair[0]).addEventListener('change', function () { applyFormat(pair[1], this.value); });
   });
 
