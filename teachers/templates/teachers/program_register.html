@@ -15,6 +15,9 @@
   .pr-ta { width: 100%; min-height: 190px; resize: vertical; line-height: 1.6; }
   .pr-cnt { text-align: right; font-size: .8rem; color: #777; }
   .pr-cnt.over { color: #e03131; }
+  .pr-note { color: #e03131; font-weight: 700; font-size: .9rem; margin-top: 6px; }
+  .pr-feerow { display: flex; align-items: center; gap: 8px; margin: 8px 0 0 12px; font-size: .9rem; color: #444; }
+  .pr-feerow input { width: 130px; }
   .pr-hint { color: #e03131; font-size: .85rem; margin-bottom: 6px; }
   .pr-ai-model { font-size: .8rem; color: #2f6f3e; margin-left: 8px; }
 </style>
@@ -71,7 +74,21 @@
     <tr><th>운영 장소 <span class="pr-req">*</span></th>
       <td><div class="pr-chips" data-key="place" data-multi="1" data-opts="학교안,학교밖,온라인,블렌디드 러닝 (온라인+오프라인)"></div></td></tr>
     <tr><th>비용 <span class="pr-req">*</span></th>
-      <td><div class="pr-chips" data-key="cost" data-multi="0" data-opts="차시당 비용,(4주기준) 학생 1인당 비용"></div></td></tr>
+      <td>
+        <div class="pr-chips" data-key="cost" data-multi="0" data-opts="차시당 비용,(4주기준) 학생 1인당 비용"></div>
+        <div class="pr-fee" id="prFeeSession" style="display:none">
+          <div class="pr-note">※ 차시당 강사비 입력가능 범위 : 0원 ~ 100,000원 &nbsp;&nbsp; ※ 차시당 교재 포함 재료비 입력가능 범위 : 0원 ~ 100,000원</div>
+          <div class="pr-feerow"><label>차시당 강사비 :</label><input type="number" class="form-control form-control-sm" id="prFee1T" min="0" max="100000" step="100"> 원</div>
+          <div class="pr-feerow"><label>차시당 교재 포함 재료비(학생 1인 기준) :</label><input type="number" class="form-control form-control-sm" id="prFee1M" min="0" max="100000" step="100"> 원</div>
+        </div>
+        <div class="pr-fee" id="prFeeStudent" style="display:none">
+          <div class="pr-note">※ 4주 기준 비용</div>
+          <div class="pr-note">※ 학생 1인당 강사비 입력가능 범위 : 0원 ~ 100,000원</div>
+          <div class="pr-note">※ 학생 1인당 교재 포함 재료비 입력가능 범위 : 0원 ~ 100,000원</div>
+          <div class="pr-feerow"><label>학생 1인당 강사비 :</label><input type="number" class="form-control form-control-sm" id="prFee4T" min="0" max="100000" step="100"> 원</div>
+          <div class="pr-feerow"><label>학생 1인당 교재 포함 재료비 :</label><input type="number" class="form-control form-control-sm" id="prFee4M" min="0" max="100000" step="100"> 원</div>
+        </div>
+      </td></tr>
     <tr><th>연계과목 <span class="pr-req">*</span></th>
       <td>
         <div><span class="pr-lbl">교과 :</span><span class="pr-chips d-inline" data-key="subjects" data-multi="1" data-group="1" data-opts="국어,수학,사회,과학,영어,외국어,교과 기타"></span></div>
@@ -102,7 +119,6 @@
       <span class="pr-ai-model" id="prAiModel"></span>
     </div>
   </div>
-  <div class="pr-hint">※ 프로그램 심사를 위해 교육청별로 요청하는 제안서 양식을 작성, 서명 후 업로드하여 주시기 바랍니다. AI를 쓰지 않고 직접 입력해서 저장해도 됩니다.</div>
   <table class="pr-tbl">
     <tr><th>운영 목표 <span class="pr-req">*</span></th><td><textarea class="form-control pr-ta" data-key="goal" maxlength="500"></textarea><div class="pr-cnt">0 / 500</div></td></tr>
     <tr><th>주요 교육내용 <span class="pr-req">*</span></th><td><textarea class="form-control pr-ta" data-key="content" maxlength="500"></textarea><div class="pr-cnt">0 / 500</div></td></tr>
@@ -128,15 +144,15 @@
   };
   // 프로그램명 → 분류 / 연계과목 / 주제 키워드 추천
   var PROGRAMS = {
-    "로봇과학": {cat: ["창의·과학", "기술체험"], subj: ["수학", "과학", "컴퓨터"], kw: ["로봇", "센서", "메커니즘"]},
-    "로봇코딩": {cat: ["창의·과학", "디지털기초"], subj: ["수학", "과학", "컴퓨터"], kw: ["로봇코딩", "알고리즘", "센서제어"]},
-    "과학탐구": {cat: ["창의·과학", "과학탐구"], subj: ["과학", "수학"], kw: ["과학탐구", "실험관찰", "탐구력"]},
-    "생명과학": {cat: ["창의·과학", "과학탐구"], subj: ["과학"], kw: ["생명과학", "동식물", "생태관찰"]},
-    "과학실험": {cat: ["창의·과학", "과학탐구"], subj: ["과학", "수학"], kw: ["과학실험", "실험관찰", "과학원리"]},
-    "3D펜": {cat: ["창의·과학", "기술체험"], subj: ["수학", "미술", "컴퓨터"], kw: ["3D펜", "입체조형", "창의표현"]},
-    "항공드론": {cat: ["창의·과학", "기술체험"], subj: ["과학", "컴퓨터"], kw: ["드론", "항공원리", "비행체험"]},
-    "창의수학": {cat: ["교과교육", "교과교육"], subj: ["수학"], kw: ["창의수학", "수학놀이", "사고력"]},
-    "코딩": {cat: ["창의·과학", "디지털기초"], subj: ["수학", "컴퓨터"], kw: ["코딩", "논리사고", "알고리즘"]}
+    "로봇과학": {cat: ["창의·과학", "기술체험"], subj: ["수학", "과학", "컴퓨터"], kw: ["로봇과학", "로봇코딩", "로봇조립"]},
+    "로봇코딩": {cat: ["창의·과학", "디지털기초"], subj: ["수학", "과학", "컴퓨터"], kw: ["로봇코딩", "로봇과학", "로봇조립"]},
+    "과학탐구": {cat: ["창의·과학", "과학탐구"], subj: ["과학", "수학"], kw: ["과학탐구", "과학실험", "과학원리"]},
+    "생명과학": {cat: ["창의·과학", "과학탐구"], subj: ["과학"], kw: ["생명과학", "생태관찰", "동식물탐구"]},
+    "과학실험": {cat: ["창의·과학", "과학탐구"], subj: ["과학", "수학"], kw: ["과학실험", "과학탐구", "과학원리"]},
+    "3D펜": {cat: ["창의·과학", "기술체험"], subj: ["수학", "미술", "컴퓨터"], kw: ["3D펜", "3D펜조형", "입체창작"]},
+    "항공드론": {cat: ["창의·과학", "기술체험"], subj: ["과학", "컴퓨터"], kw: ["항공드론", "드론조종", "드론코딩"]},
+    "창의수학": {cat: ["교과교육", "교과교육"], subj: ["수학"], kw: ["창의수학", "수학놀이", "수학사고력"]},
+    "코딩": {cat: ["창의·과학", "디지털기초"], subj: ["수학", "컴퓨터"], kw: ["코딩", "블록코딩", "알고리즘"]}
   };
   var CUSTOM = "직접입력";
   var CATS = {
@@ -187,11 +203,19 @@
       c.addEventListener('click', function () {
         var cur = state[key] || [], i = cur.indexOf(v);
         if (multi) { if (i >= 0) cur.splice(i, 1); else cur.push(v); } else { cur = i >= 0 ? [] : [v]; }
-        state[key] = cur; paint(key);
+        state[key] = cur; paint(key); if (key === 'cost') updateCost();
       });
       g.appendChild(c);
     });
   });
+
+  // --- 비용 입력칸 (선택한 방식에 맞게 표시) ---
+  function updateCost() {
+    var c = (state.cost || [])[0] || '';
+    $('#prFeeSession').style.display = c === '차시당 비용' ? '' : 'none';
+    $('#prFeeStudent').style.display = c.indexOf('학생 1인당') >= 0 ? '' : 'none';
+  }
+  var FEE_IDS = {fee1_teacher: '#prFee1T', fee1_material: '#prFee1M', fee4_teacher: '#prFee4T', fee4_material: '#prFee4M'};
 
   // --- 기본값 ---
   function setDefaults() {
@@ -199,6 +223,9 @@
              place: ['학교안'], cost: ['(4주기준) 학생 1인당 비용'], subjects: [], image: ['기본이미지'], ip: ['아니오']};
     ['class_type', 'grades', 'place', 'cost', 'subjects', 'image', 'ip'].forEach(paint);
     elMax.value = '25'; elSessions.value = '96';
+    Object.keys(FEE_IDS).forEach(function (k) { $(FEE_IDS[k]).value = ''; });
+    $(FEE_IDS.fee4_teacher).value = '30000';
+    updateCost();
   }
   setDefaults();
 
@@ -237,6 +264,7 @@
       keywords: $$('.pr-kw').map(function (e) { return e.value.trim(); }).filter(Boolean)
     };
     Object.keys(state).forEach(function (k) { d[k] = state[k].slice(); });
+    Object.keys(FEE_IDS).forEach(function (k) { d[k] = $(FEE_IDS[k]).value; });
     $$('.pr-ta').forEach(function (ta) { d[ta.dataset.key] = ta.value; });
     return d;
   }
@@ -253,6 +281,8 @@
     ['class_type', 'grades', 'place', 'cost', 'subjects', 'image', 'ip'].forEach(function (k) {
       if (Array.isArray(d[k])) { state[k] = d[k].slice(); paint(k); }
     });
+    Object.keys(FEE_IDS).forEach(function (k) { if (d[k] != null) $(FEE_IDS[k]).value = d[k]; });
+    updateCost();
     $$('.pr-kw').forEach(function (el, i) { el.value = (d.keywords || [])[i] || ''; });
     $$('.pr-ta').forEach(function (ta) { ta.value = d[ta.dataset.key] || ''; count(ta); });
   }
