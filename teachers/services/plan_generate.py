@@ -355,11 +355,11 @@ def generate_section(section, programs, options, current, materials="", flat=Fal
 # ---------------------------------------------------------------------------
 import base64
 
-PLAN_ROWS_SCHEMA = _obj({"rows": {"type": "ARRAY", "items": _obj({"topic": _s(), "lines": _arr()})}})
+PLAN_ROWS_SCHEMA = _obj({"rows": {"type": "ARRAY", "items": _obj({"topic": _s(), "lines": _arr(), "note": _s()})}})
 MAX_PLAN_PDF = 8 * 1024 * 1024
 
 
-def _plan_rows_prompt(title, start, end, total, topic_max, line_max):
+def _plan_rows_prompt(title, start, end, total, topic_max, line_max, note_max):
     return f"""첨부한 PDF는 '{title}' 연간(운영) 계획서입니다. 차시(수업 회차)별 학습 주제와 학습 내용이 들어 있습니다.
 이 계획서를 바탕으로 강사 제출 서류의 '연간 활동 지도 계획안' 표를 작성합니다.
 표는 1주에 1차시씩, 총 {total}주(행)입니다. 이번에는 {start}번째 주부터 {end}번째 주까지({end - start + 1}개 행)만 작성하세요.
@@ -373,27 +373,33 @@ def _plan_rows_prompt(title, start, end, total, topic_max, line_max):
 
 [분량 - 표 칸이 좁으므로 반드시 지킴]
 - topic(주제): 한 줄, 공백 포함 {topic_max}자 이내. 질문형 제목은 의미를 유지하며 짧게 줄입니다.
-- lines(내용): 정확히 2줄(배열 2개). 각 줄은 공백 포함 {line_max}자 이내의 한 문장이며 '~합니다 / ~해 봅니다' 문체로 씁니다. 줄 앞에 기호(*, -, ▷)는 붙이지 않습니다.
+- lines(내용): 정확히 2줄(배열 2개). 각 줄은 공백 포함 {line_max}자 이내의 '완결된 한 문장'이며 '~알아봅니다 / ~해 봅니다 / ~만들어 봅니다' 문체로 씁니다. 줄 앞에 기호(*, -, ▷)는 붙이지 않습니다.
+  · 첫째 줄은 그 주에 배우는 개념·특징 등 '학습 내용', 둘째 줄은 '직접 해 보는 활동'(관찰·제작·실험·체험 등)으로 구성합니다.
+  · 좋은 예) 주제가 '게코도마뱀'이면 → 1줄 "게코도마뱀의 종류와 특징을 알아봅니다." / 2줄 "게코도마뱀을 직접 관찰해 봅니다."
+  · "~알고", "~하고"처럼 문장이 끝나지 않고 이어지는 조각으로 쓰지 말고, 주제 이름과 구체적인 활동이 드러나게 씁니다.
+- note(비고): 계획서에 그 차시의 준비물·재료·교구가 적혀 있으면 핵심 준비물 이름만 쉼표로 이어 공백 포함 {note_max}자 이내로 씁니다. 준비물이 적혀 있지 않으면 빈 문자열로 두고 지어내지 마세요.
 - 응답은 rows 배열에 {start}번째 주부터 순서대로 정확히 {end - start + 1}개 항목을 담습니다."""
 
 
-def generate_plan_rows(pdf_bytes, title, start, count, total, topic_max, line_max):
+def generate_plan_rows(pdf_bytes, title, start, count, total, topic_max, line_max, note_max=12):
     if len(pdf_bytes) > MAX_PLAN_PDF:
         raise ExtractError("계획서 파일이 너무 커서 읽을 수 없습니다.")
     try:
         start, count, total = int(start), int(count), int(total)
         topic_max, line_max = int(topic_max), int(line_max)
+        note_max = int(note_max or 12)
     except (TypeError, ValueError):
         raise ExtractError("요청을 읽지 못했습니다.")
     if not (1 <= count <= 24 and 1 <= start <= total <= 60):
         raise ExtractError("요청 범위가 올바르지 않습니다.")
     topic_max = max(8, min(topic_max, 60))
     line_max = max(10, min(line_max, 80))
+    note_max = max(4, min(note_max, 30))
     end = min(total, start + count - 1)
     body = {
         "contents": [{"parts": [
             {"inline_data": {"mime_type": "application/pdf", "data": base64.b64encode(pdf_bytes).decode()}},
-            {"text": _plan_rows_prompt(str(title)[:80], start, end, total, topic_max, line_max)},
+            {"text": _plan_rows_prompt(str(title)[:80], start, end, total, topic_max, line_max, note_max)},
         ]}],
         "generationConfig": {
             "temperature": 0.3, "maxOutputTokens": 8192,
@@ -405,9 +411,10 @@ def generate_plan_rows(pdf_bytes, title, start, count, total, topic_max, line_ma
     for r in (data.get("rows") if isinstance(data, dict) else None) or []:
         topic = " ".join(str(r.get("topic") or "").split())[:topic_max + 6]
         lines = [" ".join(str(x).split()).lstrip("*-▷· ").strip() for x in (r.get("lines") or []) if str(x).strip()]
-        rows.append({"topic": topic, "lines": [x[:line_max + 8] for x in lines[:2]]})
+        note = " ".join(str(r.get("note") or "").split())
+        rows.append({"topic": topic, "lines": [x[:line_max + 8] for x in lines[:2]], "note": note[:note_max + 4]})
     want = end - start + 1
-    rows = rows[:want] + [{"topic": "", "lines": []}] * max(0, want - len(rows))
+    rows = rows[:want] + [{"topic": "", "lines": [], "note": ""}] * max(0, want - len(rows))
     return rows
 
 

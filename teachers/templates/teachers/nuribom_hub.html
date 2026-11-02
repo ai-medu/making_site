@@ -2420,8 +2420,10 @@
   function planLimits() {
     var t = document.getElementById('nb-sec3'), cols = t ? t.querySelectorAll('colgroup > col') : [];
     var wTopic = parseFloat(cols[2] && cols[2].style.width) || 165, wBody = parseFloat(cols[3] && cols[3].style.width) || 350;
+    var wNote = parseFloat(cols[4] && cols[4].style.width) || 52;
     var px = 9.5 * 96 / 72;
     return {
+      note_max: Math.max(4, Math.floor((wNote - 14) / px) * 2),         // 두 줄까지
       topic_max: Math.max(8, Math.floor((wTopic - 14) / px) * 2 - 2),   // 두 줄까지
       line_max: Math.max(12, Math.floor((wBody - 14) / px) - 1)          // 한 줄
     };
@@ -2490,6 +2492,7 @@
       var n = tr.children.length;
       setCellLines(tr.children[n - 3], r.topic ? [r.topic] : []);
       setCellLines(tr.children[n - 2], (r.lines || []).map(function (x) { return '*' + x; }));
+      if (tr.children[n - 1]) setCellLines(tr.children[n - 1], r.note ? [r.note] : []);   // 비고: 준비물
       tr.style.height = '35px';                  // 내용에 맞게 줄 높이를 같게 (내용이 길면 자동으로 늘어남)
     });
     schedulePaginate();
@@ -2511,7 +2514,7 @@
       return fetch("{% url 'plan_api_rows' 0 %}".replace('/0/', '/' + planPickSel + '/'), {
         method: 'POST', credentials: 'same-origin',
         headers: {'X-CSRFToken': csrf(), 'Content-Type': 'application/json'},
-        body: JSON.stringify({start: c[0], count: c[1], total: total, topic_max: lim.topic_max, line_max: lim.line_max})
+        body: JSON.stringify({start: c[0], count: c[1], total: total, topic_max: lim.topic_max, line_max: lim.line_max, note_max: lim.note_max})
       }).then(function (r) {
         return r.json().catch(function () { return {ok: false, error: '서버 응답을 읽지 못했습니다. (오류 ' + r.status + ')'}; });
       }).then(function (j) {

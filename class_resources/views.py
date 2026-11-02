@@ -164,7 +164,7 @@ def plan_api_rows(request, pk):
     plan = get_object_or_404(AnnualPlan, pk=pk)
     try:
         p = json.loads(request.body or b"{}")
-        args = [p.get(k) for k in ("start", "count", "total", "topic_max", "line_max")]
+        args = [p.get(k) for k in ("start", "count", "total", "topic_max", "line_max", "note_max")]
     except ValueError:
         return JsonResponse({"ok": False, "error": "요청을 읽지 못했습니다."}, status=400)
     try:
