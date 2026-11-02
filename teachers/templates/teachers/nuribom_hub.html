@@ -1554,13 +1554,12 @@
     return p;
   }
   function shiftRunEdge(g, run, b, j) {      // run 줄들의 b번 경계선을 j번 경계선으로 옮김
-    var done = new Set();
+    var doneL = new Set(), doneR = new Set();     // 여러 줄에 걸친 칸은 한 번만, 줄마다 다른 칸은 각각 조정
     for (var r = run[0]; r <= run[1]; r++) {
       var L = g.grid[r] && g.grid[r][b - 1], Rt = g.grid[r] && g.grid[r][b];
-      if (!L || !Rt || L === Rt || done.has(L)) continue;
-      done.add(L);
-      L.colSpan = (L.colSpan || 1) + (j - b);
-      Rt.colSpan = (Rt.colSpan || 1) - (j - b);
+      if (!L || !Rt || L === Rt) continue;
+      if (!doneL.has(L)) { doneL.add(L); L.colSpan = (L.colSpan || 1) + (j - b); }
+      if (!doneR.has(Rt)) { doneR.add(Rt); Rt.colSpan = (Rt.colSpan || 1) - (j - b); }
     }
   }
   function dragRunLine(d, dx) {
