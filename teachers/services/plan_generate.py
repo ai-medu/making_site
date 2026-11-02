@@ -228,9 +228,11 @@ def _call_gemini(body, call_timeout, keys, budget):
                 try:
                     text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
                     data = json.loads(text)
-                except (KeyError, IndexError, ValueError, TypeError) as e:
-                    _record(key_obj, "응답 해석 실패")
-                    raise ExtractError("AI 응답을 해석하지 못했습니다. 다시 시도해주세요.") from e
+                except (KeyError, IndexError, ValueError, TypeError):
+                    _record(key_obj, "응답 해석 실패")       # 응답이 잘리거나 비어 있는 경우: 다른 키로 한 번 더 시도
+                    last_error = ExtractError("AI 응답을 해석하지 못했습니다. 다시 시도해주세요.")
+                    retryable = True
+                    continue
                 _record(key_obj, None)
                 return data
             _record(key_obj, _status_message(resp.status_code))
