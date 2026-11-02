@@ -764,7 +764,15 @@ def nuribom_save(request):
     if len(html) > 3_000_000:
         return JsonResponse({"ok": False, "error": "저장할 내용이 너무 큽니다."}, status=400)
     title = (request.POST.get("title") or "").strip()[:100]
-    draft = NuribomDraft.objects.create(teacher=teacher, html=html, title=title)
+    draft = None
+    over = request.POST.get("overwrite")
+    if over and over.isdigit():          # 같은 이름의 저장본 덮어쓰기 (본인 것만)
+        draft = NuribomDraft.objects.filter(id=int(over), teacher=teacher).first()
+        if draft:
+            draft.html, draft.title = html, title
+            draft.save()
+    if not draft:
+        draft = NuribomDraft.objects.create(teacher=teacher, html=html, title=title)
     # 오래된 저장본은 정리 (강사별 최근 N개만 보관)
     old = NuribomDraft.objects.filter(teacher=teacher).values_list("id", flat=True)[NuribomDraft.MAX_PER_TEACHER:]
     NuribomDraft.objects.filter(id__in=list(old)).delete()

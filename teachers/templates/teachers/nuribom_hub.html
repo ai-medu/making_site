@@ -168,7 +168,7 @@
 </div>
 
 <div class="nb-wrap">
-  <div class="nb-hint">칸을 직접 클릭해서 수정할 수 있습니다. <b>[자격 선택] · [경력 선택] · [프로그램 선택]</b> 버튼은 각 칸 옆에 있습니다. 강사 기본 정보는 등록된 학력·자격증·경력이 자동으로 채워집니다. 수정 후 [저장]을 눌러야 보관됩니다. 회색 띠는 A4 용지로 출력(PDF 저장)할 때 쪽이 나뉘는 위치입니다(예상). <b>표 칸에서 마우스 오른쪽 버튼</b>을 누르면 줄·칸 추가/삭제, 칸 나누기/합치기를 할 수 있고, <b>칸 경계선을 끌면</b> 너비·높이를 조절할 수 있습니다. 여러 칸을 <b>마우스로 끌어 선택</b>한 뒤 오른쪽 버튼을 누르면 선택한 칸의 너비·높이를 같게 맞출 수 있습니다.</div>
+  <div class="nb-hint">칸을 직접 클릭해서 수정할 수 있습니다. <b>[자격 선택] · [경력 선택] · [프로그램 선택]</b> 버튼은 각 칸 옆에 있습니다. 강사 기본 정보는 등록된 학력·자격증·경력이 자동으로 채워집니다. 수정 후 [저장]을 눌러야 보관됩니다. 회색 띠는 A4 용지로 출력(PDF 저장)할 때 쪽이 나뉘는 위치입니다(예상). <b>표 칸에서 마우스 오른쪽 버튼</b>을 누르면 줄·칸 추가/삭제, 칸 나누기/합치기를 할 수 있고(합치기는 칸을 끌어 선택한 뒤 [합치기]), <b>칸 경계선을 끌면</b> 너비·높이를 조절할 수 있습니다. 여러 칸을 <b>마우스로 끌어 선택</b>한 뒤 오른쪽 버튼을 누르면 선택한 칸의 너비·높이를 같게 맞출 수 있습니다.</div>
   <div class="nb-sheet" id="nbSheet">
     <div class="nb-paper" id="nbDoc">
       {% include "teachers/_nuribom_doc.html" %}
@@ -177,6 +177,23 @@
     <div id="nbAiLayer"></div>
   </div>
   {% include "teachers/_nuribom_plan_templates.html" %}
+</div>
+
+<div class="modal fade" id="nbSaveModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">같은 이름의 저장본이 있습니다</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <b id="nbSaveName"></b> 이름으로 저장된 내용이 이미 있습니다. (마지막 저장 <span id="nbSaveWhen"></span>)<br>
+        기존 저장본을 덮어쓸까요, 새로 저장할까요?
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">취소</button>
+        <button type="button" class="btn btn-outline-primary" id="nbSaveNew">새로 저장</button>
+        <button type="button" class="btn btn-success" id="nbSaveOver">덮어쓰기</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="modal fade" id="nbLoadModal" tabindex="-1" aria-hidden="true">
@@ -1280,6 +1297,22 @@
       }
     });
   }
+  // 선택한 범위(직사각형)를 한 칸으로 합침
+  function mergeRange(table, rect) {
+    var g = buildGrid(table), tl = g.grid[rect.r0][rect.c0];
+    if (!tl || tl._r !== rect.r0 || tl._c !== rect.c0) throw new Error('선택한 범위를 합칠 수 없습니다.');
+    var seen = new Set([tl]), others = [];
+    for (var r = rect.r0; r <= rect.r1; r++) for (var c = rect.c0; c <= rect.c1; c++) {
+      var td = g.grid[r][c];
+      if (td && !seen.has(td)) { seen.add(td); others.push(td); }
+    }
+    if (!others.length) throw new Error('합칠 칸이 없습니다. 두 칸 이상 선택해주세요.');
+    others.forEach(function (td) { mergeContent(tl, td); td.remove(); });
+    var cs = rect.c1 - rect.c0 + 1, rs = rect.r1 - rect.r0 + 1;
+    if (cs > 1) tl.colSpan = cs; else tl.removeAttribute('colspan');
+    if (rs > 1) tl.rowSpan = rs; else tl.removeAttribute('rowspan');
+    tl.classList.remove('nb-sel');
+  }
   function mergeRight(table, cell) {
     var g = buildGrid(table);
     var nb = g.grid[cell._r][cell._c + (cell.colSpan || 1)];
@@ -1391,8 +1424,10 @@
     m.appendChild(ctxItem('칸 나누기 (좌우로)', 'layout-split', function () { runTableOp(function () { splitCellCols(table, td); }); }));
     m.appendChild(ctxItem('칸 나누기 (상하로)', 'layout-text-sidebar-reverse', function () { runTableOp(function () { splitCellRows(table, td); }); }));
     m.appendChild(ctxItem('칸 나누기 (줄·칸 수 입력)…', 'grid-3x3-gap', function () { openSplitDialog(table, td); }));
-    m.appendChild(ctxItem('오른쪽 칸과 합치기', 'box-arrow-in-right', function () { runTableOp(function () { mergeRight(table, td); }); }, !canMergeR));
-    m.appendChild(ctxItem('아래 칸과 합치기', 'box-arrow-in-down', function () { runTableOp(function () { mergeDown(table, td); }); }, !canMergeD));
+    m.appendChild(ctxItem(sel ? '선택한 칸 합치기' : '합치기', 'union', function () {
+      if (sel) { var rect = {r0: selRect.r0, r1: selRect.r1, c0: selRect.c0, c1: selRect.c1}; runTableOp(function () { mergeRange(table, rect); }); }
+      else runTableOp(function () { if (canMergeR) mergeRight(table, td); else mergeDown(table, td); });
+    }, sel ? selCells.length < 2 : !(canMergeR || canMergeD)));
     var hr = document.createElement('div'); hr.className = 'nb-ctx-sep'; m.appendChild(hr);
     m.appendChild(ctxItem('표 편집 되돌리기', 'arrow-counterclockwise', histUndo, !tblHistory.length));
     var tip = document.createElement('div'); tip.className = 'nb-ctx-tip';
@@ -1451,6 +1486,47 @@
     if (selCells.length < 2) clearSel();
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') clearSel(); });
+
+  // ----- 붙여넣기: 다른 문서(한글·워드·웹)에서 복사한 글은 글자만 가져와 이 칸의 문단 모양(글꼴·크기·줄간격)에 맞춤 -----
+  doc.addEventListener('paste', function (e) {
+    var sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    var node = sel.anchorNode && (sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement);
+    var cell = node && node.closest ? node.closest('.cell') : null;
+    if (!cell || !doc.contains(cell)) return;
+    var cd = e.clipboardData || window.clipboardData;
+    var text = cd ? cd.getData('text/plain') : '';
+    if (!text) return;
+    e.preventDefault();
+    var lines = text.replace(/\r/g, '').split('\n').map(function (x) { return x.replace(/\u00a0/g, ' ').replace(/\s+$/, ''); })
+      .filter(function (x) { return x.trim() !== ''; });
+    if (!lines.length) return;
+    if (!sel.isCollapsed) document.execCommand('delete');
+    var p = node.closest('.hp');
+    if (lines.length === 1 || !p || p.parentNode !== cell) {
+      document.execCommand('insertText', false, lines.join(' '));
+    } else {
+      var blank = p.textContent.replace(/[\s\u200b]/g, '') === '';
+      var base = p;
+      if (!blank) {                                   // 현재 문단의 커서 위치에 첫 줄을 잇고, 나머지는 새 문단으로
+        document.execCommand('insertText', false, lines.shift());
+      } else {
+        var sp0 = p.querySelector('span'); if (sp0) sp0.textContent = lines.shift().trim();
+      }
+      lines.forEach(function (ln) {
+        var np = base.cloneNode(true);
+        Array.prototype.slice.call(np.querySelectorAll('span')).slice(1).forEach(function (x) { x.remove(); });
+        var sp = np.querySelector('span');
+        if (!sp) { sp = document.createElement('span'); np.appendChild(sp); }
+        Array.prototype.slice.call(np.querySelectorAll(':scope > :not(span)')).forEach(function (x) { x.remove(); });
+        sp.classList.remove('nb-guide', 'nb-name-label'); sp.style.color = '';
+        sp.textContent = ln.trim();
+        base.parentNode.insertBefore(np, base.nextSibling);
+        base = np;
+      });
+    }
+    schedulePaginate();
+  });
 
   // ----- 칸 경계를 끌어 너비·높이 조절 -----
   var drag = null;
@@ -1546,20 +1622,49 @@
     return t.innerHTML;
   }
 
-  document.getElementById('nbSave').addEventListener('click', function () {
-    var btn = this; btn.disabled = true;
+  // 저장 이름 = 프로그램명 (같은 이름이 이미 있으면 덮어쓸지 새로 저장할지 선택)
+  var saveModalEl = document.getElementById('nbSaveModal');
+  var savePending = null;
+  function doSave(title, overwriteId) {
+    var btn = document.getElementById('nbSave'); btn.disabled = true;
     var body = new URLSearchParams();
     body.set('html', cleanForSave());
+    body.set('title', title);
+    if (overwriteId) body.set('overwrite', overwriteId);
     if (data.teacher_id) body.set('teacher', data.teacher_id);
     fetch("{% url 'nuribom_save' %}", {
       method: 'POST', credentials: 'same-origin',
       headers: {'X-CSRFToken': csrf(), 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'},
       body: body.toString()
     }).then(function (r) { return r.json(); }).then(function (j) {
-      if (j.ok) { showSaved(j.updated); alert('저장했습니다.'); }
+      if (j.ok) { showSaved(j.updated); alert('저장했습니다.' + (title ? '\n저장 이름: ' + title : '')); }
       else alert(j.error || '저장하지 못했습니다.');
     }).catch(function () { alert('저장하지 못했습니다. 잠시 후 다시 시도해주세요.'); })
       .then(function () { btn.disabled = false; });
+  }
+  document.getElementById('nbSave').addEventListener('click', function () {
+    var title = currentPrograms().join(' & ').slice(0, 100);
+    if (!title) {
+      title = (prompt('저장 이름을 입력해주세요. (프로그램을 선택하면 프로그램명으로 자동 저장됩니다)', '') || '').trim().slice(0, 100);
+      if (!title) return;
+    }
+    fetch("{% url 'nuribom_drafts' %}" + qs, {credentials: 'same-origin'}).then(function (r) { return r.json(); })
+      .then(function (j) { return (j.drafts || []).filter(function (d) { return d.title === title; }); })
+      .catch(function () { return []; })
+      .then(function (same) {
+        if (!same.length) { doSave(title, ''); return; }
+        savePending = {title: title, id: same[0].id};
+        document.getElementById('nbSaveName').textContent = title;
+        document.getElementById('nbSaveWhen').textContent = same[0].updated;
+        bootstrap.Modal.getOrCreateInstance(saveModalEl).show();
+      });
+  });
+  [['nbSaveOver', true], ['nbSaveNew', false]].forEach(function (x) {
+    document.getElementById(x[0]).addEventListener('click', function () {
+      var p = savePending; savePending = null;
+      bootstrap.Modal.getOrCreateInstance(saveModalEl).hide();
+      if (p) doSave(p.title, x[1] ? p.id : '');
+    });
   });
 
   // 저장본 하나를 화면에 적용 (ask: 지금 화면 내용이 사라진다고 확인할지)

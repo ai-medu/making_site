@@ -72,7 +72,13 @@
     <tr><th>운영 차시 <span class="pr-req">*</span></th>
       <td><input type="number" id="prSessions" class="form-control form-control-sm d-inline-block" style="width:90px" min="1" max="400"> 차시</td></tr>
     <tr><th>운영 장소 <span class="pr-req">*</span></th>
-      <td><div class="pr-chips" data-key="place" data-multi="1" data-opts="학교안,학교밖,온라인,블렌디드 러닝 (온라인+오프라인)"></div></td></tr>
+      <td>
+        <div class="pr-chips" data-key="place" data-multi="1" data-opts="학교안,학교밖,온라인,블렌디드 러닝 (온라인+오프라인)"></div>
+        <div class="d-flex align-items-center gap-2 mt-2 ms-2">
+          <label class="small text-muted mb-0" for="prPlaceDetail">상세 위치 정보 :</label>
+          <input type="text" id="prPlaceDetail" class="form-control form-control-sm" style="max-width:420px" maxlength="60" placeholder="예) 일반교실, 과학실, 창의실, 컴퓨터실">
+        </div>
+      </td></tr>
     <tr><th>비용 <span class="pr-req">*</span></th>
       <td>
         <div class="pr-chips" data-key="cost" data-multi="0" data-opts="차시당 비용,(4주기준) 학생 1인당 비용"></div>
@@ -144,15 +150,15 @@
   };
   // 프로그램명 → 분류 / 연계과목 / 주제 키워드 추천
   var PROGRAMS = {
-    "로봇과학": {cat: ["창의·과학", "기술체험"], subj: ["수학", "과학", "컴퓨터"], kw: ["로봇과학", "로봇코딩", "로봇조립"]},
-    "로봇코딩": {cat: ["창의·과학", "디지털기초"], subj: ["수학", "과학", "컴퓨터"], kw: ["로봇코딩", "로봇과학", "로봇조립"]},
-    "과학탐구": {cat: ["창의·과학", "과학탐구"], subj: ["과학", "수학"], kw: ["과학탐구", "과학실험", "과학원리"]},
-    "생명과학": {cat: ["창의·과학", "과학탐구"], subj: ["과학"], kw: ["생명과학", "생태관찰", "동식물탐구"]},
-    "과학실험": {cat: ["창의·과학", "과학탐구"], subj: ["과학", "수학"], kw: ["과학실험", "과학탐구", "과학원리"]},
-    "3D펜": {cat: ["창의·과학", "기술체험"], subj: ["수학", "미술", "컴퓨터"], kw: ["3D펜", "3D펜조형", "입체창작"]},
-    "항공드론": {cat: ["창의·과학", "기술체험"], subj: ["과학", "컴퓨터"], kw: ["항공드론", "드론조종", "드론코딩"]},
-    "창의수학": {cat: ["교과교육", "교과교육"], subj: ["수학"], kw: ["창의수학", "수학놀이", "수학사고력"]},
-    "코딩": {cat: ["창의·과학", "디지털기초"], subj: ["수학", "컴퓨터"], kw: ["코딩", "블록코딩", "알고리즘"]}
+    "로봇과학": {cat: ["창의·과학", "기술체험"], subj: ["수학", "과학", "컴퓨터"], kw: ["로봇과학", "로봇코딩", "로봇조립"], fee: 85000, place: "컴퓨터실, 창의실, 일반교실"},
+    "로봇코딩": {cat: ["창의·과학", "디지털기초"], subj: ["수학", "과학", "컴퓨터"], kw: ["로봇코딩", "로봇과학", "로봇조립"], fee: 85000, place: "컴퓨터실, 창의실, 일반교실"},
+    "과학탐구": {cat: ["창의·과학", "과학탐구"], subj: ["과학", "수학"], kw: ["과학탐구", "과학실험", "과학원리"], fee: 17000, place: "과학실, 일반교실"},
+    "생명과학": {cat: ["창의·과학", "과학탐구"], subj: ["과학"], kw: ["생명과학", "생태관찰", "동식물탐구"], fee: 17000, place: "과학실, 일반교실"},
+    "과학실험": {cat: ["창의·과학", "과학탐구"], subj: ["과학", "수학"], kw: ["과학실험", "과학탐구", "과학원리"], fee: 17000, place: "과학실, 일반교실"},
+    "3D펜": {cat: ["창의·과학", "기술체험"], subj: ["수학", "미술", "컴퓨터"], kw: ["3D펜", "3D펜조형", "입체창작"], fee: 22000, place: "창의실, 일반교실"},
+    "항공드론": {cat: ["창의·과학", "기술체험"], subj: ["과학", "컴퓨터"], kw: ["항공드론", "드론조종", "드론코딩"], fee: 25000, place: "체육관, 강당, 운동장"},
+    "창의수학": {cat: ["교과교육", "교과교육"], subj: ["수학"], kw: ["창의수학", "수학놀이", "수학사고력"], fee: 17000, place: "일반교실, 창의실"},
+    "코딩": {cat: ["창의·과학", "디지털기초"], subj: ["수학", "컴퓨터"], kw: ["코딩", "블록코딩", "알고리즘"], fee: null, place: "컴퓨터실, 일반교실"}
   };
   var CUSTOM = "직접입력";
   var CATS = {
@@ -224,6 +230,7 @@
     ['class_type', 'grades', 'place', 'cost', 'subjects', 'image', 'ip'].forEach(paint);
     elMax.value = '25'; elSessions.value = '96';
     Object.keys(FEE_IDS).forEach(function (k) { $(FEE_IDS[k]).value = ''; });
+    $('#prPlaceDetail').value = '';
     $(FEE_IDS.fee4_teacher).value = '30000';
     updateCost();
   }
@@ -239,6 +246,8 @@
       elMain.value = p.cat[0]; fillSub(p.cat[0], p.cat[1]);
       state.subjects = p.subj.slice(); paint('subjects');
       $$('.pr-kw').forEach(function (el, i) { el.value = p.kw[i] || ''; });
+      if (p.fee != null) $('#prFee4M').value = String(p.fee);
+      $('#prPlaceDetail').value = p.place || '';
       $('#prCatNote').textContent = '프로그램명에 맞춰 자동 선택되었습니다. 바꿀 수 있습니다.';
     } else if (v === CUSTOM) {
       $('#prCatNote').textContent = '분류·연계과목·키워드를 직접 선택해 주세요.';
@@ -265,6 +274,7 @@
     };
     Object.keys(state).forEach(function (k) { d[k] = state[k].slice(); });
     Object.keys(FEE_IDS).forEach(function (k) { d[k] = $(FEE_IDS[k]).value; });
+    d.place_detail = $('#prPlaceDetail').value.trim();
     $$('.pr-ta').forEach(function (ta) { d[ta.dataset.key] = ta.value; });
     return d;
   }
@@ -283,6 +293,7 @@
     });
     Object.keys(FEE_IDS).forEach(function (k) { if (d[k] != null) $(FEE_IDS[k]).value = d[k]; });
     updateCost();
+    $('#prPlaceDetail').value = d.place_detail || '';
     $$('.pr-kw').forEach(function (el, i) { el.value = (d.keywords || [])[i] || ''; });
     $$('.pr-ta').forEach(function (ta) { ta.value = d[ta.dataset.key] || ''; count(ta); });
   }
