@@ -793,9 +793,9 @@
       }
       // 줄 간격을 줄여도 넘치면 서식에 정해 둔 줄 최소 높이를 풀어 글 높이에 맞춘다 (남는 공간은 아래에서 다시 나눠 채움)
       var planT = real[0].row && real[0].table.id === 'nb-sec2' ? real[0].table : null;
-      if (planT && !planT.hasAttribute('data-nb-nostretch')) {
+      if (planT) {
         els.forEach(function (tr) {
-          if (tr.tagName !== 'TR') return;
+          if (tr.tagName !== 'TR' || tr.hasAttribute('data-nb-man')) return;   // 직접 조절한 줄은 그대로 둠
           if (!tr.hasAttribute('data-h0')) tr.setAttribute('data-h0', tr.style.height || '');
           tr.setAttribute('data-nb-relax', '1');
           tr.style.height = '';
@@ -1015,7 +1015,7 @@
     var mean = hs.reduce(function (a, b) { return a + b; }, 0) / hs.length;
     rs.forEach(function (tr) {
       tr.style.height = mean.toFixed(1) + 'px';
-      if (table.id === 'nb-sec2') tr.setAttribute('data-h0', tr.style.height);
+      if (table.id === 'nb-sec2') { tr.setAttribute('data-h0', tr.style.height); tr.setAttribute('data-nb-man', '1'); }
     });
     if (table.id === 'nb-sec2') table.setAttribute('data-nb-nostretch', '1');   // 직접 맞춘 높이는 자동으로 늘리지 않음
   }
@@ -1684,6 +1684,7 @@
     document.body.style.userSelect = '';
     if (d.type === 'col' && d.table) { try { cleanupCols(d.table); } catch (err) { /* 정리 실패는 무시 */ } }
     if (d.type === 'row' && d.table && d.table.id === 'nb-sec2') {
+      d.row.setAttribute('data-nb-man', '1');
       d.row.setAttribute('data-h0', d.row.style.height);
       d.table.setAttribute('data-nb-nostretch', '1');   // 직접 조절한 높이는 자동으로 늘리지 않음
     }
@@ -2182,6 +2183,20 @@
       return;
     }
     var rng = fmtRange;
+    if (rng && rng.collapsed && doc.contains(rng.commonAncestorContainer)) {     // 글자를 고르지 않고 칸만 클릭한 경우: 그 칸 전체에 적용
+      var cn = rng.commonAncestorContainer.nodeType === 1 ? rng.commonAncestorContainer : rng.commonAncestorContainer.parentElement;
+      var cellEl = cn && cn.closest ? cn.closest('.cell') : null;
+      if (cellEl) {
+        histPush(); clearPages(); resetPlanStretch();
+        Array.prototype.forEach.call(cellEl.querySelectorAll('span'), function (sp) {
+          if (kind === 'font') sp.style.fontFamily = FONT_STACKS[value] || value;
+          else setSpanSize(sp, px);
+        });
+        schedulePaginate();
+        setTimeout(updateFmtBar, 80);
+        return;
+      }
+    }
     if (!rng || rng.collapsed || !doc.contains(rng.commonAncestorContainer)) {
       alert('바꿀 칸을 끌어서 블록으로 지정하거나, 바꿀 글자를 먼저 선택해주세요.');
       return;
