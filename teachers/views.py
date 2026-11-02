@@ -12,7 +12,7 @@ from django.contrib.auth.models import User
 from .models import TeachingInstitution, TeachingDay
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
-from .models import Certificate, Career, CertificateCatalogItem, Education, NuribomDraft
+from .models import Certificate, Career, CertificateCatalogItem, Education, NuribomDraft, ProgramRegDraft
 from django.urls import reverse
 from django.http import HttpResponseForbidden, JsonResponse, FileResponse, Http404
 from django.views.decorators.clickjacking import xframe_options_sameorigin
@@ -1170,6 +1170,87 @@ def nuribom_ai_section(request):
     try:
         data = generate_section(section, programs, options, current,
                                 materials=str(payload.get("materials") or ""), flat=bool(payload.get("flat")))
+    except ExtractError as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    from .services.ai_trace import pop_model
+    return JsonResponse({"ok": True, "data": data, "model": pop_model()})
+
+
+# ==========================================
+# 늘봄허브 프로그램 모집 공고 등록 (프로그램 정보 + 운영 세부 계획 작성·저장·AI 작성)
+# ==========================================
+@login_required
+def program_register(request):
+    return render(request, "teachers/program_register.html")
+
+
+@login_required
+@require_POST
+def program_reg_save(request):
+    import json
+    try:
+        payload = json.loads(request.body or b"{}")
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            raise ValueError
+    except ValueError:
+        return JsonResponse({"ok": False, "error": "저장할 내용을 읽지 못했습니다."}, status=400)
+    raw = json.dumps(data, ensure_ascii=False)
+    if len(raw) > 200_000:
+        return JsonResponse({"ok": False, "error": "저장할 내용이 너무 큽니다."}, status=400)
+    title = " ".join(str(data.get("program_name") or "").split())[:100] or "(프로그램명 없음)"
+    draft = ProgramRegDraft.objects.create(teacher=request.user, title=title, data=raw)
+    old = ProgramRegDraft.objects.filter(teacher=request.user).values_list("id", flat=True)[ProgramRegDraft.MAX_PER_TEACHER:]
+    ProgramRegDraft.objects.filter(id__in=list(old)).delete()
+    return JsonResponse({"ok": True, "id": draft.id,
+                         "updated": timezone.localtime(draft.updated_at).strftime("%Y-%m-%d %H:%M")})
+
+
+@login_required
+def program_reg_list(request):
+    rows = [{"id": d.id, "title": d.title,
+             "updated": timezone.localtime(d.updated_at).strftime("%Y-%m-%d %H:%M")}
+            for d in ProgramRegDraft.objects.filter(teacher=request.user).defer("data")]
+    return JsonResponse({"ok": True, "drafts": rows})
+
+
+@login_required
+def program_reg_load(request, pk):
+    import json
+    d = ProgramRegDraft.objects.filter(pk=pk, teacher=request.user).first()
+    if not d:
+        return JsonResponse({"ok": False, "error": "저장된 내용을 찾지 못했습니다."}, status=404)
+    try:
+        data = json.loads(d.data or "{}")
+    except ValueError:
+        data = {}
+    return JsonResponse({"ok": True, "data": data})
+
+
+@login_required
+@require_POST
+def program_reg_delete(request, pk):
+    ProgramRegDraft.objects.filter(pk=pk, teacher=request.user).delete()
+    return JsonResponse({"ok": True})
+
+
+@login_required
+@require_POST
+def program_reg_ai(request):
+    """프로그램명에 맞춰 운영 목표·주요 교육 내용·교육과정 연계·안내사항을 AI로 작성"""
+    import json
+    from .services.doc_extract import ExtractError
+    from .services.plan_generate import generate_program_texts
+
+    try:
+        p = json.loads(request.body or b"{}")
+        if not isinstance(p, dict):
+            raise ValueError
+    except ValueError:
+        return JsonResponse({"ok": False, "error": "요청을 읽지 못했습니다."}, status=400)
+    try:
+        data = generate_program_texts(p.get("name"), str(p.get("category") or "")[:60], str(p.get("grades") or "")[:40],
+                                      str(p.get("keywords") or "")[:60], p.get("current") if isinstance(p.get("current"), dict) else {})
     except ExtractError as e:
         return JsonResponse({"ok": False, "error": str(e)}, status=400)
     from .services.ai_trace import pop_model

@@ -1675,14 +1675,16 @@
     return r;
   }
   // 개월 수 (15일 이상 남는 일수는 1개월로 인정)
-  function monthsBetween(start, end) {
+  function monthsDays(start, end) {   // 종료일 포함, 온전한 개월 수 + 남는 일수
     var endP = new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1);
     var m = (endP.getFullYear() - start.getFullYear()) * 12 + (endP.getMonth() - start.getMonth());
     var anchor = addMonths(start, m);
     while (anchor > endP) { m--; anchor = addMonths(start, m); }
-    var days = Math.round((endP - anchor) / 86400000);
-    if (days >= 15) m++;
-    return m;
+    return {m: m, d: Math.round((endP - anchor) / 86400000)};
+  }
+  function monthsBetween(start, end) {
+    var md = monthsDays(start, end);
+    return md.m + (md.d >= 15 ? 1 : 0);
   }
   function ym(m) {
     var y = Math.floor(m / 12), mo = m % 12;
@@ -2780,13 +2782,16 @@
 
     // 총 기간 (겹치는 기간은 한 번만 인정)
     var sorted = list.slice().sort(function (a, b) { return a.s - b.s; });
-    var total = 0, prevEnd = null;
+    var totM = 0, totD = 0, prevEnd = null;
     sorted.forEach(function (c) {
       var s = c.s;
       if (prevEnd && s <= prevEnd) s = new Date(prevEnd.getFullYear(), prevEnd.getMonth(), prevEnd.getDate() + 1);
-      if (s <= c.e) total += monthsBetween(s, c.e);
+      if (s <= c.e) { var md = monthsDays(s, c.e); totM += md.m; totD += md.d; }
       if (!prevEnd || c.e > prevEnd) prevEnd = c.e;
     });
+    // 남는 일수는 모두 합친 뒤 30일=1개월로 올리고, 마지막 15일 미만은 미인정
+    totM += Math.floor(totD / 30); totD = totD % 30;
+    var total = totM + (totD >= 15 ? 1 : 0);
     var tcells = totalRow.children;
     if (tcells.length >= 2) {
       var y = Math.floor(total / 12), mo = total % 12;

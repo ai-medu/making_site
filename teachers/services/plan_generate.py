@@ -83,6 +83,40 @@ def _prompt(programs):
   정해진 분량(위에 적은 줄 수·글자 수)을 넘기지 않는다. 이 내용은 A4 한 쪽 표 안에 들어가야 한다."""
 
 
+def generate_program_texts(name, category="", grades="", keywords="", current=None):
+    """프로그램 모집 공고의 '운영 목표·주요 교육 내용·교육과정 연계·안내사항'을 각각 500자 안팎으로 작성"""
+    name = " ".join(str(name or "").split())[:MAX_NAME_LEN]
+    if not name:
+        raise ExtractError("프로그램명을 먼저 선택하거나 입력해주세요.")
+    cur = {k: str((current or {}).get(k) or "").strip()[:500] for k in ("goal", "content", "curriculum", "notice")}
+    memo = "\n".join(f"- {label}: {cur[k]}" for k, label in
+                     (("goal", "운영 목표"), ("content", "주요 교육 내용"), ("curriculum", "교육과정 연계"), ("notice", "안내사항")) if cur[k])
+    prompt = f"""당신은 초등학교 방과후학교(늘봄학교) 프로그램 모집 공고를 작성하는 강사 지원 도우미입니다.
+교육청에 제출하는 '프로그램 운영 세부 계획'의 네 항목을 작성해 JSON(goal, content, curriculum, notice)으로 답하세요.
+
+[프로그램명] {name}
+[분류] {category or '(미정)'}
+[운영 대상] {grades or '초등 1~6학년'}
+[주제 키워드] {keywords or '(없음)'}
+{('[강사가 이미 적어 둔 내용 - 이를 존중하여 보완]' + chr(10) + memo) if memo else ''}
+
+[항목별 작성 조건] 각 항목은 공백 포함 450~490자(절대 500자를 넘기지 않음), 줄바꿈(\\n)으로 3~5개 문단/줄로 나눈다.
+- goal(운영 목표): 프로그램으로 학생에게 길러질 역량(지식·기능·태도)과 학생의 발달 수준을 고려한 목표.
+- content(주요 교육 내용): 학생 수준(저·중·고학년)에 따른 활동 내용, 차시 흐름과 대표 활동, 결과물.
+- curriculum(교육과정 연계): 관련 교과(과학·수학·실과·정보 등)의 단원·성취기준 및 핵심 역량과의 연계.
+- notice(안내사항): 준비물, 안전 지도, 수업 운영 방식, 학부모 소통·유의 사항.
+
+[주의]
+- '{name}' 프로그램의 특성이 드러나는 구체적인 내용으로 쓰고, 다른 프로그램에도 그대로 쓸 수 있는 뻔한 문구는 피한다.
+- 특정 업체·상품·교재명, 확인되지 않은 실적·수상 경력은 쓰지 않는다.
+- 문체는 '~한다/~합니다' 중 하나로 통일하고, 줄 앞에 기호(-, ▷ 등)를 붙이지 않는다."""
+    schema = _obj({"goal": _s(), "content": _s(), "curriculum": _s(), "notice": _s()})
+    raw = _call_json(_body(prompt, schema))
+    if not isinstance(raw, dict):
+        raise ExtractError("AI 응답을 해석하지 못했습니다. 다시 시도해주세요.")
+    return {k: _text(raw.get(k), 500) for k in ("goal", "content", "curriculum", "notice")}
+
+
 def _text(v, limit=700):
     if isinstance(v, list):
         v = "\n".join(str(x).strip() for x in v if str(x).strip())

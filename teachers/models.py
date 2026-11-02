@@ -284,6 +284,22 @@ class NuribomDraft(models.Model):
         return f"늘봄허브 서류 - {self.teacher.first_name} ({self.updated_at:%Y-%m-%d %H:%M})"
 
 
+class ProgramRegDraft(models.Model):
+    """늘봄허브 프로그램 모집 공고 등록 내용 저장 — 저장할 때마다 새 버전(강사별 최근 MAX_PER_TEACHER개 보관)"""
+    MAX_PER_TEACHER = 30
+
+    teacher = models.ForeignKey(User, on_delete=models.CASCADE, related_name="program_reg_drafts")
+    title = models.CharField("프로그램명", max_length=100, blank=True, default="")
+    data = models.TextField("입력 내용(JSON)", blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at", "-id"]
+
+    def __str__(self):
+        return f"프로그램 등록 - {self.title} ({self.updated_at:%Y-%m-%d %H:%M})"
+
+
 @receiver(post_delete, sender=Certificate)
 @receiver(post_delete, sender=Career)
 @receiver(post_delete, sender=Education)

@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .pr-wrap { max-width: 1000px; margin: 24px auto 60px; }
+  .pr-title { font-size: 1.5rem; font-weight: 700; margin: 0; }
+  .pr-sec { font-size: 1.05rem; font-weight: 700; margin: 28px 0 8px; }
+  .pr-tbl { width: 100%; border-top: 2px solid #555; border-collapse: collapse; }
+  .pr-tbl th { width: 170px; background: #f6f6f6; text-align: left; padding: 12px 14px; font-size: .92rem; vertical-align: middle; border-bottom: 1px solid #e3e3e3; }
+  .pr-tbl td { padding: 10px 14px; border-bottom: 1px solid #e3e3e3; }
+  .pr-req { color: #e03131; }
+  .pr-chip { display: inline-block; border: 1px solid #cfcfcf; border-radius: 20px; padding: 3px 14px; margin: 2px 4px 2px 0; background: #fff; font-size: .88rem; cursor: pointer; user-select: none; }
+  .pr-chip.on { background: #2f9e44; border-color: #2f9e44; color: #fff; }
+  .pr-sub { font-size: .8rem; color: #777; margin: 4px 0 6px; }
+  .pr-lbl { display: inline-block; min-width: 56px; font-size: .85rem; color: #555; }
+  .pr-ta { width: 100%; min-height: 130px; resize: vertical; }
+  .pr-cnt { text-align: right; font-size: .8rem; color: #777; }
+  .pr-cnt.over { color: #e03131; }
+  .pr-hint { color: #e03131; font-size: .85rem; margin-bottom: 6px; }
+  .pr-ai-model { font-size: .8rem; color: #2f6f3e; margin-left: 8px; }
+</style>
+
+<div class="pr-wrap px-3">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <h1 class="pr-title"><i class="bi bi-megaphone me-2"></i>늘봄허브등록 <span class="fs-6 fw-normal text-muted">프로그램 모집 공고 작성</span></h1>
+    <div class="d-flex gap-2">
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="prLoadBtn"><i class="bi bi-folder2-open me-1"></i>불러오기</button>
+      <button type="button" class="btn btn-success btn-sm" id="prSaveBtn"><i class="bi bi-save me-1"></i>저장</button>
+    </div>
+  </div>
+  <div class="small text-muted mt-1" id="prStatus">내용을 입력하고 저장하면 나중에 불러올 수 있습니다. (최근 30개 보관)</div>
+
+  <div class="pr-sec">프로그램 정보</div>
+  <table class="pr-tbl">
+    <tr><th>프로그램명 <span class="pr-req">*</span></th>
+      <td>
+        <div class="d-flex flex-wrap gap-2">
+          <select id="prName" class="form-select form-select-sm" style="max-width:220px"></select>
+          <input type="text" id="prNameCustom" class="form-control form-control-sm" style="max-width:420px; display:none" maxlength="30" placeholder="프로그램명을 직접 입력하세요">
+        </div>
+      </td></tr>
+    <tr><th>분류 <span class="pr-req">*</span></th>
+      <td>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <select id="prCatMain" class="form-select form-select-sm" style="max-width:200px"></select>
+          <select id="prCatSub" class="form-select form-select-sm" style="max-width:200px"></select>
+          <span class="small text-muted" id="prCatNote">프로그램명을 고르면 자동으로 선택됩니다.</span>
+        </div>
+      </td></tr>
+    <tr><th>운영 지역 <span class="pr-req">*</span></th>
+      <td>
+        <div class="pr-sub">※ 입력한 모든 지역에서 활동하실 수 있습니다. 활동하실 지역을 직접 선택해 주세요.</div>
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
+          <span class="pr-lbl">1순위 <span class="pr-req">*</span></span>
+          <select class="form-select form-select-sm pr-sido" id="prR1" style="max-width:150px"></select>
+          <input type="text" class="form-control form-control-sm" id="prR1gu" style="max-width:180px" maxlength="20" placeholder="시·군·구 (예: 광산구)">
+        </div>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <span class="pr-lbl">2순위</span>
+          <select class="form-select form-select-sm pr-sido" id="prR2" style="max-width:150px"></select>
+          <input type="text" class="form-control form-control-sm" id="prR2gu" style="max-width:180px" maxlength="20" placeholder="시·군·구">
+        </div>
+      </td></tr>
+    <tr><th>학급 분류 <span class="pr-req">*</span></th>
+      <td><div class="pr-chips" data-key="class_type" data-multi="1" data-opts="일반학급,특수학급,특수학교"></div></td></tr>
+    <tr><th>운영 대상 <span class="pr-req">*</span></th>
+      <td><div class="pr-chips" data-key="grades" data-multi="1" data-opts="1학년,2학년,3학년,4학년,5학년,6학년"></div></td></tr>
+    <tr><th>학급당 최대 정원 <span class="pr-req">*</span></th>
+      <td><select id="prMax" class="form-select form-select-sm d-inline-block" style="width:90px"></select> 명</td></tr>
+    <tr><th>운영 차시 <span class="pr-req">*</span></th>
+      <td><input type="number" id="prSessions" class="form-control form-control-sm d-inline-block" style="width:90px" min="1" max="400"> 차시</td></tr>
+    <tr><th>운영 장소 <span class="pr-req">*</span></th>
+      <td><div class="pr-chips" data-key="place" data-multi="1" data-opts="학교안,학교밖,온라인,블렌디드 러닝 (온라인+오프라인)"></div></td></tr>
+    <tr><th>비용 <span class="pr-req">*</span></th>
+      <td><div class="pr-chips" data-key="cost" data-multi="0" data-opts="차시당 비용,(4주기준) 학생 1인당 비용"></div></td></tr>
+    <tr><th>연계과목 <span class="pr-req">*</span></th>
+      <td>
+        <div><span class="pr-lbl">교과 :</span><span class="pr-chips d-inline" data-key="subjects" data-multi="1" data-group="1" data-opts="국어,수학,사회,과학,영어,외국어,교과 기타"></span></div>
+        <div class="mt-1"><span class="pr-lbl">특기적성 :</span><span class="pr-chips d-inline" data-key="subjects" data-multi="1" data-group="1" data-opts="체육,미술,음악,컴퓨터,독서논술,특기적성 기타"></span></div>
+      </td></tr>
+    <tr><th>주제 키워드</th>
+      <td>
+        <div class="pr-sub">프로그램 통합 검색에 활용되며, 최대 3개까지 입력이 가능합니다. (프로그램명을 고르면 3개를 추천해 드립니다)</div>
+        <div class="d-flex flex-wrap gap-2">
+          <input type="text" class="form-control form-control-sm pr-kw" style="max-width:170px" maxlength="8" placeholder="8자이내">
+          <input type="text" class="form-control form-control-sm pr-kw" style="max-width:170px" maxlength="8" placeholder="8자이내">
+          <input type="text" class="form-control form-control-sm pr-kw" style="max-width:170px" maxlength="8" placeholder="8자이내">
+        </div>
+      </td></tr>
+    <tr><th>대표이미지 <span class="pr-req">*</span></th>
+      <td><div class="pr-chips" data-key="image" data-multi="0" data-opts="기본이미지,직접등록"></div></td></tr>
+    <tr><th>지적재산권 <span class="pr-req">*</span></th>
+      <td>
+        <div class="pr-sub mb-1">프로그램의 운영 계획 및 관련 이미지 등은 누군가의 고유한 지적 재산일 수 있습니다.<br>등록하시는 내용이 타인의 저작물을 이용하고 있습니까?</div>
+        <div class="pr-chips" data-key="ip" data-multi="0" data-opts="예,아니오"></div>
+      </td></tr>
+  </table>
+
+  <div class="d-flex flex-wrap justify-content-between align-items-end mt-4 mb-1">
+    <div class="pr-sec m-0">프로그램 운영 세부 계획</div>
+    <div>
+      <button type="button" class="btn btn-primary btn-sm" id="prAiBtn"><i class="bi bi-stars me-1"></i>AI 활용</button>
+      <span class="pr-ai-model" id="prAiModel"></span>
+    </div>
+  </div>
+  <div class="pr-hint">※ 프로그램 심사를 위해 교육청별로 요청하는 제안서 양식을 작성, 서명 후 업로드하여 주시기 바랍니다. AI를 쓰지 않고 직접 입력해서 저장해도 됩니다.</div>
+  <table class="pr-tbl">
+    <tr><th>운영 목표 <span class="pr-req">*</span></th><td><textarea class="form-control pr-ta" data-key="goal" maxlength="500"></textarea><div class="pr-cnt">0 / 500</div></td></tr>
+    <tr><th>주요 교육내용 <span class="pr-req">*</span></th><td><textarea class="form-control pr-ta" data-key="content" maxlength="500"></textarea><div class="pr-cnt">0 / 500</div></td></tr>
+    <tr><th>교육과정 연계 <span class="pr-req">*</span></th><td><textarea class="form-control pr-ta" data-key="curriculum" maxlength="500"></textarea><div class="pr-cnt">0 / 500</div></td></tr>
+    <tr><th>안내사항 <span class="pr-req">*</span></th><td><textarea class="form-control pr-ta" data-key="notice" maxlength="500"></textarea><div class="pr-cnt">0 / 500</div></td></tr>
+  </table>
+</div>
+
+<div class="modal fade" id="prLoadModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">저장된 프로그램 불러오기</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body p-0"><div id="prLoadList"></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var URLS = {
+    save: "{% url 'program_reg_save' %}", list: "{% url 'program_reg_list' %}",
+    ai: "{% url 'program_reg_ai' %}", base: "{% url 'program_register' %}"
+  };
+  // 프로그램명 → 분류 / 연계과목 / 주제 키워드 추천
+  var PROGRAMS = {
+    "로봇과학": {cat: ["창의·과학", "기술체험"], subj: ["수학", "과학", "컴퓨터"], kw: ["로봇", "센서", "메커니즘"]},
+    "로봇코딩": {cat: ["창의·과학", "디지털기초"], subj: ["수학", "과학", "컴퓨터"], kw: ["로봇코딩", "알고리즘", "센서제어"]},
+    "과학탐구": {cat: ["창의·과학", "과학탐구"], subj: ["과학", "수학"], kw: ["과학탐구", "실험관찰", "탐구력"]},
+    "생명과학": {cat: ["창의·과학", "과학탐구"], subj: ["과학"], kw: ["생명과학", "동식물", "생태관찰"]},
+    "과학실험": {cat: ["창의·과학", "과학탐구"], subj: ["과학", "수학"], kw: ["과학실험", "실험관찰", "과학원리"]},
+    "3D펜": {cat: ["창의·과학", "기술체험"], subj: ["수학", "미술", "컴퓨터"], kw: ["3D펜", "입체조형", "창의표현"]},
+    "항공드론": {cat: ["창의·과학", "기술체험"], subj: ["과학", "컴퓨터"], kw: ["드론", "항공원리", "비행체험"]},
+    "창의수학": {cat: ["교과교육", "교과교육"], subj: ["수학"], kw: ["창의수학", "수학놀이", "사고력"]},
+    "코딩": {cat: ["창의·과학", "디지털기초"], subj: ["수학", "컴퓨터"], kw: ["코딩", "논리사고", "알고리즘"]}
+  };
+  var CUSTOM = "직접입력";
+  var CATS = {
+    "체육": ["신체활동", "구기종목"], "문화·예술": ["미술", "음악", "공연", "문화"],
+    "인문·사회": ["문학·독서", "역사", "사회"], "창의·과학": ["과학탐구", "디지털기초", "기술체험"],
+    "기후·환경": ["자연환경", "생태체험"], "학교적응·정서": ["사회성발달", "정서표현", "생활습관"],
+    "교과교육": ["교과교육"], "기타": ["기타"]
+  };
+  var SIDO = ["서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종", "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주"];
+
+  function $(s, r) { return (r || document).querySelector(s); }
+  function $$(s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); }
+  function csrf() { var m = document.cookie.match(/csrftoken=([^;]+)/); return m ? m[1] : ''; }
+  function opt(sel, value, label) { var o = document.createElement('option'); o.value = value; o.textContent = label == null ? value : label; sel.appendChild(o); }
+
+  var state = {};   // 칩(버튼) 선택값: key → [값...]
+  var elName = $('#prName'), elCustom = $('#prNameCustom'), elMain = $('#prCatMain'), elSub = $('#prCatSub');
+  var elMax = $('#prMax'), elSessions = $('#prSessions'), status = $('#prStatus');
+
+  // --- 선택 칸 채우기 ---
+  opt(elName, '', '선택');
+  Object.keys(PROGRAMS).forEach(function (n) { opt(elName, n); });
+  opt(elName, CUSTOM);
+  opt(elMain, '', '대분류 선택');
+  Object.keys(CATS).forEach(function (n) { opt(elMain, n); });
+  function fillSub(main, pick) {
+    elSub.innerHTML = '';
+    opt(elSub, '', '소분류 선택');
+    (CATS[main] || []).forEach(function (n) { opt(elSub, n); });
+    elSub.value = pick || '';
+  }
+  fillSub('');
+  for (var n = 5; n <= 50; n++) opt(elMax, String(n), String(n));
+  $$('.pr-sido').forEach(function (s) { opt(s, '', '선택'); SIDO.forEach(function (n) { opt(s, n); }); });
+
+  // --- 칩(알약 버튼) ---
+  function chipGroups(key) { return $$('.pr-chips[data-key="' + key + '"]'); }
+  function paint(key) {
+    chipGroups(key).forEach(function (g) {
+      $$('.pr-chip', g).forEach(function (c) { c.classList.toggle('on', (state[key] || []).indexOf(c.dataset.v) >= 0); });
+    });
+  }
+  $$('.pr-chips').forEach(function (g) {
+    var key = g.dataset.key, multi = g.dataset.multi === '1';
+    g.dataset.opts.split(',').forEach(function (v) {
+      var c = document.createElement('span');
+      c.className = 'pr-chip'; c.dataset.v = v; c.textContent = v;
+      c.addEventListener('click', function () {
+        var cur = state[key] || [], i = cur.indexOf(v);
+        if (multi) { if (i >= 0) cur.splice(i, 1); else cur.push(v); } else { cur = i >= 0 ? [] : [v]; }
+        state[key] = cur; paint(key);
+      });
+      g.appendChild(c);
+    });
+  });
+
+  // --- 기본값 ---
+  function setDefaults() {
+    state = {class_type: ['일반학급'], grades: ['1학년', '2학년', '3학년', '4학년', '5학년', '6학년'],
+             place: ['학교안'], cost: ['(4주기준) 학생 1인당 비용'], subjects: [], image: ['기본이미지'], ip: ['아니오']};
+    ['class_type', 'grades', 'place', 'cost', 'subjects', 'image', 'ip'].forEach(paint);
+    elMax.value = '25'; elSessions.value = '96';
+  }
+  setDefaults();
+
+  // --- 프로그램명 선택 시 자동 채우기 ---
+  function programName() { return elName.value === CUSTOM ? elCustom.value.trim() : elName.value; }
+  elName.addEventListener('change', function () {
+    var v = elName.value, p = PROGRAMS[v];
+    elCustom.style.display = v === CUSTOM ? '' : 'none';
+    if (v === CUSTOM) elCustom.focus();
+    if (p) {
+      elMain.value = p.cat[0]; fillSub(p.cat[0], p.cat[1]);
+      state.subjects = p.subj.slice(); paint('subjects');
+      $$('.pr-kw').forEach(function (el, i) { el.value = p.kw[i] || ''; });
+      $('#prCatNote').textContent = '프로그램명에 맞춰 자동 선택되었습니다. 바꿀 수 있습니다.';
+    } else if (v === CUSTOM) {
+      $('#prCatNote').textContent = '분류·연계과목·키워드를 직접 선택해 주세요.';
+    }
+  });
+  elMain.addEventListener('change', function () { fillSub(elMain.value); });
+
+  // --- 글자 수 ---
+  function count(ta) {
+    var c = ta.parentNode.querySelector('.pr-cnt');
+    c.textContent = ta.value.length + ' / 500';
+    c.classList.toggle('over', ta.value.length > 500);
+  }
+  $$('.pr-ta').forEach(function (ta) { ta.addEventListener('input', function () { count(ta); }); });
+
+  // --- 입력값 모으기 / 채우기 ---
+  function collect() {
+    var d = {
+      program_name: programName(), program_select: elName.value,
+      cat_main: elMain.value, cat_sub: elSub.value,
+      r1: $('#prR1').value, r1gu: $('#prR1gu').value.trim(), r2: $('#prR2').value, r2gu: $('#prR2gu').value.trim(),
+      max_students: elMax.value, sessions: elSessions.value,
+      keywords: $$('.pr-kw').map(function (e) { return e.value.trim(); }).filter(Boolean)
+    };
+    Object.keys(state).forEach(function (k) { d[k] = state[k].slice(); });
+    $$('.pr-ta').forEach(function (ta) { d[ta.dataset.key] = ta.value; });
+    return d;
+  }
+  function fill(d) {
+    setDefaults();
+    var sel = d.program_select || (PROGRAMS[d.program_name] ? d.program_name : (d.program_name ? CUSTOM : ''));
+    elName.value = sel; elCustom.style.display = sel === CUSTOM ? '' : 'none';
+    elCustom.value = sel === CUSTOM ? (d.program_name || '') : '';
+    elMain.value = d.cat_main || ''; fillSub(d.cat_main || '', d.cat_sub || '');
+    $('#prR1').value = d.r1 || ''; $('#prR1gu').value = d.r1gu || '';
+    $('#prR2').value = d.r2 || ''; $('#prR2gu').value = d.r2gu || '';
+    if (d.max_students) elMax.value = d.max_students;
+    if (d.sessions) elSessions.value = d.sessions;
+    ['class_type', 'grades', 'place', 'cost', 'subjects', 'image', 'ip'].forEach(function (k) {
+      if (Array.isArray(d[k])) { state[k] = d[k].slice(); paint(k); }
+    });
+    $$('.pr-kw').forEach(function (el, i) { el.value = (d.keywords || [])[i] || ''; });
+    $$('.pr-ta').forEach(function (ta) { ta.value = d[ta.dataset.key] || ''; count(ta); });
+  }
+
+  function post(url, body) {
+    return fetch(url, {method: 'POST', credentials: 'same-origin',
+      headers: {'X-CSRFToken': csrf(), 'Content-Type': 'application/json'}, body: JSON.stringify(body || {})})
+      .then(function (r) { return r.json(); });
+  }
+
+  // --- 저장 ---
+  $('#prSaveBtn').addEventListener('click', function () {
+    var d = collect();
+    if (!d.program_name) { alert('프로그램명을 선택하거나 입력해 주세요.'); return; }
+    var btn = this; btn.disabled = true;
+    post(URLS.save, {data: d}).then(function (r) {
+      status.textContent = r.ok ? ('저장했습니다. (' + r.updated + ')') : (r.error || '저장하지 못했습니다.');
+    }).catch(function () { status.textContent = '저장하지 못했습니다. 다시 시도해 주세요.'; })
+      .then(function () { btn.disabled = false; });
+  });
+
+  // --- 불러오기 ---
+  var modal = null;
+  function renderList(rows) {
+    var box = $('#prLoadList'); box.innerHTML = '';
+    if (!rows.length) { box.innerHTML = '<div class="p-4 text-center text-muted">저장된 내용이 없습니다.</div>'; return; }
+    rows.forEach(function (r) {
+      var row = document.createElement('div');
+      row.className = 'd-flex align-items-center gap-2 px-3 py-2 border-bottom';
+      var main = document.createElement('div'); main.className = 'flex-grow-1'; main.style.cursor = 'pointer';
+      main.innerHTML = '<div class="fw-semibold"></div><div class="small text-muted"></div>';
+      main.children[0].textContent = r.title; main.children[1].textContent = r.updated;
+      main.addEventListener('click', function () {
+        fetch(URLS.base + r.id + '/', {credentials: 'same-origin'}).then(function (x) { return x.json(); }).then(function (j) {
+          if (!j.ok) { alert(j.error || '불러오지 못했습니다.'); return; }
+          fill(j.data || {}); status.textContent = '불러왔습니다. (' + r.updated + ')'; modal.hide();
+        });
+      });
+      var del = document.createElement('button');
+      del.type = 'button'; del.className = 'btn btn-sm btn-outline-danger'; del.innerHTML = '<i class="bi bi-trash"></i>';
+      del.addEventListener('click', function () {
+        if (!confirm('이 저장본을 삭제할까요?')) return;
+        post(URLS.base + r.id + '/delete/').then(function () { row.remove(); });
+      });
+      row.appendChild(main); row.appendChild(del); box.appendChild(row);
+    });
+  }
+  $('#prLoadBtn').addEventListener('click', function () {
+    modal = modal || new bootstrap.Modal($('#prLoadModal'));
+    $('#prLoadList').innerHTML = '<div class="p-4 text-center text-muted">불러오는 중…</div>';
+    modal.show();
+    fetch(URLS.list, {credentials: 'same-origin'}).then(function (r) { return r.json(); })
+      .then(function (j) { renderList(j.drafts || []); })
+      .catch(function () { $('#prLoadList').innerHTML = '<div class="p-4 text-center text-danger">목록을 불러오지 못했습니다.</div>'; });
+  });
+
+  // --- AI 활용 ---
+  $('#prAiBtn').addEventListener('click', function () {
+    var name = programName();
+    if (!name) { alert('프로그램명을 먼저 선택하거나 입력해 주세요.'); return; }
+    var cur = {};
+    $$('.pr-ta').forEach(function (ta) { if (ta.value.trim()) cur[ta.dataset.key] = ta.value; });
+    if (Object.keys(cur).length && !confirm('이미 입력한 내용이 있습니다. AI가 작성한 내용으로 바꿀까요?')) return;
+    var btn = this, label = btn.innerHTML;
+    btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>작성 중…';
+    $('#prAiModel').textContent = '';
+    post(URLS.ai, {
+      name: name, category: (elMain.value + ' ' + elSub.value).trim(), grades: (state.grades || []).join(', '),
+      keywords: $$('.pr-kw').map(function (e) { return e.value.trim(); }).filter(Boolean).join(', '), current: cur
+    }).then(function (r) {
+      if (!r.ok) { alert(r.error || 'AI 작성에 실패했습니다.'); return; }
+      $$('.pr-ta').forEach(function (ta) { ta.value = (r.data || {})[ta.dataset.key] || ta.value; count(ta); });
+      if (r.model) $('#prAiModel').textContent = 'AI: ' + r.model;
+    }).catch(function () { alert('AI 서비스에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.'); })
+      .then(function () { btn.disabled = false; btn.innerHTML = label; });
+  });
+})();
+</script>
+{% endblock %}
