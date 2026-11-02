@@ -2451,7 +2451,7 @@
     var wNote = parseFloat(cols[4] && cols[4].style.width) || 52;
     var px = 9.5 * 96 / 72;
     return {
-      note_max: Math.max(4, Math.floor((wNote - 14) / px) * 2),         // 두 줄까지
+      note_max: 24,       // 비고 칸이 좁으면 받은 뒤 글자를 줄여서 넣음
       topic_max: Math.max(8, Math.floor((wTopic - 14) / px) * 2 - 2),   // 두 줄까지
       line_max: Math.max(12, Math.floor((wBody - 14) / px) - 1)          // 한 줄
     };
@@ -2512,6 +2512,19 @@
       .then(function (j) { planPickPlans = j.plans || []; renderPlanPick(); })
       .catch(function () { planPickList.innerHTML = '<div class="text-danger small p-3">목록을 불러오지 못했습니다.</div>'; });
   }
+  // 비고 칸(좁음)에 준비물이 두 줄 안에 들어가도록 글자 크기를 줄임 (6.5pt까지)
+  function fitNote(td, text) {
+    var sp = td.querySelector('.cell .hp > span');
+    if (!sp || !text) return;
+    var t = document.getElementById('nb-sec3'), cols = t ? t.querySelectorAll('colgroup > col') : [];
+    var w = (parseFloat(cols[cols.length - 1] && cols[cols.length - 1].style.width) || 52) - 14;
+    var pt = [9.5, 8.5, 8, 7.5, 7, 6.5], chosen = pt[pt.length - 1];
+    for (var i = 0; i < pt.length; i++) {
+      var perLine = Math.floor(w / (pt[i] * 96 / 72));
+      if (perLine >= 1 && Math.ceil(text.length / perLine) <= 2) { chosen = pt[i]; break; }
+    }
+    setSpanSize(sp, Math.round(chosen * 96 / 72 * 100) / 100);
+  }
   function applyPlanRows(rows) {
     var weeks = planWeekRows();
     histPush(); clearPages(); resetPlanStretch();
@@ -2520,7 +2533,7 @@
       var n = tr.children.length;
       setCellLines(tr.children[n - 3], r.topic ? [r.topic] : []);
       setCellLines(tr.children[n - 2], (r.lines || []).map(function (x) { return '*' + x; }));
-      if (tr.children[n - 1]) setCellLines(tr.children[n - 1], r.note ? [r.note] : []);   // 비고: 준비물
+      if (tr.children[n - 1]) { setCellLines(tr.children[n - 1], r.note ? [r.note] : []); fitNote(tr.children[n - 1], r.note); }   // 비고: 준비물
       tr.style.height = '35px';                  // 내용에 맞게 줄 높이를 같게 (내용이 길면 자동으로 늘어남)
     });
     schedulePaginate();
