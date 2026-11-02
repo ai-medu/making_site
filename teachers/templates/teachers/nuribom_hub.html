@@ -791,6 +791,20 @@
         setScale(els, steps[i][0], steps[i][1]);
         if (isPlan ? planPages() <= 2 : height() <= target) return;
       }
+      // 줄 간격을 줄여도 넘치면 서식에 정해 둔 줄 최소 높이를 풀어 글 높이에 맞춘다 (남는 공간은 아래에서 다시 나눠 채움)
+      var planT = real[0].row && real[0].table.id === 'nb-sec2' ? real[0].table : null;
+      if (planT && !planT.hasAttribute('data-nb-nostretch')) {
+        els.forEach(function (tr) {
+          if (tr.tagName !== 'TR') return;
+          if (!tr.hasAttribute('data-h0')) tr.setAttribute('data-h0', tr.style.height || '');
+          tr.setAttribute('data-nb-relax', '1');
+          tr.style.height = '';
+        });
+        for (var i2 = 0; i2 < steps.length; i2++) {
+          setScale(els, steps[i2][0], steps[i2][1]);
+          if (height() <= target) return;
+        }
+      }
       if (isPlan) setScale(els, 1, 1);                              // 그래도 넘치면 읽기 좋은 크기로 두고 다음 쪽까지 이어짐
     });
   }
@@ -812,6 +826,7 @@
     var g = planStretchGroups(); if (!g) return;
     if (planTable().hasAttribute('data-nb-nostretch')) return;
     g.p2.concat(g.p3).forEach(function (tr) {
+      tr.removeAttribute('data-nb-relax');
       if (tr.hasAttribute('data-h0')) tr.style.height = tr.getAttribute('data-h0');
     });
   }
@@ -827,7 +842,7 @@
     if (planTable().hasAttribute('data-nb-nostretch')) return;   // 직접 높이를 조절했으면 그대로 둠
     g.p2.concat(g.p3).forEach(function (tr) {
       if (!tr.hasAttribute('data-h0')) tr.setAttribute('data-h0', tr.style.height || '');
-      tr.style.height = tr.getAttribute('data-h0');
+      tr.style.height = tr.hasAttribute('data-nb-relax') ? '' : tr.getAttribute('data-h0');
     });
     var rect = function (el) { return el.getBoundingClientRect(); };
     // 문서 2쪽: 제목 줄부터 '운영방법' 줄 앞까지
