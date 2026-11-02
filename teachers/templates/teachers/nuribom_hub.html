@@ -1539,13 +1539,39 @@
     var table = td.closest('table');
     var g = buildGrid(table);
     if (nearRight && (td._c + (td.colSpan || 1)) < g.ncols) {
-      return {type: 'col', table: table, g: g, boundary: td._c + (td.colSpan || 1)};
+      return {type: 'col', table: table, g: g, boundary: td._c + (td.colSpan || 1), td: td};
     }
     if (nearBottom) {
       return {type: 'row', table: table, g: g, row: g.rows[td._r + (td.rowSpan || 1) - 1]};
     }
     return null;
   }
+  // 같은 경계선을 가진 이어진 줄 묶음만 따로 움직일 수 있게, 필요하면 너비 0짜리 보조 열을 끼워 넣는다
+  // dir<0: 경계를 왼쪽으로 끄는 경우, dir>0: 오른쪽으로 끄는 경우
+  function isolateBoundary(table, b, run, dir) {
+    var g = buildGrid(table), cols = colsOf(table);
+    var done = new Set();
+    for (var r = 0; r < g.rows.length; r++) {
+      var L = g.grid[r][b - 1], Rt = g.grid[r][b];
+      if (!L || !Rt) continue;
+      var inRun = r >= run[0] && r <= run[1];
+      var tgt;
+      if (L === Rt) tgt = L;
+      else if (dir < 0) tgt = inRun ? Rt : L;
+      else tgt = inRun ? L : Rt;
+      if (done.has(tgt)) continue;
+      done.add(tgt);
+      tgt.colSpan = (tgt.colSpan || 1) + 1;
+    }
+    var z = cols[b - 1].cloneNode(true);
+    z.style.width = '0.01px';
+    cols[b - 1].parentNode.insertBefore(z, cols[b]);
+  }
+  function hasEdgeAt(g, r, b) {
+    var L = g.grid[r] && g.grid[r][b - 1], Rt = g.grid[r] && g.grid[r][b];
+    return !!L && !!Rt && L !== Rt;
+  }
+
   doc.addEventListener('mousemove', function (e) {
     if (drag) return;
     var info = e.buttons ? null : edgeInfo(e);
@@ -1563,8 +1589,17 @@
     clearPages();
     resetPlanStretch();
     if (info.type === 'col') {
-      drag = {type: 'col', x: e.clientX, cols: cols, b: info.boundary,
-              w0: parseFloat(cols[info.boundary - 1].style.width), w1: parseFloat(cols[info.boundary].style.width)};
+      drag = {type: 'col', x: e.clientX, cols: cols, b: info.boundary, table: info.table,
+              w0: parseFloat(cols[info.boundary - 1].style.width), w1: parseFloat(cols[info.boundary].style.width), iso: null};
+      // 이 경계선이 다른 줄 묶음(예: 아래 도서·교구·재료 표)에도 있으면, 끄는 줄 묶음만 움직이도록 분리
+      var g0 = info.g, b0 = info.boundary, r0 = info.td._r, r1 = info.td._r + (info.td.rowSpan || 1) - 1;
+      if (hasEdgeAt(g0, r0, b0)) {
+        while (r0 > 0 && hasEdgeAt(g0, r0 - 1, b0)) r0--;
+        while (r1 < g0.rows.length - 1 && hasEdgeAt(g0, r1 + 1, b0)) r1++;
+        var outside = false;
+        for (var rr = 0; rr < g0.rows.length; rr++) { if ((rr < r0 || rr > r1) && hasEdgeAt(g0, rr, b0)) { outside = true; break; } }
+        if (outside) drag.iso = {run: [r0, r1]};
+      }
     } else {
       drag = {type: 'row', y: e.clientY, row: info.row, h0: info.row.getBoundingClientRect().height, table: info.table};
     }
@@ -1574,7 +1609,20 @@
     if (!drag) return;
     if (drag.type === 'col') {
       var dx = e.clientX - drag.x;
-      dx = Math.max(MIN_COL - drag.w0, Math.min(drag.w1 - MIN_COL, dx));
+      if (drag.iso && Math.abs(dx) >= 1) {          // 움직이기 시작하면 방향에 맞게 분리
+        var dir = dx < 0 ? -1 : 1, bb = drag.b;
+        try { isolateBoundary(drag.table, bb, drag.iso.run, dir); } catch (err) { /* 분리 실패 시 기존처럼 전체가 움직임 */ drag.iso = null; }
+        if (drag.iso) {
+          var nc = colsOf(drag.table);
+          drag.cols = nc;
+          if (dir < 0) { drag.b = bb; drag.w0 = parseFloat(nc[bb - 1].style.width); drag.w1 = 0.01; drag.lo = MIN_COL - drag.w0; drag.hi = 0; }
+          else { drag.b = bb + 1; drag.w0 = 0.01; drag.w1 = parseFloat(nc[bb + 1].style.width); drag.lo = 0; drag.hi = drag.w1 - MIN_COL; }
+          drag.iso = null;
+        }
+      }
+      var lo = drag.lo != null ? drag.lo : MIN_COL - drag.w0, hi = drag.hi != null ? drag.hi : drag.w1 - MIN_COL;
+      if (drag.iso) return;                         // 아직 방향이 정해지지 않음
+      dx = Math.max(lo, Math.min(hi, dx));
       drag.cols[drag.b - 1].style.width = (drag.w0 + dx) + 'px';
       drag.cols[drag.b].style.width = (drag.w1 - dx) + 'px';
     } else {
