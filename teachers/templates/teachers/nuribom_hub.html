@@ -1503,43 +1503,113 @@
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') clearSel(); });
 
   // ----- 붙여넣기: 다른 문서(한글·워드·웹)에서 복사한 글은 글자만 가져와 이 칸의 문단 모양(글꼴·크기·줄간격)에 맞춤 -----
+  // 클립보드에서 글자만 뽑아 줄 목록으로 (글자 형식이 없으면 HTML 에서 글자만 추출)
+  function clipLines(cd) {
+    var text = cd ? cd.getData('text/plain') : '';
+    if (!text && cd && cd.getData('text/html')) {
+      var h = cd.getData('text/html').replace(/<\/(p|div|tr|li|h[1-6])>|<br\s*\/?>/gi, '\n$&').replace(/<\/t[dh]>/gi, '\t$&');
+      var t = document.createElement('template'); t.innerHTML = h;
+      t.content.querySelectorAll('style,script').forEach(function (x) { x.remove(); });
+      text = t.content.textContent;
+    }
+    return String(text || '').replace(/\r/g, '').split('\n')
+      .map(function (x) { return x.replace(/ /g, ' ').replace(/\s+$/, ''); })
+      .filter(function (x) { return x.trim() !== ''; });
+  }
+  function blankPara(p) { return p.textContent.replace(/[\s​]/g, '') === ''; }
+  function newParaLike(base, text) {
+    var np = base.cloneNode(true);
+    Array.prototype.slice.call(np.querySelectorAll('span')).slice(1).forEach(function (x) { x.remove(); });
+    var sp = np.querySelector('span');
+    if (!sp) { sp = document.createElement('span'); np.appendChild(sp); }
+    Array.prototype.slice.call(np.querySelectorAll(':scope > :not(span)')).forEach(function (x) { x.remove(); });
+    sp.classList.remove('nb-guide', 'nb-name-label'); sp.style.color = '';
+    sp.textContent = text;
+    return np;
+  }
+  // 문단 p 안에서 커서 위치(마지막 글자 조각 span 과 그 안의 글자 위치). 커서가 문단 밖이면 문단 끝으로 봄
+  function caretInPara(p, sel) {
+    var sp = null, off = 0;
+    if (sel && sel.rangeCount && p.contains(sel.anchorNode)) {
+      var el = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+      sp = el && el.closest ? el.closest('span') : null;
+      if (sp && p.contains(sp)) {
+        var r = document.createRange();
+        r.selectNodeContents(sp); r.setEnd(sel.anchorNode, sel.anchorOffset);
+        off = r.toString().length;
+      } else sp = null;
+    }
+    if (!sp) {
+      var all = p.querySelectorAll(':scope > span');
+      sp = all.length ? all[all.length - 1] : null;
+      if (!sp) { sp = document.createElement('span'); p.appendChild(sp); }
+      off = sp.textContent.length;
+    }
+    return {sp: sp, off: off};
+  }
   doc.addEventListener('paste', function (e) {
     var sel = window.getSelection();
-    if (!sel || !sel.rangeCount) return;
-    var node = sel.anchorNode && (sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement);
-    var cell = node && node.closest ? node.closest('.cell') : null;
+    var cell = null, node = null;
+    if (sel && sel.rangeCount && doc.contains(sel.anchorNode)) {
+      node = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+      var tdn = node && node.closest ? node.closest('td') : null;
+      cell = node && node.closest ? node.closest('.cell') : null;
+      if (!cell && tdn) cell = tdn.querySelector('.cell');         // 칸 안쪽 여백을 눌러 둔 경우
+    }
+    if (!cell && selCells.length) { cell = selCells[0].querySelector('.cell'); node = null; }   // 칸 범위만 지정해 둔 경우: 첫 칸에 붙임
     if (!cell || !doc.contains(cell)) return;
-    var cd = e.clipboardData || window.clipboardData;
-    var text = cd ? cd.getData('text/plain') : '';
-    if (!text) return;
-    e.preventDefault();
-    var lines = text.replace(/\r/g, '').split('\n').map(function (x) { return x.replace(/\u00a0/g, ' ').replace(/\s+$/, ''); })
-      .filter(function (x) { return x.trim() !== ''; });
+    var lines = clipLines(e.clipboardData || window.clipboardData);
     if (!lines.length) return;
-    if (!sel.isCollapsed) document.execCommand('delete');
-    var p = node.closest('.hp');
-    if (lines.length === 1 || !p || p.parentNode !== cell) {
-      document.execCommand('insertText', false, lines.join(' '));
-    } else {
-      var blank = p.textContent.replace(/[\s\u200b]/g, '') === '';
-      var base = p;
-      if (!blank) {                                   // 현재 문단의 커서 위치에 첫 줄을 잇고, 나머지는 새 문단으로
-        document.execCommand('insertText', false, lines.shift());
-      } else {
-        var sp0 = p.querySelector('span'); if (sp0) sp0.textContent = lines.shift().trim();
+    e.preventDefault();
+    histPush();
+    var strip = function (x) { return x.replace(/[\s​]/g, ''); };
+    var paras = Array.prototype.slice.call(cell.querySelectorAll(':scope > .hp'));
+    var whole = node === null || (sel && sel.rangeCount && !sel.isCollapsed && strip(sel.toString()) === strip(cell.textContent));
+    var p = null;
+    if (whole) {                                                   // 칸 전체를 바꾸는 경우: 첫 문단 모양만 남기고 비운 뒤 채움
+      clearSel();
+      paras.slice(1).forEach(function (x) { x.remove(); });
+      p = paras[0] || null;
+      if (p) {
+        Array.prototype.slice.call(p.querySelectorAll('span')).slice(1).forEach(function (x) { x.remove(); });
+        var s0 = p.querySelector('span');
+        if (s0) { s0.textContent = '​'; s0.classList.remove('nb-guide'); s0.style.color = ''; }
+        sel = null;
       }
-      lines.forEach(function (ln) {
-        var np = base.cloneNode(true);
-        Array.prototype.slice.call(np.querySelectorAll('span')).slice(1).forEach(function (x) { x.remove(); });
-        var sp = np.querySelector('span');
-        if (!sp) { sp = document.createElement('span'); np.appendChild(sp); }
-        Array.prototype.slice.call(np.querySelectorAll(':scope > :not(span)')).forEach(function (x) { x.remove(); });
-        sp.classList.remove('nb-guide', 'nb-name-label'); sp.style.color = '';
-        sp.textContent = ln.trim();
+    } else {
+      if (!sel.isCollapsed) document.execCommand('delete');
+      sel = window.getSelection();
+      var an = sel.rangeCount ? sel.anchorNode : null;
+      var ael = an && (an.nodeType === 1 ? an : an.parentElement);
+      p = ael && ael.closest ? ael.closest('.hp') : null;
+      if (!p || !cell.contains(p)) { var ps = cell.querySelectorAll(':scope > .hp'); p = ps.length ? ps[ps.length - 1] : null; }
+    }
+    if (!p) { document.execCommand('insertText', false, lines.join(' ')); schedulePaginate(); return; }
+    var c = caretInPara(p, sel), sp = c.sp;
+    var full = sp.textContent.replace(/​/g, '');
+    var offFix = sp.textContent.slice(0, c.off).replace(/​/g, '').length;
+    var before = full.slice(0, offFix), after = full.slice(offFix);
+    var nx = sp.nextElementSibling;
+    while (nx) { var cur = nx; nx = nx.nextElementSibling; if (cur.tagName === 'SPAN') { after += cur.textContent.replace(/​/g, ''); cur.remove(); } }
+    var lastSp = sp, endText = '';
+    if (lines.length === 1) {
+      sp.textContent = before + lines[0].trim() + after;
+      lastSp = sp; endText = before + lines[0].trim();
+    } else {
+      sp.textContent = before + lines[0].trim();
+      var base = p;
+      lines.slice(1).forEach(function (ln, k) {
+        var last = k === lines.length - 2;
+        var np = newParaLike(base, ln.trim() + (last ? after : ''));
         base.parentNode.insertBefore(np, base.nextSibling);
         base = np;
+        if (last) { lastSp = np.querySelector('span'); endText = ln.trim(); }
       });
     }
+    try {                                                          // 커서를 붙여 넣은 글자 끝에 둠
+      var tn = lastSp.firstChild, rr = document.createRange(), ps2 = window.getSelection();
+      if (tn) { rr.setStart(tn, Math.min(endText.length, tn.length)); rr.collapse(true); ps2.removeAllRanges(); ps2.addRange(rr); }
+    } catch (err) { /* 커서 위치 지정 실패는 무시 */ }
     schedulePaginate();
   });
 
