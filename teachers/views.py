@@ -600,10 +600,23 @@ def certificate_catalog_delete(request, item_id):
 @login_required
 def certificate_list(request):
     # 최근에 취득한 자격증이 위로 (취득일 내림차순, 취득일 없는 항목은 맨 아래)
-    certificates = Certificate.objects.filter(teacher=request.user).order_by(
-        F("issued_date").desc(nulls_last=True), "-id"
-    )
-    return render(request, 'teachers/certificate_list.html', {'certificates': certificates})
+    base = Certificate.objects.filter(teacher=request.user)
+    counts = {
+        "all": base.count(),
+        "national": base.filter(cert_type__in=["national", "national_private"]).count(),
+        "private": base.filter(cert_type="private").count(),
+    }
+    cert_filter = request.GET.get("type", "all")
+    if cert_filter == "national":
+        base = base.filter(cert_type__in=["national", "national_private"])
+    elif cert_filter == "private":
+        base = base.filter(cert_type="private")
+    else:
+        cert_filter = "all"
+    certificates = base.order_by(F("issued_date").desc(nulls_last=True), "-id")
+    return render(request, 'teachers/certificate_list.html', {
+        'certificates': certificates, 'counts': counts, 'cert_filter': cert_filter,
+    })
 
 @login_required
 def certificate_create(request):
