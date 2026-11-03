@@ -20,6 +20,9 @@
   .nb-bar .rowF { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; overflow-x: auto; white-space: nowrap; }
   .nb-bar .rowF .form-select { width: auto; font-size: .8rem; padding-top: .15rem; padding-bottom: .15rem; }
   .nb-fmt { display: flex; align-items: center; gap: 4px; }
+  .nb-fmt .nb-bold { width: 28px; padding: 0; line-height: 1.6; }
+  .nb-fmt .nb-bold.active { background: #343a40; color: #fff; }
+  .nb-fmt .nb-color { width: 30px; height: 28px; padding: 1px 2px; border: 1px solid #ced4da; border-radius: 4px; background: #fff; cursor: pointer; }
   .nb-fmt .form-select { width: auto; font-size: .8rem; padding: .2rem 1.5rem .2rem .45rem; background-position: right .4rem center; }
   .nb-step { display: flex; flex-direction: column; height: 31px; }
   .nb-step button { flex: 1; border: 1px solid #ced4da; background: #fff; color: #495057; font-size: .5rem; line-height: 1; padding: 0 7px; cursor: pointer; }
@@ -148,6 +151,8 @@
         <option value="">정렬</option>
         <option value="left">왼쪽</option><option value="center">가운데</option><option value="right">오른쪽</option><option value="justify">양쪽</option>
       </select>
+          <button type="button" class="btn btn-outline-secondary btn-sm nb-bold" id="nbBold" title="굵게"><b>B</b></button>
+          <input type="color" class="nb-color" id="nbColor" value="#000000" title="글자 색">
         </div>
         <button type="button" class="btn btn-outline-primary btn-sm d-none" id="nbProgPick"><i class="bi bi-journal-richtext me-1"></i>프로그램 선택</button>
         <button type="button" class="btn btn-outline-primary btn-sm d-none" id="nbCertPick"><i class="bi bi-award me-1"></i>자격 선택 <span id="nbCertCount"></span></button>
@@ -1436,9 +1441,7 @@
     m.appendChild(ctxItem('오른쪽에 칸 추가', 'arrow-bar-right', function () { runTableOp(function () { insertColumn(table, C + cs, donor); }); }));
     m.appendChild(ctxItem('이 칸(열) 삭제', 'dash-square', function () { runTableOp(function () { deleteColumn(table, Cx); }); }, g.ncols <= 1));
     head('나누기 / 합치기');
-    m.appendChild(ctxItem('칸 나누기 (좌우로)', 'layout-split', function () { runTableOp(function () { splitCellCols(table, td); }); }));
-    m.appendChild(ctxItem('칸 나누기 (상하로)', 'layout-text-sidebar-reverse', function () { runTableOp(function () { splitCellRows(table, td); }); }));
-    m.appendChild(ctxItem('칸 나누기 (줄·칸 수 입력)…', 'grid-3x3-gap', function () { openSplitDialog(table, td); }));
+    m.appendChild(ctxItem('칸 나누기…', 'grid-3x3-gap', function () { openSplitDialog(table, td); }));
     m.appendChild(ctxItem(sel ? '선택한 칸 합치기' : '합치기', 'union', function () {
       if (sel) { var rect = {r0: selRect.r0, r1: selRect.r1, c0: selRect.c0, c1: selRect.c1}; runTableOp(function () { mergeRange(table, rect); }); }
       else runTableOp(function () { if (canMergeR) mergeRight(table, td); else mergeDown(table, td); });
@@ -2219,6 +2222,15 @@
     showFmtValue('nbSize', commonOf(t.spans.map(spanPt)));
     showFmtValue('nbLine', commonOf(t.paras.map(paraLine).filter(function (x) { return x > 0; })));
     showFmtValue('nbAlign', commonOf(t.paras.map(paraAlign)));
+    var bolds = t.spans.map(function (x) { return parseInt(getComputedStyle(x).fontWeight, 10) >= 600; });
+    document.getElementById('nbBold').classList.toggle('active', bolds.length > 0 && bolds.every(Boolean));
+    var colr = commonOf(t.spans.map(function (x) { return rgbHex(getComputedStyle(x).color); }));
+    if (colr) document.getElementById('nbColor').value = colr;
+  }
+  function rgbHex(c) {
+    var m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(c || '');
+    if (!m) return null;
+    return '#' + [m[1], m[2], m[3]].map(function (v) { return ('0' + (+v).toString(16)).slice(-2); }).join('');
   }
   function paraAlign(p) {
     var a = getComputedStyle(p).textAlign;
@@ -2315,6 +2327,45 @@
     schedulePaginate();
     setTimeout(updateFmtBar, 80);
   }
+  // 굵게 / 글자 색: 블록으로 지정한 칸 전체, 칸만 클릭한 경우는 그 칸 전체, 글자를 고른 경우는 선택한 글자
+  function applyStyle(kind, value) {
+    var spansOf = function (root) { wrapLooseText(root); return Array.prototype.slice.call(root.querySelectorAll('span')); };
+    var change = function (spans) {
+      if (kind === 'bold') {
+        var all = spans.every(function (x) { return parseInt(getComputedStyle(x).fontWeight, 10) >= 600; });
+        spans.forEach(function (x) { x.style.fontWeight = all ? 'normal' : 'bold'; });
+      } else spans.forEach(function (x) { x.style.color = value; });
+    };
+    if (selCells.length) {
+      histPush(); clearPages(); resetPlanStretch();
+      var list = [];
+      selCells.forEach(function (td) { Array.prototype.forEach.call(td.querySelectorAll('.cell'), function (c) { list = list.concat(spansOf(c)); }); });
+      change(list);
+    } else {
+      var rng = fmtRange;
+      if (!rng || !doc.contains(rng.commonAncestorContainer)) { alert('바꿀 칸을 끌어서 블록으로 지정하거나, 바꿀 글자를 먼저 선택해주세요.'); return; }
+      histPush(); clearPages(); resetPlanStretch();
+      if (rng.collapsed) {
+        var cn = rng.commonAncestorContainer.nodeType === 1 ? rng.commonAncestorContainer : rng.commonAncestorContainer.parentElement;
+        var cellEl = cn && cn.closest ? cn.closest('.cell') : null;
+        if (!cellEl) { alert('바꿀 칸을 끌어서 블록으로 지정하거나, 바꿀 글자를 먼저 선택해주세요.'); return; }
+        change(spansOf(cellEl));
+      } else {
+        var sel = window.getSelection();
+        sel.removeAllRanges(); sel.addRange(rng);
+        document.execCommand('styleWithCSS', false, true);
+        if (kind === 'bold') document.execCommand('bold');
+        else document.execCommand('foreColor', false, value);
+      }
+    }
+    schedulePaginate();
+    setTimeout(updateFmtBar, 80);
+  }
+  var boldBtn = document.getElementById('nbBold');
+  boldBtn.addEventListener('mousedown', function (e) { e.preventDefault(); });   // 눌러도 글자 선택이 풀리지 않게
+  boldBtn.addEventListener('click', function () { applyStyle('bold'); });
+  document.getElementById('nbColor').addEventListener('change', function () { applyStyle('color', this.value); });
+
   [['nbFont', 'font'], ['nbSize', 'size'], ['nbLine', 'line'], ['nbAlign', 'align']].forEach(function (pair) {
     document.getElementById(pair[0]).addEventListener('change', function () { applyFormat(pair[1], this.value); });
   });
