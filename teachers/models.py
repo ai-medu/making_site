@@ -100,6 +100,21 @@ class TeachingInstitution(models.Model):
         today = today or timezone.localdate()
         return today.month % 12 + 1 if self.quote_target == "next" else today.month
 
+    def quote_target_ym(self, today=None):
+        """발행하는 견적서의 주문년월 'YYYY-MM' (익월 견적이면 다음 달, 12월이면 다음 해 1월)"""
+        today = today or timezone.localdate()
+        y, m = today.year, today.month
+        if self.quote_target == "next":
+            y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+        return f"{y}-{m:02d}"
+
+    def quote_preview_path(self, today=None):
+        """해당 학교·해당 월 견적서 미리보기 주소"""
+        from django.urls import reverse
+        ym = self.quote_target_ym(today)
+        return (reverse("estimate_preview", args=[self.pk, ym])
+                + f"?teacher={self.teacher_id}&institution={self.pk}&order_month={ym}")
+
     def quote_due_date(self, today=None):
         """이번 달 견적 발행 예정일 (말일보다 크면 말일로 보정)"""
         if not self.quote_day:

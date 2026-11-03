@@ -217,16 +217,11 @@ def _fill_kakao_email(user, profile):
 @login_required
 @require_POST
 def kakao_test_send(request):
-    """내 카카오톡으로 견적서 발행 알림 예시 보내기"""
+    """카카오톡 알림 연결 확인용 테스트 메시지를 나와 관리자에게 보낸다"""
     from accounts.utils import send_kakao_message
-    from teachers.models import TeachingInstitution
-    inst = (TeachingInstitution.objects.filter(teacher=request.user, is_closed=False, quote_day__isnull=False)
-            .select_related("school").first())
-    if inst:
-        line = f"- {inst.school.name if inst.school else inst.name} ({inst.quote_target_month()}월분, 매월 {inst.quote_day}일)"
-    else:
-        line = "- OO초등학교 (12월분, 매월 25일)"
-    text = f"[테스트] 견적서 발행 알림\n견적서를 발행할 출강장소가 있습니다.\n{line}\n발행 후 '출강장소'에서 발행완료를 눌러주세요."
+    text = ("[테스트] 카카오톡 알림 연결 확인\n"
+            "이 메시지가 보이면 카카오톡 알림이 정상 연결된 것입니다.\n"
+            "견적서 발행일이 되면 같은 방식으로 알림이 옵니다.")
     link = f"{settings.SITE_URL}/teachers/institutions/"
     res = send_kakao_message(request.user, text, link_url=link)
     if res.get("result_code") == 0:
@@ -251,7 +246,7 @@ def kakao_test_send(request):
         messages.warning(request, "관리자가 카카오톡 친구 목록에 없거나 친구 메시지 권한이 없어 관리자에게는 보내지 못했습니다.")
         return redirect("profile")
     who = request.user.first_name or request.user.username
-    res2 = send_kakao_friend_message(request.user, uuid, f"[테스트] {who} 강사\n" + text.replace("[테스트] ", "", 1), link_url=link)
+    res2 = send_kakao_friend_message(request.user, uuid, f"{text}\n(보낸 강사: {who})", link_url=link)
     if res2 and not res2.get("error") and res2.get("successful_receiver_uuids"):
         messages.success(request, "관리자에게도 테스트 알림을 보냈습니다.")
     else:
