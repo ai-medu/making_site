@@ -8,6 +8,7 @@ urlpatterns = [
     path('institutions/<int:pk>/edit/', views.institution_update, name='institution_update'),  # ✅ 수정
     path('institutions/<int:pk>/delete/', views.institution_delete, name='institution_delete'),
     path('institutions/<int:pk>/close/', views.institution_close, name='institution_close'),
+    path('institutions/<int:pk>/quote-done/', views.institution_quote_done, name='institution_quote_done'),
     path('dashboard/', views.teacher_dashboard, name='teacher_dashboard'),
     path('nuribom-hub/', views.nuribom_hub, name='nuribom_hub'),
     path('nuribom-hub/save/', views.nuribom_save, name='nuribom_save'),

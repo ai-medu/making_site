@@ -299,6 +299,23 @@ def institution_delete(request, pk):
 
 @login_required
 @require_POST
+def institution_quote_done(request, pk):
+    """이번 달 견적서 발행 완료 표시 (알림 끔)"""
+    inst = get_object_or_404(TeachingInstitution, pk=pk)
+    if not request.user.is_staff and inst.teacher != request.user:
+        messages.error(request, "권한이 없습니다.")
+        return redirect('institution_list')
+    inst.quote_done_month = timezone.localdate().strftime("%Y-%m")
+    inst.save(update_fields=["quote_done_month"])
+    messages.success(request, f"{inst.school.name if inst.school else inst.name} 이번 달 견적서 발행을 완료 처리했습니다.")
+    nxt = request.POST.get("next") or ""
+    if nxt.startswith("/") and not nxt.startswith("//"):
+        return redirect(nxt)
+    return redirect('institution_list')
+
+
+@login_required
+@require_POST
 def institution_close(request, pk):
     inst = get_object_or_404(TeachingInstitution, pk=pk)
 

@@ -36,8 +36,10 @@ class TeachingInstitutionForm(forms.ModelForm):
             "days",
             "contact_email",
             "admin_email",
+            "quote_day",
         ]
         widgets = {
+            "quote_day": forms.NumberInput(attrs={"min": 1, "max": 31, "placeholder": "ex) 25 (매월 25일)"}),
             "place_type": forms.RadioSelect,   # ⭐ 여기서만 widget 지정
             "contact_email": forms.EmailInput(attrs={
                 "placeholder": "ex) teacher@school.kr",

@@ -164,6 +164,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'main.context_processors.menu_items', # ✅ 동적 메뉴용 컨텍스트 프로세서 추가
+                'main.context_processors.quote_alerts',  # 견적서 발행 알림 배너
             ],
         },
     },

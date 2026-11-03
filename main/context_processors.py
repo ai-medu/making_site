@@ -72,6 +72,25 @@ def _open_counts():
     return out
 
 
+def quote_alerts(request):
+    """본인 출강장소 중 견적서 발행이 임박했거나 지난 곳 (로그인한 강사에게 상단 배너로 표시)"""
+    user = getattr(request, 'user', None)
+    if not user or not user.is_authenticated:
+        return {}
+    try:
+        from teachers.models import TeachingInstitution
+        items = []
+        for inst in TeachingInstitution.objects.filter(
+                teacher=user, is_closed=False, quote_day__isnull=False).select_related('school'):
+            st = inst.quote_status()
+            if st:
+                items.append({'inst': inst, 'status': st, 'left': inst.quote_days_left()})
+        items.sort(key=lambda x: x['left'])
+        return {'quote_alerts': items}
+    except Exception:
+        return {}
+
+
 def menu_items(request):
     user = request.user
 

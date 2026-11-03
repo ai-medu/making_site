@@ -85,6 +85,18 @@
           {{ form.admin_email|add_class:"form-control" }}
         </div>
 
+        <!-- 견적발행일 -->
+        <div class="mb-4">
+          <label for="id_quote_day" class="form-label">견적발행일 (매월)</label>
+          <div class="input-group">
+            <span class="input-group-text">매월</span>
+            {{ form.quote_day|add_class:"form-control" }}
+            <span class="input-group-text">일</span>
+          </div>
+          <div class="form-text">입력하면 발행일 3일 전부터 사이트와 카카오톡으로 견적서 발행 알림이 갑니다. 비워두면 알림이 없습니다.</div>
+          {% for e in form.quote_day.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        </div>
+
         <!-- 출강 요일 -->
         <div class="mb-4">
           <label class="form-label d-block mb-2">출강 요일</label>

@@ -3,7 +3,10 @@
 from django.db import models
 import os
 import uuid
+from datetime import date
 
+from django.core.validators import MinValueValidator, MaxValueValidator
+from django.utils import timezone
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
 
@@ -78,6 +81,42 @@ class TeachingInstitution(models.Model):
     admin_email = models.EmailField(blank=True, null=True)
     is_closed = models.BooleanField(default=False)
     closed_at = models.DateTimeField(null=True, blank=True)
+
+    # 견적서 발행 알림: 매월 quote_day 일에 발행해야 함
+    quote_day = models.PositiveSmallIntegerField(
+        "견적발행일(매월)", null=True, blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(31)],
+    )
+    quote_done_month = models.CharField("견적서 발행 완료 월", max_length=7, blank=True, default="")   # 'YYYY-MM'
+    quote_notified_on = models.DateField("견적 알림 카카오 발송일", null=True, blank=True)
+
+    QUOTE_SOON_DAYS = 3
+
+    def quote_due_date(self, today=None):
+        """이번 달 견적 발행 예정일 (말일보다 크면 말일로 보정)"""
+        if not self.quote_day:
+            return None
+        import calendar
+        today = today or timezone.localdate()
+        last = calendar.monthrange(today.year, today.month)[1]
+        return date(today.year, today.month, min(self.quote_day, last))
+
+    def quote_status(self, today=None):
+        """None(알림 없음) / 'soon'(3일 전부터) / 'due'(당일) / 'overdue'(지남). 이번 달 발행 완료면 None"""
+        if self.is_closed or not self.quote_day:
+            return None
+        today = today or timezone.localdate()
+        if self.quote_done_month == today.strftime("%Y-%m"):
+            return None
+        diff = (self.quote_due_date(today) - today).days
+        if diff > self.QUOTE_SOON_DAYS:
+            return None
+        return "soon" if diff > 0 else ("due" if diff == 0 else "overdue")
+
+    def quote_days_left(self, today=None):
+        today = today or timezone.localdate()
+        d = self.quote_due_date(today)
+        return (d - today).days if d else None
 
     def __str__(self):
         return f"{self.school.name if self.school else self.name} - {self.program}"
