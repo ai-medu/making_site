@@ -2690,6 +2690,14 @@ def estimate_send(request, institution_id, order_month):
             order_month=order_month
         ).update(estimate_sent=True)
 
+        # 견적발행 알림: 이메일을 보냈으니 이번 달 알림을 끈다
+        try:
+            from teachers.models import TeachingInstitution
+            TeachingInstitution.objects.filter(pk=institution_id, quote_day__isnull=False).update(
+                quote_done_month=timezone.localdate().strftime("%Y-%m"))
+        except Exception as quote_err:
+            print(f"[견적발행 완료 표시 오류] {quote_err}")
+
         # 카카오톡 알림: 관리자→강사
         try:
             admin_user = User.objects.filter(username="robotmaking@naver.com").first() \

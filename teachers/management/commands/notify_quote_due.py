@@ -23,7 +23,7 @@ class Command(BaseCommand):
         for inst in targets:      # 학교마다 따로 보내서 '바로가기'가 그 학교·그 월 견적서 미리보기로 열리게 한다
             name = inst.school.name if inst.school else inst.name
             text = (f"[견적서 발행 알림]\n{name} {inst.quote_target_month()}월분 견적서를 발행할 차례입니다. (매월 {inst.quote_day}일)\n"
-                    f"바로가기로 견적서를 확인·발송한 뒤 '출강장소'에서 발행완료를 눌러주세요.")
+                    f"바로가기로 견적서를 물품명,수량 확인 후 이메일 발송 버튼 눌러주세요.")
             res = send_kakao_message(inst.teacher, text, link_url=f"{settings.SITE_URL}{inst.quote_preview_path(today)}")
             if res.get("result_code") == 0:
                 sent += 1
