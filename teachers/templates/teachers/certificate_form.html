@@ -29,6 +29,7 @@
                     </div>
                     <div class="col-md-6 form-floating">
                         {{ form.name|add_class:"form-control" }}
+                        <datalist id="catalogNames">{% for c in catalog_options %}<option value="{{ c.name }}">{% endfor %}</datalist>
                         <label for="{{ form.name.id_for_label }}">
                             <i class="bi bi-award me-1"></i> 자격증명
                         </label>
@@ -67,4 +68,29 @@
         </div>
     </div>
 </div>
+{{ catalog_options|json_script:"catalogOptData" }}
+<script>
+(function () {
+  var el = document.getElementById("{{ form.name.id_for_label }}");
+  var typeSel = document.getElementById("{{ form.cert_type.id_for_label }}");
+  var by = document.getElementById("{{ form.issued_by.id_for_label }}");
+  if (!el) return;
+  var opts = JSON.parse(document.getElementById("catalogOptData").textContent || "[]");
+  var norm = function (s) { return (s || "").replace(/\s+/g, "").toLowerCase(); };
+  el.setAttribute("list", "catalogNames");
+  var hint = document.createElement("div");
+  hint.className = "form-text text-success";
+  el.closest(".form-floating").appendChild(hint);
+  function sync() {
+    var m = opts.filter(function (o) { return norm(o.name) === norm(el.value); })[0];
+    hint.textContent = m ? "자격증리스트와 연동되는 자격증입니다." : "";
+    if (!m) return;
+    if (typeSel && !typeSel.value && m.type) typeSel.value = m.type;
+    if (by && !by.value && m.issuer) by.value = m.issuer;
+  }
+  el.addEventListener("input", sync);
+  el.addEventListener("change", sync);
+  sync();
+})();
+</script>
 {% endblock %}

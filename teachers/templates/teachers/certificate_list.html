@@ -21,17 +21,17 @@
                 <i class="bi bi-plus-circle me-1"></i> 자격증 추가
             </a>
         </div>
-        <div class="card-body p-0">
-            <table class="table table-hover table-striped mb-0 align-middle text-center">
+        <div class="card-body p-0 table-responsive">
+            <table class="table table-hover table-striped mb-0 align-middle text-center career-table">
                 <thead class="table-light">
                     <tr>
-                        <th style="width:12%"><i class="bi bi-patch-check"></i> 자격종류</th>
-                        <th style="width:20%"><i class="bi bi-award"></i> 자격증명</th>
-                        <th style="width:18%"><i class="bi bi-building"></i> 발급기관</th>
-                        <th style="width:11%"><i class="bi bi-calendar-date"></i> 발급일</th>
-                        <th style="width:11%"><i class="bi bi-calendar-x"></i> 만료일</th>
-                        <th style="width:15%"><i class="bi bi-paperclip"></i> 파일</th>
-                        <th style="width:13%"><i class="bi bi-gear"></i> 관리</th>
+                        <th><i class="bi bi-patch-check"></i> 자격종류</th>
+                        <th><i class="bi bi-award"></i> 자격증명</th>
+                        <th><i class="bi bi-building"></i> 발급기관</th>
+                        <th><i class="bi bi-calendar-date"></i> 발급일</th>
+                        <th><i class="bi bi-calendar-x"></i> 만료일</th>
+                        <th><i class="bi bi-paperclip"></i> 파일</th>
+                        <th><i class="bi bi-gear"></i> 관리</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -43,8 +43,8 @@
                             {% elif cert.cert_type == "private" %}<span class="badge bg-secondary">민간자격</span>
                             {% else %}<span class="text-muted small">미분류</span>{% endif %}
                         </td>
-                        <td class="text-break">{{ cert.name }}</td>
-                        <td class="text-break">{{ cert.issued_by }}</td>
+                        <td class="text-nowrap">{{ cert.name }}{% if cert.catalog_item_id %} <a href="{% url 'certificate_catalog' %}" class="badge bg-light text-info border text-decoration-none" title="자격증리스트와 연동됨">리스트 연동</a>{% endif %}</td>
+                        <td class="text-nowrap">{{ cert.issued_by }}</td>
                         <td class="text-nowrap">{{ cert.issued_date|date:"Y-m-d" }}</td>
                         <td class="text-nowrap">
                             {% if cert.expires_date %}
@@ -55,17 +55,19 @@
                         </td>
                         <td class="text-center">{% include "teachers/_proof_cell.html" with obj=cert kind="certificate" %}</td>
                         <td class="text-center">
-                            <a href="{% url 'certificate_update' cert.id %}" 
-                               class="btn btn-sm btn-outline-primary me-1" title="수정">
+                          <div class="d-inline-flex flex-nowrap gap-1">
+                            <a href="{% url 'certificate_update' cert.id %}"
+                               class="btn btn-sm btn-outline-primary" title="수정">
                                 <i class="bi bi-pencil-square"></i>
                             </a>
-                            <form method="post" action="{% url 'certificate_delete' cert.id %}" style="display:inline;">
+                            <form method="post" action="{% url 'certificate_delete' cert.id %}" class="m-0">
                                 {% csrf_token %}
                                 <button type="submit" class="btn btn-sm btn-outline-danger"
                                         onclick="return confirm('정말 삭제하시겠습니까?');" title="삭제">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </form>
+                          </div>
                         </td>
                     </tr>
                     {% empty %}
@@ -82,6 +84,9 @@
 </div>
 
 <style>
+.career-table th { white-space: nowrap; padding-left: 0.75rem; padding-right: 0.75rem; }
+.career-table td { padding-left: 0.75rem; padding-right: 0.75rem; }
+.career-table td .btn { white-space: nowrap; }
 /* ✅ 단어 단위로 줄바꿈 허용 */
 .table td.text-break {
   word-break: break-word;

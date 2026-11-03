@@ -78,8 +78,13 @@
                 {% endif %}
               </td>
               <td data-label="취득여부">
-                {% if item.acquired_date %}
-                  <span class="badge bg-success">취득완료 ({{ item.acquired_date|date:"Y-m" }})</span>
+                {% if item.acquired %}
+                  <span class="badge bg-success">취득완료{% if item.acquired_date %} ({{ item.acquired_date|date:"Y-m" }}){% endif %}</span>
+                  <form method="post" action="{% url 'certificate_catalog_unacquire' item.id %}" class="d-inline"
+                        onsubmit="return confirm('취득을 취소하면 자격증관리에서도 삭제됩니다. 계속할까요?');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-link text-danger p-0 ms-1" title="취득 취소">취소</button>
+                  </form>
                 {% else %}
                   <button type="button" class="btn btn-sm btn-primary acquire-btn"
                           data-bs-toggle="modal" data-bs-target="#acquireModal"

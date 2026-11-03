@@ -418,6 +418,28 @@ def _sync_related_recruit(item):
         ])
 
 
+_AUTH_TO_CERT_TYPE = {"국가자격": "national", "국가공인": "national_private", "민간자격": "private", "민간": "private"}
+
+
+def _norm_name(name):
+    return "".join((name or "").split()).lower()
+
+
+def _link_catalog(cert):
+    """자격증관리 항목을 자격증리스트(카탈로그)와 연결하고, 비어 있는 종류·발급기관을 리스트 값으로 채운다"""
+    item = cert.catalog_item
+    if not item:
+        key = _norm_name(cert.name)
+        item = next((c for c in CertificateCatalogItem.objects.all() if _norm_name(c.name) == key), None)
+    cert.catalog_item = item
+    if item:
+        if not cert.cert_type:
+            cert.cert_type = _AUTH_TO_CERT_TYPE.get(item.auth_type, "")
+        if not cert.issued_by:
+            cert.issued_by = item.issuer
+    return item
+
+
 def _catalog_item_to_dict(item):
     return {
         "id": item.id,
@@ -450,14 +472,17 @@ def certificate_catalog(request):
     """취득 대상 자격증 리스트(카탈로그) - 지도사자격/기타자격 안내 + 취득 여부 관리"""
     from recruit.models import InstructorRecruit
 
-    my_certs = {c.name: c for c in Certificate.objects.filter(teacher=request.user)}
+    mine = list(Certificate.objects.filter(teacher=request.user))
+    by_item = {c.catalog_item_id: c for c in mine if c.catalog_item_id}
+    by_name = {_norm_name(c.name): c for c in mine}
     items = CertificateCatalogItem.objects.select_related('related_recruit').all()
 
     catalog = []
     catalog_for_js = []
     for item in items:
-        acquired = my_certs.get(item.name)
+        acquired = by_item.get(item.id) or by_name.get(_norm_name(item.name))
         row = _catalog_item_to_dict(item)
+        row["acquired"] = bool(acquired)
         row["acquired_date"] = acquired.issued_date if acquired else None
         row["recruit_open"] = bool(item.related_recruit and item.related_recruit.status == "open")
         catalog.append(row)
@@ -504,12 +529,29 @@ def certificate_catalog_acquire(request):
         messages.error(request, "취득년월을 올바르게 선택해주세요.")
         return redirect('certificate_catalog')
 
-    Certificate.objects.update_or_create(
-        teacher=request.user,
-        name=item.name,
-        defaults={"issued_by": item.issuer, "issued_date": issued_date},
-    )
+    existing = next((c for c in Certificate.objects.filter(teacher=request.user)
+                     if c.catalog_item_id == item.id or _norm_name(c.name) == _norm_name(item.name)), None)
+    cert = existing or Certificate(teacher=request.user, name=item.name)
+    cert.catalog_item = item
+    cert.issued_by = cert.issued_by or item.issuer
+    cert.issued_date = issued_date
+    cert.cert_type = cert.cert_type or _AUTH_TO_CERT_TYPE.get(item.auth_type, "")
+    cert.save()
     messages.success(request, f"'{item.name}'이(가) 자격증관리에 추가되었습니다.")
+    return redirect('certificate_catalog')
+
+
+@login_required
+@require_POST
+def certificate_catalog_unacquire(request, item_id):
+    """카탈로그에서 취득 취소 -> 내 자격증관리에서도 삭제"""
+    item = get_object_or_404(CertificateCatalogItem, id=item_id)
+    certs = [c for c in Certificate.objects.filter(teacher=request.user)
+             if c.catalog_item_id == item.id or _norm_name(c.name) == _norm_name(item.name)]
+    for c in certs:
+        c.delete()
+    if certs:
+        messages.success(request, f"'{item.name}' 취득을 취소하고 자격증관리에서 삭제했습니다.")
     return redirect('certificate_catalog')
 
 
@@ -635,6 +677,11 @@ def certificate_list(request):
         'certificates': certificates, 'counts': counts, 'cert_filter': cert_filter,
     })
 
+def _catalog_options():
+    return [{"name": c.name, "issuer": c.issuer, "type": _AUTH_TO_CERT_TYPE.get(c.auth_type, "")}
+            for c in CertificateCatalogItem.objects.all()]
+
+
 @login_required
 def certificate_create(request):
     if request.method == 'POST':
@@ -642,12 +689,14 @@ def certificate_create(request):
         if form.is_valid() and _proof_ok(request):
             cert = form.save(commit=False)
             cert.teacher = request.user
+            cert.catalog_item = None
+            _link_catalog(cert)
             cert.save()
             _save_proof(request, cert)
             return redirect('certificate_list')
     else:
         form = CertificateForm()
-    return render(request, 'teachers/certificate_form.html', {'form': form})
+    return render(request, 'teachers/certificate_form.html', {'form': form, 'catalog_options': _catalog_options()})
 
 @login_required
 def certificate_update(request, pk):
@@ -656,13 +705,16 @@ def certificate_update(request, pk):
     if request.method == "POST":
         form = CertificateForm(request.POST, instance=cert)
         if form.is_valid() and _proof_ok(request):
-            cert = form.save()
+            cert = form.save(commit=False)
+            cert.catalog_item = None          # 이름을 바꿨을 수 있으니 다시 찾아 연결
+            _link_catalog(cert)
+            cert.save()
             _save_proof(request, cert)
             messages.success(request, "자격증이 수정되었습니다.")
             return redirect("certificate_list")
     else:
         form = CertificateForm(instance=cert)
-    return render(request, "teachers/certificate_form.html", {"form": form, "obj": cert})
+    return render(request, "teachers/certificate_form.html", {"form": form, "obj": cert, 'catalog_options': _catalog_options()})
 
 @login_required
 def certificate_delete(request, pk):

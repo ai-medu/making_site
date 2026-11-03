@@ -171,6 +171,11 @@ class Certificate(ProofMixin, models.Model):
     issued_by = models.CharField("발급기관", max_length=200, blank=True)
     issued_date = models.DateField("발급일", null=True, blank=True)
     expires_date = models.DateField("만료일", null=True, blank=True)
+    # 자격증리스트(카탈로그)와의 연결 - 리스트에서 취득 처리하거나, 같은 이름으로 직접 등록하면 자동 연결
+    catalog_item = models.ForeignKey(
+        "CertificateCatalogItem", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="acquired_certificates", verbose_name="자격증리스트 항목",
+    )
 
     def __str__(self):
         return f"{self.name} - {self.teacher.first_name}"
