@@ -51,8 +51,20 @@ class TeachingInstitutionForm(forms.ModelForm):
             }),
         }
 
+    def clean(self):
+        data = super().clean()
+        if data.get('place_type') == 'school':
+            if not data.get('school'):
+                self.add_error('school', '학교를 검색해서 선택해주세요.')
+            self.errors.pop('name', None)
+            data['name'] = data['school'].name if data.get('school') else ''
+        elif not (data.get('name') or '').strip():
+            self.add_error('name', '기관명을 입력해주세요.')
+        return data
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields['name'].required = False
 
         teachers = User.objects.filter(profile__user_type='teacher').order_by('first_name')
         center_teachers = User.objects.filter(profile__user_type='center_teacher').order_by('first_name')

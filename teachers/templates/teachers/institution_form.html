@@ -65,6 +65,7 @@
         <div id="name-box" class="mb-4">
           <label for="id_name" class="form-label">기관명</label>
           {{ form.name|add_class:"form-control" }}
+          {% for e in form.name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
         </div>
 
         <!-- 프로그램 -->
