@@ -2621,7 +2621,11 @@ def estimate_preview(request, institution_id, order_month):
         "selected_order_month": request.GET.get("order_month"),
     })
 
+from django.views.decorators.clickjacking import xframe_options_sameorigin as _xframe_same
+
+
 @login_required
+@_xframe_same
 def estimate_pdf(request, institution_id, order_month):
     pdf_bytes, filename, totals = _build_estimate_pdf_bytes(institution_id, order_month)
     if not pdf_bytes:
