@@ -227,13 +227,35 @@ def kakao_test_send(request):
     else:
         line = "- OO초등학교 (12월분, 매월 25일)"
     text = f"[테스트] 견적서 발행 알림\n견적서를 발행할 출강장소가 있습니다.\n{line}\n발행 후 '출강장소'에서 발행완료를 눌러주세요."
-    res = send_kakao_message(request.user, text, link_url=f"{settings.SITE_URL}/teachers/institutions/")
+    link = f"{settings.SITE_URL}/teachers/institutions/"
+    res = send_kakao_message(request.user, text, link_url=link)
     if res.get("result_code") == 0:
-        messages.success(request, "카카오톡으로 테스트 알림을 보냈습니다. 카카오톡 '나와의 채팅'을 확인해주세요.")
+        messages.success(request, "나에게 보내기: 카카오톡 '나와의 채팅'으로 테스트 알림을 보냈습니다.")
     elif res.get("error") == "no_token":
         messages.error(request, "카카오 연동 정보가 없습니다. 연동 해제 후 다시 연동해주세요.")
+        return redirect("profile")
     else:
-        messages.error(request, f"발송 실패: {res.get('msg') or res.get('error') or res}. 연동 해제 후 다시 연동해 보세요.")
+        messages.error(request, f"나에게 보내기 실패: {res.get('msg') or res.get('error') or res}. 연동 해제 후 다시 연동해 보세요.")
+
+    # 관리자 카카오로도 같은 내용을 보냄 (본인이 관리자면 생략)
+    from accounts.utils import find_friend_uuid, send_kakao_friend_message
+    admin_user = User.objects.filter(username="robotmaking@naver.com").first() or User.objects.filter(is_staff=True).first()
+    if not admin_user or admin_user == request.user:
+        return redirect("profile")
+    admin_profile = getattr(admin_user, "profile", None)
+    if not admin_profile or not admin_profile.kakao_id:
+        messages.warning(request, "관리자 카카오 계정이 연동되어 있지 않아 관리자에게는 보내지 못했습니다.")
+        return redirect("profile")
+    uuid = find_friend_uuid(request.user, admin_profile.kakao_id)
+    if not uuid:
+        messages.warning(request, "관리자가 카카오톡 친구 목록에 없거나 친구 메시지 권한이 없어 관리자에게는 보내지 못했습니다.")
+        return redirect("profile")
+    who = request.user.first_name or request.user.username
+    res2 = send_kakao_friend_message(request.user, uuid, f"[테스트] {who} 강사\n" + text.replace("[테스트] ", "", 1), link_url=link)
+    if res2 and not res2.get("error") and res2.get("successful_receiver_uuids"):
+        messages.success(request, "관리자에게도 테스트 알림을 보냈습니다.")
+    else:
+        messages.warning(request, f"관리자에게 보내기 실패: {res2.get('msg') or res2.get('error') or res2}")
     return redirect("profile")
 
 
