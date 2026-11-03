@@ -15,6 +15,7 @@ urlpatterns = [
     path('approve_users/', approve_users, name='approve_users'), #관리자 승인 페이지
     path('suspended_users/', views.suspended_users, name='suspended_users'),  # 정지 회원 명단
     path('kakao/unlink/', views.kakao_unlink, name='kakao_unlink'),
+    path('kakao/test-send/', views.kakao_test_send, name='kakao_test_send'),
     path('redirect/', views.redirect_after_login, name='redirect_after_login'),
     path('admin/dashboard/', views.admin_dashboard, name='admin_dashboard'),
     path('members/', views.admin_user_list, name='admin_user_list'),

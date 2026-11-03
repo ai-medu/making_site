@@ -33,6 +33,7 @@
                                         카카오 계정으로 로그인할 수 있습니다.
                                     {% endif %}
                                 </small>
+                                <div class="small mt-1"><i class="bi bi-person-circle me-1"></i>연동 계정: {% if user.profile.kakao_email %}<strong>{{ user.profile.kakao_email }}</strong>{% else %}<span class="text-muted">이메일 정보 없음 (카카오 계정 이메일 제공 미동의)</span>{% endif %}{% if user.profile.kakao_name %} · 닉네임 {{ user.profile.kakao_name }}{% endif %}</div>
                             {% else %}
                                 <span class="badge bg-secondary">미연동</span>
                                 <small class="text-muted ms-2">카카오 계정을 연동하여 편리하게 로그인하세요.</small>
@@ -43,6 +44,10 @@
                                 계정 연동하기
                             </a>
                         {% else %}
+                            <form method="post" action="{% url 'kakao_test_send' %}" style="display: inline;" class="me-1">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-outline-secondary">알림 테스트</button>
+                            </form>
                             <form method="post" action="{% url 'kakao_unlink' %}" style="display: inline;">
                                 {% csrf_token %}
                                 <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('카카오 계정 연동을 해제하시겠습니까?');">
