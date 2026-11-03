@@ -23,7 +23,7 @@ class Command(BaseCommand):
 
         sent = 0
         for teacher, insts in by_teacher.items():
-            names = "\n".join(f"- {i.school.name if i.school else i.name} (매월 {i.quote_day}일)" for i in insts)
+            names = "\n".join(f"- {i.school.name if i.school else i.name} ({i.quote_target_month()}월분, 매월 {i.quote_day}일)" for i in insts)
             text = f"[견적서 발행 알림]\n견적서를 발행할 출강장소가 있습니다.\n{names}\n발행 후 '출강장소'에서 발행완료를 눌러주세요."
             res = send_kakao_message(teacher, text, link_url=f"{settings.SITE_URL}/teachers/institutions/")
             if res.get("result_code") == 0:

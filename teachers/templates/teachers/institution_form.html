@@ -94,6 +94,11 @@
             {{ form.quote_day|add_class:"form-control" }}
             <span class="input-group-text">일</span>
           </div>
+          <div class="d-flex gap-3 mt-2">
+            {% for radio in form.quote_target %}
+              <div class="form-check">{{ radio.tag }}<label class="form-check-label ms-1">{{ radio.choice_label }}</label></div>
+            {% endfor %}
+          </div>
           <div class="form-text">입력하면 발행일 3일 전부터 사이트와 카카오톡으로 견적서 발행 알림이 갑니다. 비워두면 알림이 없습니다.</div>
           {% for e in form.quote_day.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
         </div>

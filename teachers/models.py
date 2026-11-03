@@ -90,7 +90,15 @@ class TeachingInstitution(models.Model):
     quote_done_month = models.CharField("견적서 발행 완료 월", max_length=7, blank=True, default="")   # 'YYYY-MM'
     quote_notified_on = models.DateField("견적 알림 카카오 발송일", null=True, blank=True)
 
+    QUOTE_TARGET_CHOICES = (("current", "당월 견적"), ("next", "익월 견적"))
+    quote_target = models.CharField("견적 대상 월", max_length=7, choices=QUOTE_TARGET_CHOICES, default="current")
+
     QUOTE_SOON_DAYS = 3
+
+    def quote_target_month(self, today=None):
+        """발행하는 견적서가 가리키는 달(1~12). 익월 견적이면 다음 달"""
+        today = today or timezone.localdate()
+        return today.month % 12 + 1 if self.quote_target == "next" else today.month
 
     def quote_due_date(self, today=None):
         """이번 달 견적 발행 예정일 (말일보다 크면 말일로 보정)"""
@@ -112,6 +120,9 @@ class TeachingInstitution(models.Model):
         if diff > self.QUOTE_SOON_DAYS:
             return None
         return "soon" if diff > 0 else ("due" if diff == 0 else "overdue")
+
+    def quote_done_now(self):
+        return self.quote_done_month == timezone.localdate().strftime("%Y-%m")
 
     def quote_days_left(self, today=None):
         today = today or timezone.localdate()

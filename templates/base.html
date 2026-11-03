@@ -144,7 +144,7 @@
             <span>
               <i class="bi bi-receipt me-1"></i>
               <strong>{% if q.inst.school %}{{ q.inst.school.name }}{% else %}{{ q.inst.name }}{% endif %}</strong>
-              견적서 {% if q.status == 'soon' %}발행일이 {{ q.left }}일 남았습니다 (매월 {{ q.inst.quote_day }}일){% elif q.status == 'due' %}발행일은 오늘입니다{% else %}발행일이 {{ q.left|cut:'-' }}일 지났습니다{% endif %}
+              {{ q.month }}월분 견적서 {% if q.status == 'soon' %}발행일이 {{ q.left }}일 남았습니다 (매월 {{ q.inst.quote_day }}일){% elif q.status == 'due' %}발행일은 오늘입니다{% else %}발행일이 {{ q.left|cut:'-' }}일 지났습니다{% endif %}
             </span>
             <form method="post" action="{% url 'institution_quote_done' q.inst.id %}" class="m-0">
               {% csrf_token %}

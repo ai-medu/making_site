@@ -84,7 +84,7 @@ def quote_alerts(request):
                 teacher=user, is_closed=False, quote_day__isnull=False).select_related('school'):
             st = inst.quote_status()
             if st:
-                items.append({'inst': inst, 'status': st, 'left': inst.quote_days_left()})
+                items.append({'inst': inst, 'status': st, 'left': inst.quote_days_left(), 'month': inst.quote_target_month()})
         items.sort(key=lambda x: x['left'])
         return {'quote_alerts': items}
     except Exception:

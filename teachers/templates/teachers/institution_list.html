@@ -197,6 +197,7 @@
                 <td>
                     {% if i.quote_day and not i.is_closed %}
                         <div>매월 {{ i.quote_day }}일</div>
+                        <div class="small text-muted">{{ i.quote_target_month }}월분{% if i.quote_target == 'next' %} (익월){% endif %}</div>
                         {% with st=i.quote_status %}
                             {% if st %}
                                 <span class="badge {% if st == 'soon' %}bg-warning text-dark{% else %}bg-danger{% endif %}">
@@ -206,8 +207,10 @@
                                     {% csrf_token %}
                                     <button type="submit" class="btn btn-sm btn-outline-success py-0">발행완료</button>
                                 </form>
-                            {% else %}
+                            {% elif i.quote_done_now %}
                                 <span class="badge bg-light text-muted border">이번 달 완료</span>
+                            {% else %}
+                                <span class="badge bg-light text-muted border">발행 예정 D-{{ i.quote_days_left }}</span>
                             {% endif %}
                         {% endwith %}
                     {% else %}
