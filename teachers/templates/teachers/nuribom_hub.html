@@ -37,8 +37,10 @@
   @media print {
     @page { size: A4; margin: 20mm; }
     html, body { background: #fff !important; }
-    nav, .nb-bar, .nb-hint, footer, .navbar { display: none !important; }
+    nav, .nb-bar, .nb-hint, footer, .navbar, .content > .mt-3 { display: none !important; }
     body { padding: 0 !important; margin: 0 !important; }
+    .content { padding: 0 !important; margin: 0 !important; max-width: none !important; }   /* 화면용 상단 메뉴 여백이 첫 쪽 위에 공백으로 찍히지 않게 */
+    .nb-paper > .nb-gap-print { display: none !important; }
     .nb-wrap { padding: 0 !important; overflow: visible !important; }
     .nb-paper { box-shadow: none !important; width: auto !important; margin: 0 !important; padding: 0 !important; }
     .nb-sheet { width: auto !important; margin: 0 !important; }
@@ -735,6 +737,8 @@
       } else {
         var r = p.getBoundingClientRect();
         var empty = !p.textContent.replace(/[\s\u200b]/g, '') && !p.querySelector('img,table');
+        var nx = p.nextElementSibling;       // 새 쪽에서 시작하는 항목 바로 앞의 빈 문단은 인쇄에서 빼서 빈 쪽이 생기지 않게 함
+        p.classList.toggle('nb-gap-print', !!(empty && nx && nx.querySelector(':scope > table[id^="nb-sec"]') && !/^nb-sec1$/.test(nx.querySelector(':scope > table').id)));
         if (r.height > 0) units.push({el: p, els: [p], last: p, row: false, soft: empty, top: r.top - docTop, bottom: r.bottom - docTop, forced: false});
       }
     });
@@ -1362,6 +1366,7 @@
     clearSel();
     clearPages();
     doc.innerHTML = snap;
+    basic = document.getElementById('nb-sec1');
     schedulePaginate();
   }
   // 쪽 구분용 여백을 걷어낸 상태에서 수정하고, 끝나면 쪽 구분을 다시 계산
@@ -1374,7 +1379,7 @@
       fn();
     } catch (e) {
       var snap = tblHistory.pop();            // 중간까지 바뀌었을 수 있으므로 수정 전 상태로 되돌림
-      if (snap != null) { clearPages(); doc.innerHTML = snap; }
+      if (snap != null) { clearPages(); doc.innerHTML = snap; basic = document.getElementById('nb-sec1'); }
       alert(e && e.message ? e.message : '표를 수정하지 못했습니다.');
     }
     schedulePaginate();
@@ -1851,6 +1856,7 @@
         if (!j.ok) { alert(j.error || '불러오지 못했습니다.'); return false; }
         if (ask && !confirm('저장본(' + j.updated + ')을 불러옵니다.\n지금 화면의 수정 내용은 사라집니다. 계속할까요?')) return false;
         doc.innerHTML = sanitize(j.html);
+        basic = document.getElementById('nb-sec1');   // 문서를 통째로 바꿨으니 기본 정보 표 참조도 새로 잡음
         schedulePaginate();
         showSaved(j.updated);
         onScroll();
