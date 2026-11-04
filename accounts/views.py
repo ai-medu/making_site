@@ -148,7 +148,7 @@ def kakao_callback(request):
                 messages.error(request, _inactive_message(profile.user))
                 return redirect("login")
             # 기존 사용자 로그인
-            login(request, profile.user)
+            login(request, profile.user, backend='accounts.backends.CaseInsensitiveModelBackend')
 
             # 이전 로그인 시 동의 항목이 없어 닉네임을 못 받아온 계정도 이번 로그인에서 채워준다
             if nickname and not profile.kakao_name:
@@ -425,7 +425,7 @@ def suspended_users(request):
 
 def check_username(request):
     username = request.GET.get('username', None)
-    exists = User.objects.filter(username=username).exists()
+    exists = User.objects.filter(username__iexact=(username or '').strip()).exists()
     return JsonResponse({'exists': exists})
 
 from django.shortcuts import render, redirect
@@ -487,7 +487,7 @@ def signup(request):
         form = SignUpForm(request.POST)
         if form.is_valid():
             user = form.save(commit=False)
-            user.username = user.email  # 이메일을 username으로 설정
+            user.username = user.email = user.email.strip().lower()  # 이메일을 username으로 설정 (소문자로 통일)
             user.is_active = False      # 관리자 승인 전까지 비활성화
             user.save()
 

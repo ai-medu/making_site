@@ -51,14 +51,14 @@ class SignUpForm(UserCreationForm):
                 'postcode', 'address', 'detail_address']
 
     def clean_email(self):
-        email = self.cleaned_data.get("email")
-        if User.objects.filter(username=email).exists():
+        email = (self.cleaned_data.get("email") or "").strip().lower()
+        if User.objects.filter(username__iexact=email).exists():
             raise forms.ValidationError("이미 사용 중인 이메일입니다.")
         return email
 
     def save(self, commit=True):
         user = super().save(commit=False)
-        user.username = self.cleaned_data['email']  # username에 이메일 저장
+        user.username = self.cleaned_data['email']  # username에 이메일 저장 (소문자)
         user.email = self.cleaned_data['email']
         user.first_name = self.cleaned_data['first_name']  # ✅ 이름 저장
         user.is_active = False  # ✅ 가입 즉시 비활성화 (승인 전 로그인 불가)
@@ -129,8 +129,8 @@ class InstitutionSignUpForm(UserCreationForm):
         ]
 
     def clean_email(self):
-        email = self.cleaned_data['email']
-        if User.objects.filter(username=email).exists():
+        email = self.cleaned_data['email'].strip().lower()
+        if User.objects.filter(username__iexact=email).exists():
             raise forms.ValidationError("이미 사용 중인 이메일입니다.")
         return email
 

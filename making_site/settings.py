@@ -189,6 +189,9 @@ DATABASES = {
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
 
+# 뒤의 기본 백엔드는 이미 로그인된 사용자의 세션(옛 백엔드 경로)을 유지하기 위해 남겨 둠
+AUTHENTICATION_BACKENDS = ['accounts.backends.CaseInsensitiveModelBackend', 'django.contrib.auth.backends.ModelBackend']
+
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
