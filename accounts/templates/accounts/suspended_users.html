@@ -1,6 +1,10 @@
 {% extends 'base.html' %}
 
 {% block content %}
+<style>
+  .susp-table th, .susp-table td { white-space: nowrap; }
+  .susp-table td.susp-reason { white-space: normal; min-width: 14rem; }
+</style>
 <div class="container mt-4">
   <div class="card shadow-sm">
     <div class="card-body">
@@ -22,7 +26,7 @@
       {% endif %}
 
       <div class="table-responsive">
-        <table class="table table-hover align-middle">
+        <table class="table table-hover align-middle susp-table">
           <thead class="table-light">
             <tr>
               <th>이름</th>
@@ -41,10 +45,10 @@
                 <td>{{ u.first_name|default:u.username }}</td>
                 <td>{{ u.username }}</td>
                 <td>{{ u.profile.get_user_type_display }}</td>
-                <td>{{ u.profile.phone_number }}</td>
+                <td>{% if u.profile.phone_number and u.profile.phone_number != "010--" %}{{ u.profile.phone_number }}{% else %}<span class="text-muted">-</span>{% endif %}</td>
                 <td>{% if u.last_login %}{{ u.last_login|date:"Y-m-d" }}{% else %}<span class="text-muted">접속 기록 없음</span>{% endif %}</td>
                 <td>{{ u.profile.suspended_at|date:"Y-m-d H:i" }}</td>
-                <td class="small">{{ u.profile.suspend_reason }}</td>
+                <td class="small susp-reason">{{ u.profile.suspend_reason }}</td>
                 <td class="text-center">
                   <form method="post" class="d-inline" onsubmit="return confirm('이 회원의 정지를 해제할까요?');">
                     {% csrf_token %}
