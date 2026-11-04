@@ -15,7 +15,7 @@ class Profile(models.Model):
         ("teacher", "강사"),
     )
     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    user_type = models.CharField(max_length=20, choices=USER_TYPES, default='parent')
+    user_type = models.CharField(max_length=20, choices=USER_TYPES, default='teacher')
     birth_date = models.DateField(null=True, blank=True)
     phone_number = models.CharField(max_length=20)
     postcode = models.CharField(max_length=10, blank=True)

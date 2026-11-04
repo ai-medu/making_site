@@ -58,7 +58,7 @@ def kakao_login(request):
     kakao_auth_url = (
         f"https://kauth.kakao.com/oauth/authorize?"
         f"client_id={client_id}&redirect_uri={redirect_uri}&response_type=code"
-        f"&scope=talk_message,friends,profile_nickname"
+        f"&scope=talk_message,friends,profile_nickname,account_email,name"
     )
     return redirect(kakao_auth_url)
 
@@ -171,20 +171,24 @@ def kakao_callback(request):
             messages.success(request, f"{profile.user.first_name or profile.user.username}님, 환영합니다!")
             return redirect("home")
         else:
-            # 신규 가입 처리 (임시)
-            # 닉네임과 이메일을 기반으로 유저 생성
-            username = email if email else f"kakao_{kakao_id}"
+            # 신규 가입 처리: 강사로 가입, 아이디는 카카오 계정 이메일 (이메일을 못 받으면 kakao_번호)
+            real_name = (kakao_account.get("name") or nickname or "").strip()
+            mail = (email or "").strip().lower()
+            if mail and User.objects.filter(username__iexact=mail).exists():
+                messages.error(request, f"이미 {mail} 아이디로 가입된 계정이 있습니다. 해당 아이디로 로그인한 뒤 마이페이지에서 카카오 계정을 연동해주세요.")
+                return redirect("login")
+            username = mail if mail else f"kakao_{kakao_id}"
             if User.objects.filter(username=username).exists():
                 username = f"{username}_{kakao_id[:5]}"
-            
+
             user = User.objects.create_user(
                 username=username,
-                email=email if email else "",
-                first_name=nickname,
+                email=mail,
+                first_name=real_name,
                 is_active=False # 관리자 승인 대기
             )
-            Profile.objects.create(user=user, kakao_id=kakao_id, kakao_name=nickname)
-            
+            Profile.objects.create(user=user, user_type="teacher", kakao_id=kakao_id, kakao_name=nickname, kakao_email=mail or None)
+
             # 토큰 저장
             KakaoToken.objects.update_or_create(
                 user=user,
