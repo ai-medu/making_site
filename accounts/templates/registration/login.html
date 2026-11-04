@@ -28,20 +28,25 @@
 
                         <div class="mb-3">
                             <label class="form-label">아이디(이메일)</label>
-                            <div class="input-group mb-2">
+                            <div class="input-group">
                                 <span class="input-group-text"><i class="bi bi-person"></i></span>
                                 <input type="text" id="login_id" class="form-control" placeholder="이메일 아이디" autocapitalize="none" autocorrect="off" autocomplete="username" spellcheck="false">
                                 <span class="input-group-text">@</span>
-                                <input type="text" id="login_domain" class="form-control" placeholder="도메인" autocapitalize="none" autocorrect="off" spellcheck="false">
+                                <select id="login_domain_select" class="form-select" style="max-width:9.5rem">
+                                    <option value="" selected>선택</option>
+                                    <option value="gmail.com">gmail.com</option>
+                                    <option value="naver.com">naver.com</option>
+                                    <option value="daum.net">daum.net</option>
+                                    <option value="hanmail.net">hanmail.net</option>
+                                    <option value="직접입력">직접입력</option>
+                                </select>
                             </div>
-                            <select id="login_domain_select" class="form-select">
-                                <option value="직접입력" selected>직접입력</option>
-                                <option value="gmail.com">gmail.com</option>
-                                <option value="naver.com">naver.com</option>
-                                <option value="daum.net">daum.net</option>
-                                <option value="hanmail.net">hanmail.net</option>
-                            </select>
+                            <input type="text" id="login_domain" class="form-control mt-2 d-none" placeholder="도메인 직접 입력 (예: company.co.kr)" autocapitalize="none" autocorrect="off" spellcheck="false">
                             <input type="hidden" name="username" id="login_username" value="{{ form.username.value|default:'' }}">
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" id="login_remember">
+                                <label class="form-check-label small" for="login_remember">아이디 저장</label>
+                            </div>
                         </div>
 
                         <div class="mb-4">
@@ -81,25 +86,31 @@
 <script>
 (function () {
     var idEl = document.getElementById('login_id'), domEl = document.getElementById('login_domain'),
-        sel = document.getElementById('login_domain_select'), hid = document.getElementById('login_username');
-    // 실패 후 다시 보여줄 때 입력했던 아이디를 칸에 나눠 채움
-    var prev = (hid.value || '').trim(), at = prev.indexOf('@');
-    if (at > 0) {
-        idEl.value = prev.slice(0, at); domEl.value = prev.slice(at + 1);
-        if (Array.prototype.some.call(sel.options, function (o) { return o.value === domEl.value; })) { sel.value = domEl.value; domEl.readOnly = true; }
-    } else { idEl.value = prev; }
-    sel.addEventListener('change', function () {
-        if (sel.value === '직접입력') { domEl.value = ''; domEl.readOnly = false; domEl.focus(); }
-        else { domEl.value = sel.value; domEl.readOnly = true; }
-    });
-    domEl.addEventListener('input', function () {      // 직접 쓴 도메인이 목록과 같으면 선택도 맞춰 줌
-        var m = Array.prototype.some.call(sel.options, function (o) { return o.value === domEl.value.trim(); });
-        sel.value = m ? domEl.value.trim() : '직접입력';
-    });
+        sel = document.getElementById('login_domain_select'), hid = document.getElementById('login_username'),
+        rem = document.getElementById('login_remember');
+    function fill(full) {      // 'abc@naver.com' → 아이디 칸 + 도메인 선택(목록에 없으면 직접입력 칸)
+        var at = full.indexOf('@');
+        if (at <= 0) { idEl.value = full; return; }
+        idEl.value = full.slice(0, at);
+        var d = full.slice(at + 1);
+        if (Array.prototype.some.call(sel.options, function (o) { return o.value === d; })) sel.value = d;
+        else { sel.value = '직접입력'; domEl.value = d; }
+        showDom();
+    }
+    function showDom() { domEl.classList.toggle('d-none', sel.value !== '직접입력'); }
+    sel.addEventListener('change', function () { showDom(); if (sel.value === '직접입력') domEl.focus(); });
+    var saved = '';
+    try { saved = localStorage.getItem('login-saved-id') || ''; } catch (e) { /* 저장소를 못 쓰면 무시 */ }
+    var prev = (hid.value || '').trim();           // 로그인 실패 후 다시 보여줄 때는 방금 입력한 값 우선
+    if (prev) fill(prev); else if (saved) fill(saved);
+    rem.checked = !!saved;
     idEl.closest('form').addEventListener('submit', function () {
-        var id = idEl.value.trim(), dom = domEl.value.trim();
+        var id = idEl.value.trim(), dom = sel.value === '직접입력' ? domEl.value.trim() : sel.value;
         // 이메일 전체를 아이디 칸에 붙여 넣었거나, 도메인 없이 쓰는 계정(관리자 등)이면 그대로 사용
         hid.value = (id.indexOf('@') >= 0 || !dom) ? id : id + '@' + dom;
+        try {
+            if (rem.checked) localStorage.setItem('login-saved-id', hid.value); else localStorage.removeItem('login-saved-id');
+        } catch (e) { /* 무시 */ }
     });
 })();
 </script>
