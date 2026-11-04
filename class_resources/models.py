@@ -20,6 +20,7 @@ class AnnualPlan(models.Model):
         ("science", "과학"),
         ("math", "창의수학"),
         ("3dpen", "3D펜"),
+        ("coding", "코딩"),
         ("drone", "항공드론"),
     )
 

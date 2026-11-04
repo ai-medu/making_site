@@ -11,6 +11,7 @@
   .plan-science .plan-top { background: linear-gradient(135deg, #198754, #75b798); }
   .plan-math .plan-top { background: linear-gradient(135deg, #fd7e14, #feb272); }
   .plan-3dpen .plan-top { background: linear-gradient(135deg, #6f42c1, #a98eda); }
+  .plan-coding .plan-top { background: linear-gradient(135deg, #d63384, #e685b5); }
   .plan-drone .plan-top { background: linear-gradient(135deg, #0dcaf0, #6edff6); }
 </style>
 
@@ -39,6 +40,7 @@
           {% elif plan.category == 'science' %}<i class="bi bi-flask"></i>
           {% elif plan.category == 'math' %}<i class="bi bi-calculator"></i>
           {% elif plan.category == '3dpen' %}<i class="bi bi-pen"></i>
+          {% elif plan.category == 'coding' %}<i class="bi bi-code-slash"></i>
           {% else %}<i class="bi bi-airplane"></i>{% endif %}
         </div>
         <div class="card-body">
