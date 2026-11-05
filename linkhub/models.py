@@ -210,3 +210,36 @@ class LinkhubConfig(models.Model):
     def get(cls):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+def post_end_or_reg_date(post_date_str):
+    """post_date 문자열에서 기준 날짜를 찾는다 → (날짜, 마감일인지)
+    '2026.10.01 ~ 2026.10.10' 처럼 기간이면 끝 날짜(마감일), '등록일2026.10.16' 처럼 하나뿐이면 등록일."""
+    dates = re.findall(r"\d{2,4}[./\-]\d{1,2}[./\-]\d{1,2}", post_date_str or "")
+    if not dates:
+        return None, False
+    is_end = len(dates) >= 2
+    raw = re.sub(r"[./]", "-", dates[1] if is_end else dates[0]).split("-")
+    try:
+        if len(raw[0]) == 2:
+            y, m, d = date.today().year, int(raw[1]), int(raw[2])
+        else:
+            y, m, d = int(raw[0]), int(raw[1]), int(raw[2])
+        return date(y, m, d), is_end
+    except ValueError:
+        return None, False
+
+
+def post_is_expired(post_date_str, collected_on=None, config=None, today=None):
+    """마감 후 N일(마감일 있는 공고) / 등록 후 N일(등록일만 있는 공고)이 지났으면 True.
+    날짜를 전혀 못 읽으면 수집일(collected_on) 기준."""
+    config = config or LinkhubConfig.get()
+    today = today or date.today()
+    d, is_end = post_end_or_reg_date(post_date_str)
+    if d is None:
+        d = collected_on
+        if d is None:
+            return False
+        days = config.expire_no_deadline_days
+    else:
+        days = config.expire_deadline_days if is_end else config.expire_no_deadline_days
+    return (today - d).days > days

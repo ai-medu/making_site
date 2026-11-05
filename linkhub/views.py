@@ -4,7 +4,7 @@ import json
 from django.shortcuts import render
 from django.urls import reverse
 
-from .models import CollectedPost
+from .models import CollectedPost, LinkhubConfig, post_is_expired
 from django.contrib.admin.views.decorators import staff_member_required
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
@@ -98,8 +98,10 @@ def post_hub(request):
     if source_id:
         qs = qs.filter(source_id=source_id)
 
-    posts = list(qs)
     today = timezone.localdate()
+    lconfig_cur = LinkhubConfig.get()
+    # 마감·등록 후 기간이 지난 공고는 (자동삭제 전이라도) 보여주지 않음
+    posts = [p for p in qs if not post_is_expired(p.post_date, timezone.localtime(p.collected_at).date(), lconfig_cur, today)]
 
     # ===============================
     # 🔥 NEW / 상태 / 마감일 / 강조 계산

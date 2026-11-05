@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 from datetime import date, timedelta
 import re
 
-from linkhub.models import CollectedPost, NeulbomConfig, SourceSite, LinkhubConfig
+from linkhub.models import CollectedPost, NeulbomConfig, SourceSite, LinkhubConfig, post_is_expired
 from linkhub.services import collect_posts
 
 
@@ -49,38 +49,14 @@ class Command(BaseCommand):
         self.stdout.write(f"[linkhub] 만료 삭제: {deleted}건")
 
     def _delete_expired_posts(self, today, expire_deadline_days, expire_no_deadline_days):
-        deadline_cutoff = today - timedelta(days=expire_deadline_days)
-        no_deadline_cutoff = today - timedelta(days=expire_no_deadline_days)
-        to_delete = []
-
-        for post in CollectedPost.objects.select_related("source").all():
-            end_date = self._parse_end_date(post.post_date) if post.post_date else None
-            if end_date:
-                # 마감일 있는 공고: 마감일 + N일 초과 시 삭제
-                if end_date < deadline_cutoff:
-                    to_delete.append(post.pk)
-            else:
-                # 마감일 없는 공고(등록일만 있는 경우): 수집일 + N일 초과 시 삭제
-                if post.collected_at.date() < no_deadline_cutoff:
-                    to_delete.append(post.pk)
-
+        # 마감일이 있으면 마감 후 N일, 등록일만 있으면 등록일 후 N일(수집일이 아니라 게시판의 등록일 기준)
+        config = LinkhubConfig.get()
+        to_delete = [
+            post.pk
+            for post in CollectedPost.objects.all()
+            if post_is_expired(post.post_date, post.collected_at.date(), config, today)
+        ]
         if to_delete:
             deleted_count, _ = CollectedPost.objects.filter(pk__in=to_delete).delete()
             return deleted_count
         return 0
-
-    def _parse_end_date(self, post_date_str):
-        dates = re.findall(r"\d{2,4}[./\-]\d{1,2}[./\-]\d{1,2}", post_date_str)
-        if len(dates) < 2:
-            return None
-        try:
-            d = re.sub(r"[./]", "-", dates[1])
-            parts = d.split("-")
-            if len(parts[0]) == 2:
-                year = date.today().year
-                month, day = int(parts[1]), int(parts[2])
-            else:
-                year, month, day = int(parts[0]), int(parts[1]), int(parts[2])
-            return date(year, month, day)
-        except Exception:
-            return None

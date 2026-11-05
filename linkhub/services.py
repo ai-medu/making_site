@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime, date
 from urllib.parse import urljoin
 
-from .models import CollectedPost
+from .models import CollectedPost, LinkhubConfig, post_is_expired
 
 
 
@@ -285,6 +285,7 @@ def collect_jne_common(site):
     new_saved = 0
     page = 1
     MAX_PAGES = 50
+    lconfig = LinkhubConfig.get()
 
     while page <= MAX_PAGES:
         params = site.extra_params.copy() if site.extra_params else {}
@@ -301,6 +302,7 @@ def collect_jne_common(site):
         if not rows:
             break
 
+        expired_in_page = 0
         for row in rows:
             school_el = row.select_one("td:nth-child(2)")
             school_name = school_el.get_text(strip=True) if school_el else ""
@@ -321,6 +323,9 @@ def collect_jne_common(site):
 
             date_el = row.select_one("td:nth-child(5)")
             post_date = date_el.get_text(strip=True) if date_el else ""
+            if post_is_expired(post_date, config=lconfig):    # 이미 기간이 지난 공고는 다시 담지 않음 (지워도 되살아나는 것 방지)
+                expired_in_page += 1
+                continue
 
             CollectedPost.objects.create(
                 source=site,
@@ -337,6 +342,8 @@ def collect_jne_common(site):
             existing_mng.add(mng_no)
             new_saved += 1
 
+        if expired_in_page and expired_in_page >= len(rows):    # 한 쪽이 전부 기간 지난 공고면 더 뒤쪽도 볼 필요 없음
+            break
         page += 1
         time.sleep(0.5)
 
@@ -366,6 +373,7 @@ def collect_jne_region(site):
     new_saved = 0
     page = 1
     MAX_PAGES = 10
+    lconfig = LinkhubConfig.get()
 
     while page <= MAX_PAGES:
         params = {
@@ -400,6 +408,8 @@ def collect_jne_region(site):
 
             school_name = tds[2].get_text(strip=True)
             post_date = tds[3].get_text(strip=True)
+            if post_is_expired(post_date, config=lconfig):    # 이미 기간이 지난 공고는 다시 담지 않음
+                continue
 
             link = urljoin(
                 site.url,
