@@ -460,6 +460,7 @@ def levelup_by_institution(request, institution_id):
     guide_done = records.filter(guide_done=True).count()
     release_done = records.filter(release_done=True).count()
     shipped_done = records.filter(shipped_done=True).count()
+    school_done = records.filter(school_done=True).count()
     delivery_done = records.filter(delivery_done=True).count()
 
     # =========================================================
@@ -489,6 +490,7 @@ def levelup_by_institution(request, institution_id):
         guide_cnt = sum(1 for i in items if i.guide_done)
         release_cnt = sum(1 for i in items if i.release_done)
         shipped_cnt = sum(1 for i in items if i.shipped_done)
+        school_cnt = sum(1 for i in items if i.school_done)
         delivered_cnt = sum(1 for i in items if i.delivery_done)
 
         # 월별 전달 미완료 교구 집계
@@ -513,13 +515,14 @@ def levelup_by_institution(request, institution_id):
             "guide_done": guide_cnt,
             "release_done": release_cnt,
             "shipped_done": shipped_cnt,
+            "school_done": school_cnt,
             "delivered": delivered_cnt,
             "undelivered": undelivered,
             "release_materials": release_materials,
             "all_done": (
                 guide_cnt == total_cnt
-                and release_cnt == total_cnt
                 and shipped_cnt == total_cnt
+                and school_cnt == total_cnt
                 and delivered_cnt == total_cnt
             ),
         }
@@ -540,6 +543,7 @@ def levelup_by_institution(request, institution_id):
         "guide_done": guide_done,
         "release_done": release_done,
         "shipped_done": shipped_done,
+        "school_done": school_done,
         "delivery_done": delivery_done,
 
         # 전체 미전달 요약
@@ -694,7 +698,7 @@ def toggle_status(request, pk, field):
 
     field_map = {
         "guide": ("guide_done", "guide_date"),
-        "release": ("release_done", "release_date"),
+        "school": ("school_done", "school_date"),
         "delivery": ("delivery_done", "delivery_date"),
     }
 

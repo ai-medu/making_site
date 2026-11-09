@@ -45,6 +45,8 @@ class RobotLevelUp(models.Model):
     release_date = models.DateField("출고일", null=True, blank=True)
     shipped_done = models.BooleanField("실출고완료", default=False)
     shipped_date = models.DateField("실출고일", null=True, blank=True)
+    school_done = models.BooleanField("학교 출고완료", default=False)
+    school_date = models.DateField("학교 출고일", null=True, blank=True)
     delivery_done = models.BooleanField("전달완료", default=False)
     delivery_date = models.DateField("전달일", null=True, blank=True)
 

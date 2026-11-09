@@ -644,7 +644,7 @@
             <i class="bi bi-exclamation-triangle-fill text-warning"></i>
 
               <span class="badge bg-dark px-3 py-2">
-               주문 완료 {{ release_done }}개 / 출고 완료 {{ shipped_done }}개 / 전달 미완료 교구 {{ undelivered_total_qty }}개
+               출고 완료 {{ shipped_done }}개 / 학교 도착 {{ school_done }}개 / 전달 미완료 교구 {{ undelivered_total_qty }}개
               </span>
             </div>
 
@@ -674,7 +674,7 @@
       <thead class="table-light">
         <tr>
           <th class="levelup-col-year">년월</th><th class="levelup-col-material">교구명</th><th class="levelup-col-section">부</th><th class="levelup-col-grade">학년</th><th class="levelup-col-class">반</th><th class="levelup-col-number">번호</th><th class="levelup-mobile-only levelup-col-mobile-code"><span class="levelup-mobile-header-break">부/학반번</span></th><th class="levelup-col-student">학생명</th><th class="levelup-mobile-only levelup-col-mobile-actions">작업</th>
-          <th class="levelup-col-status">안내</th><th class="levelup-col-status">주문</th><th class="levelup-col-status">출고</th><th class="levelup-col-status">전달</th><th class="levelup-col-price">가격</th><th class="levelup-col-note">비고</th><th class="levelup-col-manage">관리</th>
+          <th class="levelup-col-status">안내</th><th class="levelup-col-status">출고</th><th class="levelup-col-status">학교</th><th class="levelup-col-status">전달</th><th class="levelup-col-price">가격</th><th class="levelup-col-note">비고</th><th class="levelup-col-manage">관리</th>
         </tr>
       </thead>
       <tbody>
@@ -693,8 +693,8 @@
                   {% if stat %}
                     <span class="month-summary-badges">
                       <span class="badge bg-success">안내 {{ stat.guide_done }}/{{ stat.total }}</span>
-                      <span class="badge bg-warning text-dark">주문 {{ stat.release_done }}/{{ stat.total }}</span>
                       <span class="badge bg-secondary">출고 {{ stat.shipped_done }}/{{ stat.total }}</span>
+                      <span class="badge bg-dark">학교 {{ stat.school_done }}/{{ stat.total }}</span>
                       <span class="badge bg-info text-dark">전달 {{ stat.delivered }}/{{ stat.total }}</span>
                     </span>
                   {% endif %}
@@ -746,19 +746,19 @@
                     <span class="levelup-btn-icon"><i class="bi bi-megaphone"></i></span><span class="levelup-btn-text ms-1">안내</span>
                   {% endif %}
                 </button>
-                <button class="btn btn-sm toggle-btn {% if r.release_done %}btn-warning{% else %}btn-outline-warning{% endif %}"
-                        data-id="{{ r.pk }}" data-field="release">
-                  {% if r.release_done %}
-                    <span class="levelup-btn-icon">✅</span> <small class="text-muted ms-1 levelup-btn-date">{{ r.release_date|date:"y.m.d" }}</small>
-                  {% else %}
-                    <span class="levelup-btn-icon"><i class="bi bi-box-seam"></i></span><span class="levelup-btn-text ms-1">주문</span>
-                  {% endif %}
-                </button>
                 <button class="btn btn-sm shipment-status-btn {% if r.shipped_done %}btn-shipped-done{% else %}btn-outline-secondary{% endif %}" type="button" title="교구출고에서 출고 처리 시 자동 반영됩니다." disabled>
                   {% if r.shipped_done %}
                     <span class="levelup-btn-icon">✅</span> <small class="text-muted ms-1 levelup-btn-date">{{ r.shipped_date|date:"y.m.d" }}</small>
                   {% else %}
                     <span class="levelup-btn-icon"><i class="bi bi-truck-flatbed"></i></span><span class="levelup-btn-text ms-1">출고</span>
+                  {% endif %}
+                </button>
+                <button class="btn btn-sm toggle-btn {% if r.school_done %}btn-dark{% else %}btn-outline-dark{% endif %}"
+                        data-id="{{ r.pk }}" data-field="school">
+                  {% if r.school_done %}
+                    <span class="levelup-btn-icon">✅</span> <small class="text-muted ms-1 levelup-btn-date">{{ r.school_date|date:"y.m.d" }}</small>
+                  {% else %}
+                    <span class="levelup-btn-icon"><i class="bi bi-building"></i></span><span class="levelup-btn-text ms-1">학교</span>
                   {% endif %}
                 </button>
                 <button class="btn btn-sm toggle-btn {% if r.delivery_done %}btn-primary{% else %}btn-outline-primary{% endif %}"
@@ -791,22 +791,22 @@
             </td>
 
             <td class="text-center levelup-col-status">
-              <button class="btn btn-sm toggle-btn {% if r.release_done %}btn-warning{% else %}btn-outline-warning{% endif %}"
-                      data-id="{{ r.pk }}" data-field="release">
-                {% if r.release_done %}
-                  <span class="levelup-btn-icon">✅</span> <small class="text-muted ms-1 levelup-btn-date">{{ r.release_date|date:"y.m.d" }}</small>
-                {% else %}
-                  <span class="levelup-btn-icon"><i class="bi bi-box-seam"></i></span><span class="levelup-btn-text ms-1">주문</span>
-                {% endif %}
-              </button>
-            </td>
-
-            <td class="text-center levelup-col-status">
               <button class="btn btn-sm shipment-status-btn {% if r.shipped_done %}btn-shipped-done{% else %}btn-outline-secondary{% endif %}" type="button" title="교구출고에서 출고 처리 시 자동 반영됩니다." disabled>
                 {% if r.shipped_done %}
                   <span class="levelup-btn-icon">✅</span> <small class="text-muted ms-1 levelup-btn-date">{{ r.shipped_date|date:"y.m.d" }}</small>
                 {% else %}
                   <span class="levelup-btn-icon"><i class="bi bi-truck-flatbed"></i></span><span class="levelup-btn-text ms-1">출고</span>
+                {% endif %}
+              </button>
+            </td>
+
+            <td class="text-center levelup-col-status">
+              <button class="btn btn-sm toggle-btn {% if r.school_done %}btn-dark{% else %}btn-outline-dark{% endif %}"
+                      data-id="{{ r.pk }}" data-field="school" title="교구가 학교에 나갔는지 체크">
+                {% if r.school_done %}
+                  <span class="levelup-btn-icon">✅</span> <small class="text-muted ms-1 levelup-btn-date">{{ r.school_date|date:"y.m.d" }}</small>
+                {% else %}
+                  <span class="levelup-btn-icon"><i class="bi bi-building"></i></span><span class="levelup-btn-text ms-1">학교</span>
                 {% endif %}
               </button>
             </td>
@@ -855,13 +855,13 @@
 function renderToggleButtonContent(field, done, date) {
   const iconMap = {
     guide: '<i class="bi bi-megaphone-fill levelup-status-icon"></i>',
-    release: '<i class="bi bi-box-seam-fill levelup-status-icon"></i>',
+    school: '<i class="bi bi-building levelup-status-icon"></i>',
     delivery: '<i class="bi bi-truck levelup-status-icon"></i>',
   };
 
   const labelMap = {
     guide: '안내',
-    release: '주문',
+    school: '학교',
     delivery: '전달',
   };
 
@@ -907,17 +907,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.done) {
           btn.innerHTML = renderToggleButtonContent(field, true, data.date);
 
-          btn.classList.remove('btn-outline-success', 'btn-outline-warning', 'btn-outline-primary');
+          btn.classList.remove('btn-outline-success', 'btn-outline-dark', 'btn-outline-primary');
           if (field === 'guide') btn.classList.add('btn-success');
-          if (field === 'release') btn.classList.add('btn-warning');
+          if (field === 'school') btn.classList.add('btn-dark');
           if (field === 'delivery') btn.classList.add('btn-primary');
 
         } else {
           // ❌ 해제 상태
           if (field === 'guide') {
             btn.className = 'btn btn-sm btn-outline-success toggle-btn';
-          } else if (field === 'release') {
-            btn.className = 'btn btn-sm btn-outline-warning toggle-btn';
+          } else if (field === 'school') {
+            btn.className = 'btn btn-sm btn-outline-dark toggle-btn';
           } else if (field === 'delivery') {
             btn.className = 'btn btn-sm btn-outline-primary toggle-btn';
           }
