@@ -159,6 +159,21 @@
     border-color: transparent;
   }
 
+  /* 학교 체크: 완료 상태는 보라색 바탕에 흰 글씨(날짜·체크가 또렷하게) */
+  .levelup-table .toggle-btn.btn-school-done,
+  .levelup-table .toggle-btn.btn-school-done:hover,
+  .levelup-table .toggle-btn.btn-school-done:focus {
+    background: linear-gradient(135deg, #8b5cf6, #6d28d9) !important;
+    border-color: transparent !important;
+    color: #ffffff !important;
+    box-shadow: 0 8px 18px rgba(109, 40, 217, 0.22) !important;
+  }
+  .levelup-table .btn-school-done .levelup-btn-date,
+  .levelup-table .btn-school-done .levelup-status-icon { color: #ffffff !important; }
+  .levelup-table .toggle-btn.btn-outline-school {
+    color: #6d28d9; border-color: #8b5cf6; background: #fff;
+  }
+
   .levelup-table .shipment-status-btn.btn-shipped-done,
   .levelup-table .shipment-status-btn.btn-shipped-done:disabled,
   .levelup-table .shipment-status-btn.btn-shipped-done.disabled {
@@ -694,7 +709,7 @@
                     <span class="month-summary-badges">
                       <span class="badge bg-success">안내 {{ stat.guide_done }}/{{ stat.total }}</span>
                       <span class="badge bg-secondary">출고 {{ stat.shipped_done }}/{{ stat.total }}</span>
-                      <span class="badge bg-dark">학교 {{ stat.school_done }}/{{ stat.total }}</span>
+                      <span class="badge" style="background:#6d28d9">학교 {{ stat.school_done }}/{{ stat.total }}</span>
                       <span class="badge bg-info text-dark">전달 {{ stat.delivered }}/{{ stat.total }}</span>
                     </span>
                   {% endif %}
@@ -753,7 +768,7 @@
                     <span class="levelup-btn-icon"><i class="bi bi-truck-flatbed"></i></span><span class="levelup-btn-text ms-1">출고</span>
                   {% endif %}
                 </button>
-                <button class="btn btn-sm toggle-btn {% if r.school_done %}btn-dark{% else %}btn-outline-dark{% endif %}"
+                <button class="btn btn-sm toggle-btn {% if r.school_done %}btn-school-done{% else %}btn-outline-school{% endif %}"
                         data-id="{{ r.pk }}" data-field="school">
                   {% if r.school_done %}
                     <span class="levelup-btn-icon">✅</span> <small class="text-muted ms-1 levelup-btn-date">{{ r.school_date|date:"y.m.d" }}</small>
@@ -801,7 +816,7 @@
             </td>
 
             <td class="text-center levelup-col-status">
-              <button class="btn btn-sm toggle-btn {% if r.school_done %}btn-dark{% else %}btn-outline-dark{% endif %}"
+              <button class="btn btn-sm toggle-btn {% if r.school_done %}btn-school-done{% else %}btn-outline-school{% endif %}"
                       data-id="{{ r.pk }}" data-field="school" title="교구가 학교에 나갔는지 체크">
                 {% if r.school_done %}
                   <span class="levelup-btn-icon">✅</span> <small class="text-muted ms-1 levelup-btn-date">{{ r.school_date|date:"y.m.d" }}</small>
@@ -907,9 +922,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.done) {
           btn.innerHTML = renderToggleButtonContent(field, true, data.date);
 
-          btn.classList.remove('btn-outline-success', 'btn-outline-dark', 'btn-outline-primary');
+          btn.classList.remove('btn-outline-success', 'btn-outline-school', 'btn-outline-primary');
           if (field === 'guide') btn.classList.add('btn-success');
-          if (field === 'school') btn.classList.add('btn-dark');
+          if (field === 'school') btn.classList.add('btn-school-done');
           if (field === 'delivery') btn.classList.add('btn-primary');
 
         } else {
@@ -917,7 +932,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (field === 'guide') {
             btn.className = 'btn btn-sm btn-outline-success toggle-btn';
           } else if (field === 'school') {
-            btn.className = 'btn btn-sm btn-outline-dark toggle-btn';
+            btn.className = 'btn btn-sm btn-outline-school toggle-btn';
           } else if (field === 'delivery') {
             btn.className = 'btn btn-sm btn-outline-primary toggle-btn';
           }
