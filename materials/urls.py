@@ -61,6 +61,7 @@ urlpatterns = [
     # 날짜별 그룹 일괄 처리 (주문입고 전용)
     # ==========================================
     path('groups/<str:date_str>/<int:teacher_id>/toggle-payment/', views.toggle_payment_date_group, name='toggle_payment_date_group'),
+    path('groups/month/<str:ym>/toggle-payment/', views.toggle_payment_month_group, name='toggle_payment_month_group'),
     path('groups/<str:date_str>/<int:teacher_id>/toggle-receive/', views.toggle_receive_date_group, name='toggle_receive_date_group'),
 
     # ==========================================

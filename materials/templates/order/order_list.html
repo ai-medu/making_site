@@ -29,18 +29,24 @@
     <div class="card-body py-3">
       <div class="d-flex flex-wrap gap-2 align-items-center">
         <!-- 전체 보기 버튼 -->
-        <a href="{% url 'order_list' %}" class="btn btn-sm {% if not selected_vendor_id %}btn-primary{% else %}btn-outline-secondary bg-white{% endif %} rounded-pill px-3">
+        <a href="{% url 'order_list' %}{% if group_by_month %}?group=month{% endif %}" class="btn btn-sm {% if not selected_vendor_id %}btn-primary{% else %}btn-outline-secondary bg-white{% endif %} rounded-pill px-3">
           전체 보기{% if total_unpaid_count %} <span class="badge rounded-pill bg-danger ms-1">{{ total_unpaid_count }}</span>{% endif %}
         </a>
 
         <!-- 개별 거래처 버튼 -->
         {% for v in vendors %}
-          <a href="?vendor_id={{ v.id }}" class="btn btn-sm {% if selected_vendor_id == v.id|stringformat:'s' %}btn-primary{% else %}btn-outline-secondary bg-white{% endif %} rounded-pill px-3">
+          <a href="?vendor_id={{ v.id }}{% if group_by_month %}&group=month{% endif %}" class="btn btn-sm {% if selected_vendor_id == v.id|stringformat:'s' %}btn-primary{% else %}btn-outline-secondary bg-white{% endif %} rounded-pill px-3">
             {{ v.name }}{% if v.unpaid_count %} <span class="badge rounded-pill bg-danger ms-1">{{ v.unpaid_count }}</span>{% endif %}
           </a>
         {% empty %}
           <span class="text-muted small">등록된 거래처 없음</span>
         {% endfor %}
+
+        <!-- 소계 묶음 방식: 주문일자별 / 주문년월별 -->
+        <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="소계 묶음">
+          <a href="?{% if selected_vendor_id %}vendor_id={{ selected_vendor_id }}{% endif %}" class="btn {% if not group_by_month %}btn-dark{% else %}btn-outline-dark bg-white{% endif %}">일자별 소계</a>
+          <a href="?{% if selected_vendor_id %}vendor_id={{ selected_vendor_id }}&{% endif %}group=month" class="btn {% if group_by_month %}btn-dark{% else %}btn-outline-dark bg-white{% endif %}">월별 소계</a>
+        </div>
       </div>
     </div>
   </div>
@@ -141,7 +147,7 @@
                 {% endwith %}
               {% elif row.type == 'subtotal' %}
                 <tr class="{% if row.is_completed %}table-success{% else %}table-danger{% endif %}" style="border-top: 2px solid #dee2e6;">
-                  <td colspan="5" class="text-end fw-bold"><i class="bi bi-calendar-check me-1"></i> [{{ row.teacher.first_name }}] {{ row.date|date:"y-m-d" }} 소계</td>
+                  <td colspan="5" class="text-end fw-bold"><i class="bi bi-calendar-check me-1"></i> {% if row.is_month %}{{ row.date }} 월 소계{% else %}[{{ row.teacher.first_name }}] {{ row.date|date:"y-m-d" }} 소계{% endif %}</td>
                   <td class="fw-bold text-primary">{{ row.sum|intcomma }}</td>
                   <td class="fw-bold text-danger">{{ row.qty|intcomma }}</td>
                   <!-- 날짜별 일괄 입금 -->
@@ -149,9 +155,9 @@
                     {% if row.all_paid %}
                       <span class="badge bg-primary text-white"><i class="bi bi-check-circle"></i> 입금완료</span>
                     {% else %}
-                      <form action="{% url 'toggle_payment_date_group' row.date|date:'Y-m-d' row.teacher.id|default:0 %}{% if selected_vendor_id %}?vendor_id={{ selected_vendor_id }}{% endif %}" method="post" style="display:inline;">
+                      <form action="{% if row.is_month %}{% url 'toggle_payment_month_group' row.date %}{% else %}{% url 'toggle_payment_date_group' row.date|date:'Y-m-d' row.teacher.id|default:0 %}{% endif %}{% if selected_vendor_id %}?vendor_id={{ selected_vendor_id }}{% endif %}" method="post" style="display:inline;">
                         {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-outline-dark border-0 fw-bold" onclick="return confirm('{% if selected_vendor_id %}현재 필터된 거래처의 {% else %}해당 날짜의 모든 {% endif %}주문을 일괄 입금완료 처리 하시겠습니까?');" title="일괄 입금 처리">
+                        <button type="submit" class="btn btn-sm btn-outline-dark border-0 fw-bold" onclick="return confirm('{% if selected_vendor_id %}현재 필터된 거래처의 {% elif row.is_month %}해당 월의 모든 {% else %}해당 날짜의 모든 {% endif %}주문을 일괄 입금완료 처리 하시겠습니까?');" title="일괄 입금 처리">
                           <i class="bi bi-check2-all text-primary"></i> 전체입금처리
                         </button>
                       </form>
@@ -159,7 +165,7 @@
                   </td>
                   <!-- 날짜별 일괄 입고 -->
                   <td>
-                    {% if row.is_manual %}
+                    {% if row.is_manual and not row.is_month %}
                       {% if row.all_received %}
                         <span class="badge bg-success text-white"><i class="bi bi-check-circle"></i> 입고완료</span>
                       {% else %}

@@ -1042,10 +1042,12 @@ def order_list(request):
     total_qty = 0
     total_sum = 0
 
-    # 주문일자 기준으로 그룹화 (강사·출고장소가 달라도 같은 날이면 같은 소계)
-    for date_obj, group in groupby(raw_items, key=lambda i: i.order.ordered_date):
+    # 기본은 주문일자 기준 그룹(강사·출고장소가 달라도 같은 날이면 같은 소계), group=month 이면 주문년월 기준 그룹
+    group_by_month = request.GET.get('group') == 'month'
+    group_key = (lambda i: i.order.ordered_date.strftime('%Y-%m')) if group_by_month else (lambda i: i.order.ordered_date)
+    for date_obj, group in groupby(raw_items, key=group_key):
         group_items = list(group)
-        teacher_obj = group_items[0].order.teacher
+        teacher_obj = None if group_by_month else group_items[0].order.teacher
         sub_qty = sum(i.quantity for i in group_items if i.quantity)
         sub_sum = sum((i.material.supply_price or 0) * (i.quantity or 0) for i in group_items)
         
@@ -1086,6 +1088,7 @@ def order_list(request):
         table_rows.append({
             "type": "subtotal",
             "date": date_obj,
+            "is_month": group_by_month,
             "teacher": teacher_obj,
             "qty": sub_qty,
             "sum": sub_sum,
@@ -1105,6 +1108,7 @@ def order_list(request):
         "vendors": vendors,
         "selected_vendor_id": vendor_id_filter,
         "total_unpaid_count": total_unpaid_count,
+        "group_by_month": group_by_month,
     }
     return render(request, "order/order_list.html", context)
 
@@ -3476,6 +3480,31 @@ def toggle_payment_date_group(request, date_str, teacher_id):
         qs.update(paid_date=timezone.now().date())
         messages.success(request, f"{scope_label} 주문을 입금완료 처리했습니다.")
     return redirect(request.META.get('HTTP_REFERER', 'order_list'))
+
+@login_required
+@require_POST
+def toggle_payment_month_group(request, ym):
+    """주문년월(YYYY-MM) 단위 일괄 입금 처리/취소 (거래처 필터가 있으면 그 거래처만)"""
+    import re as _re
+    if not _re.fullmatch(r"\d{4}-\d{2}", ym):
+        messages.error(request, "잘못된 년월 형식입니다.")
+        return redirect('order_list')
+    year, month = int(ym[:4]), int(ym[5:])
+    vendor_id = request.GET.get('vendor_id') or None
+    qs = MaterialOrderItem.objects.filter(
+        order__receive_type='order', order__ordered_date__year=year, order__ordered_date__month=month
+    )
+    if vendor_id:
+        qs = qs.filter(vendor_id=vendor_id)
+    scope_label = f"{ym}월 (필터된 거래처)" if vendor_id else f"{ym}월"
+    if qs.filter(paid_date__isnull=False).exists() and not qs.filter(paid_date__isnull=True).exists():
+        qs.update(paid_date=None)
+        messages.success(request, f"{scope_label} 주문의 입금완료를 취소했습니다.")
+    else:
+        qs.filter(paid_date__isnull=True).update(paid_date=timezone.localdate())
+        messages.success(request, f"{scope_label} 주문을 입금완료 처리했습니다.")
+    return redirect(request.META.get('HTTP_REFERER', 'order_list'))
+
 
 @login_required
 @require_POST
