@@ -11,7 +11,11 @@
   }
   .nb-bar .inner { max-width: 794px; margin: 0 auto; padding: 8px 12px 8px; }
   .nb-bar .row1 { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .nb-bar .row1 { flex-wrap: wrap; }
   .nb-bar .row1 .saved { margin-left: auto; }
+  .nb-bar .row1 .saved + .saved { margin-left: 0; }
+  .nb-bar .top-actions { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
+  .nb-bar .top-actions .btn { padding: .2rem .55rem; font-size: .8rem; }
   .nb-bar .rowA { overflow-x: auto; margin-bottom: 6px; }
   .nb-bar .title { font-weight: 700; white-space: nowrap; }
   .nb-bar .actions { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; width: max-content; }
@@ -125,6 +129,11 @@
       <span class="title"><i class="bi bi-file-earmark-text me-1"></i>늘봄허브 등록 서류</span>
       <span class="saved" id="nbSaved"></span>
       <span class="saved" id="nbAiModel" title="가장 최근에 글을 작성한 AI 모델"></span>
+      <div class="top-actions">
+        <button type="button" class="btn btn-success btn-sm" id="nbSave"><i class="bi bi-save me-1"></i>저장</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="nbLoad"><i class="bi bi-folder2-open me-1"></i>불러오기</button>
+        <button type="button" class="btn btn-danger btn-sm" id="nbPdf"><i class="bi bi-file-earmark-pdf me-1"></i>PDF 저장</button>
+      </div>
     </div>
     <div class="rowA">
       <div class="actions">
@@ -162,9 +171,6 @@
         <button type="button" class="btn btn-outline-primary btn-sm d-none" id="nbProgPick"><i class="bi bi-journal-richtext me-1"></i>프로그램 선택</button>
         <button type="button" class="btn btn-outline-primary btn-sm d-none" id="nbCertPick"><i class="bi bi-award me-1"></i>자격 선택 <span id="nbCertCount"></span></button>
         <button type="button" class="btn btn-outline-primary btn-sm d-none" id="nbCareerPick"><i class="bi bi-briefcase me-1"></i>경력 선택 <span id="nbCareerCount"></span></button>
-        <button type="button" class="btn btn-success btn-sm" id="nbSave"><i class="bi bi-save me-1"></i>저장</button>
-        <button type="button" class="btn btn-outline-secondary btn-sm" id="nbLoad"><i class="bi bi-folder2-open me-1"></i>불러오기</button>
-        <button type="button" class="btn btn-danger btn-sm" id="nbPdf"><i class="bi bi-file-earmark-pdf me-1"></i>PDF 저장</button>
       </div>
     </div>
     <div class="row2">
