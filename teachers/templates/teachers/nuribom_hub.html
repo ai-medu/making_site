@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=36">
+<link rel="stylesheet" href="{% static 'teachers/nuribom/doc.css' %}?v=37">
 <style>
   body { background: #e9ecef; }
   .nb-bar {
@@ -70,6 +70,8 @@
     #nbDoc td { border-top-width: var(--nb-line) !important; border-right-width: var(--nb-line) !important;
                 border-bottom-width: var(--nb-line) !important; border-left-width: var(--nb-line) !important; }
   }
+  /* 양쪽 정렬 문단은 한글 문서처럼 글자 단위로 줄을 나눠, 단어 사이 공백이 크게 벌어지지 않게 함 */
+  #nbDoc .hp[style*="text-align: justify"], #nbDoc .hp[style*="text-align:justify"] { word-break: break-all; }
   #nbOverlay { position: absolute; left: 0; top: 0; right: 0; height: 0; pointer-events: none; }
   #nbAiLayer { position: absolute; left: 0; top: 0; right: 0; height: 0; pointer-events: none; z-index: 6; }
   .nb-ai-btn {
