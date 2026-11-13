@@ -420,9 +420,9 @@ def _plan_rows_prompt(title, start, end, total, topic_max, line_max, note_max):
 
 [대응 규칙]
 - 계획서에 적힌 학습 주제(활동)를 처음부터 순서대로 한 주에 하나씩 대응합니다. (n번째 주 = 계획서의 n번째 주제) 차시 번호 칸이 여러 번호를 한꺼번에 묶어 보여도, 계획서의 주제 수가 전체 차시 수와 같다면 주제 하나가 한 차시(한 주)입니다. 주제를 건너뛰거나 합치지 마세요.
-- 계획서의 주제 수가 표의 주 수보다 적을 때만, 한 주제를 학습·제작 등 단계로 나누어 여러 주에 배분합니다.
-- 계획서에서 한 주제가 여러 차시에 걸쳐 있으면, 그 학습 내용을 차시별 단계(개념 학습 → 제작 → 동작·실험 등)로 나누어 각 주에 배분합니다. 같은 주제가 이어지면 주제 끝에 (1), (2)처럼 순서를 붙여도 됩니다. 계획서에 없는 활동을 새로 지어내지 마세요.
-- 계획서의 전체 차시 수가 {total}보다 많으면 인접한 차시를 묶어 {total}주 안에 들어가게 하고, 적으면 남는 주는 topic과 lines를 빈 값으로 둡니다.
+- 계획서의 주제 수가 표의 주 수보다 적으면, 먼저 계획서 전체의 주제 수를 세어 한 주제를 몇 주에 걸쳐 진행할지 정하고(예: 주제 24개, 표 48주 → 주제당 2주), 한 주제를 학습·제작·응용 등 단계로 나누어 표 전체({total}주)에 고르게 배분합니다. 어느 주를 맡든 같은 기준으로 배분해야 앞뒤 주와 이어집니다.
+- 계획서에서 한 주제가 여러 차시에 걸쳐 있으면, 그 학습 내용을 차시별 단계(개념 학습 → 제작 → 동작·실험 등)로 나누어 각 주에 배분합니다. 같은 주제가 이어지면 주제 끝에 (1), (2)처럼 순서를 붙여도 됩니다. 계획서에 없는 새 주제를 지어내지는 마세요. 다만 부족한 주를 채울 때는 계획서의 학습 내용·활동·교구를 바탕으로 한 응용·심화·복습·프로젝트·발표(작품 소개) 활동으로 구성합니다.
+- 계획서의 전체 차시 수가 {total}보다 많으면 인접한 차시를 묶어 {total}주 안에 들어가게 하고, 적으면 계획서 내용을 바탕으로 응용·심화·복습·프로젝트·발표 등으로 새로 구성해 모든 주를 빠짐없이 채웁니다. 표의 마지막 주(2월)까지 빈 행이 없어야 하며, topic과 lines를 빈 값으로 두지 않습니다.
 - 차시 번호가 건너뛰어 있거나 표가 여러 쪽에 나뉘어 있어도 계획서 전체를 순서대로 읽습니다.
 
 [분량 - 표 칸이 좁으므로 반드시 지킴]
@@ -432,7 +432,16 @@ def _plan_rows_prompt(title, start, end, total, topic_max, line_max, note_max):
   · 좋은 예) 주제가 '게코도마뱀'이면 → 1줄 "게코도마뱀의 종류와 특징을 알아봅니다." / 2줄 "게코도마뱀을 직접 관찰해 봅니다."
   · "~알고", "~하고"처럼 문장이 끝나지 않고 이어지는 조각으로 쓰지 말고, 주제 이름과 구체적인 활동이 드러나게 씁니다.
 - note(비고): 계획서의 표에 '준비물'(또는 재료·교구) 열이 있으면, 해당 차시 줄의 준비물을 빠뜨리지 말고 그대로 옮깁니다. 여러 개면 쉼표(,)로 잇고, 공백 포함 {note_max}자를 넘으면 각 항목을 짧게 줄입니다(예: '금붕어, 배분용기'). 줄바꿈은 쉼표로 바꿉니다. 준비물 열이 없거나 그 차시에 적혀 있지 않으면 빈 문자열로 두고 지어내지 마세요.
-- 응답은 rows 배열에 {start}번째 주부터 순서대로 정확히 {end - start + 1}개 항목을 담습니다."""
+- 응답은 rows 배열에 {start}번째 주부터 순서대로 정확히 {end - start + 1}개 항목을 담습니다. 모든 항목에 topic과 lines 2줄을 반드시 채웁니다."""
+
+
+def _plan_fill_prompt(title, weeks, total, topic_max, line_max, note_max):
+    nums = ", ".join(str(w) for w in weeks)
+    return f"""첨부한 PDF는 '{title}' 연간(운영) 계획서입니다. 이 계획서를 바탕으로 강사 제출 서류의 '연간 활동 지도 계획안'(1주 1차시, 총 {total}주) 표를 작성하는 중입니다.
+아래 번호의 주는 계획서의 차시만으로는 채워지지 않아 비어 있습니다: {nums}번째 주.
+계획서의 학습 내용·활동·교구를 바탕으로, 앞뒤 주와 자연스럽게 이어지는 응용·심화·복습·프로젝트·발표(작품 소개) 활동으로 각 주를 구성하세요. 계획서에 없는 새로운 교구나 주제를 지어내지 않습니다.
+[분량] topic: 한 줄, 공백 포함 {topic_max}자 이내 / lines: 정확히 2줄, 각 줄 공백 포함 {line_max}자 이내의 완결된 한 문장('~알아봅니다 / ~해 봅니다 / ~만들어 봅니다' 문체, 기호 없이) / note: 준비물이 있을 때만, 공백 포함 {note_max}자 이내(없으면 빈 문자열).
+응답은 rows 배열에 위 번호 순서대로 정확히 {len(weeks)}개 항목을 담고, 모든 항목에 topic과 lines 2줄을 반드시 채웁니다."""
 
 
 def generate_plan_rows(pdf_bytes, title, start, count, total, topic_max, line_max, note_max=12):
@@ -469,6 +478,26 @@ def generate_plan_rows(pdf_bytes, title, start, count, total, topic_max, line_ma
         rows.append({"topic": topic, "lines": [x[:line_max + 8] for x in lines[:2]], "note": note[:note_max + 4]})
     want = end - start + 1
     rows = rows[:want] + [{"topic": "", "lines": [], "note": ""}] * max(0, want - len(rows))
+
+    # 비어 있는 주(계획서의 차시가 부족한 경우 등)는 계획서 내용을 바탕으로 한 번 더 요청해 채운다
+    blank = [i for i, r in enumerate(rows) if not r["topic"] or not r["lines"]]
+    if blank:
+        weeks = [start + i for i in blank]
+        body["contents"][0]["parts"][1] = {"text": _plan_fill_prompt(str(title)[:80], weeks, total, topic_max, line_max, note_max)}
+        try:
+            extra = _call_json(body, call_timeout=15)
+        except Exception:
+            extra = None
+        got = (extra.get("rows") if isinstance(extra, dict) else None) or []
+        for k, i in enumerate(blank):
+            if k >= len(got):
+                break
+            r = got[k]
+            topic = " ".join(str(r.get("topic") or "").split())[:topic_max + 6]
+            lines = [" ".join(str(x).split()).lstrip("*-▷· ").strip() for x in (r.get("lines") or []) if str(x).strip()]
+            if topic and lines:
+                rows[i] = {"topic": topic, "lines": [x[:line_max + 8] for x in lines[:2]],
+                           "note": " ".join(str(r.get("note") or "").split())[:note_max + 4]}
     return rows
 
 
