@@ -153,8 +153,9 @@
       </select>
           <select class="form-select form-select-sm" id="nbAlign" title="문단 정렬">
         <option value="">정렬</option>
-        <option value="left">왼쪽</option><option value="center">가운데</option><option value="right">오른쪽</option><option value="justify">양쪽</option>
+        <option value="left">왼쪽</option><option value="center">가운데</option><option value="right">오른쪽</option><option value="justify">양쪽</option><option value="distribute">배분</option><option value="spread">나눔</option>
       </select>
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="nbIndent" title="자동 들여쓰기 (블록으로 지정한 문단의 첫 줄을 들여씀 / 다시 누르면 해제)"><i class="bi bi-text-indent-left"></i></button>
           <button type="button" class="btn btn-outline-secondary btn-sm nb-bold" id="nbBold" title="굵게"><b>B</b></button>
           <input type="color" class="nb-color" id="nbColor" value="#000000" title="글자 색">
         </div>
@@ -2242,7 +2243,9 @@
   }
   function paraAlign(p) {
     var a = getComputedStyle(p).textAlign;
-    return {start: 'left', 'justify-all': 'justify', '-webkit-center': 'center', end: 'right'}[a] || a;
+    a = {start: 'left', 'justify-all': 'justify', '-webkit-center': 'center', end: 'right'}[a] || a;
+    if (a === 'justify' && p.style.textAlignLast === 'justify') return p.style.textJustify === 'inter-character' ? 'spread' : 'distribute';
+    return a;
   }
   // 칸을 지우고 직접 입력하거나 붙여 넣으면 글자가 span 밖에 그냥 들어가 있을 수 있어, 서식이 먹도록 span 으로 감싼다
   function wrapLooseText(root) {
@@ -2266,9 +2269,30 @@
       var aparas = fmtTargets().paras;
       if (!aparas.length) { alert('정렬을 바꿀 칸을 끌어서 블록으로 지정하거나, 바꿀 문단을 먼저 선택(클릭)해주세요.'); updateFmtBar(); return; }
       histPush(); clearPages(); resetPlanStretch();
-      aparas.forEach(function (pp) { pp.style.textAlign = value; });
+      aparas.forEach(function (pp) {
+        pp.style.textAlignLast = ''; pp.style.textJustify = '';
+        if (value === 'distribute' || value === 'spread') {      // 한글의 배분/나눔 정렬: 마지막 줄까지 칸 너비에 맞춰 펼침 (나눔은 글자 사이로 고르게)
+          pp.style.textAlign = 'justify'; pp.style.textAlignLast = 'justify';
+          if (value === 'spread') pp.style.textJustify = 'inter-character';
+        } else pp.style.textAlign = value;
+      });
       schedulePaginate();
       setTimeout(updateFmtBar, 80);
+      return;
+    }
+    if (kind === 'indent') {                  // 자동 들여쓰기: 선택한 문단마다 첫 줄을 들여씀 (이미 모두 들여쓴 상태면 해제)
+      var iparas = fmtTargets().paras.filter(function (pp) { return pp.textContent.replace(/[\u200b\s]/g, ''); });
+      if (!iparas.length) { alert('들여쓸 문단을 블록으로 지정하거나, 문단을 먼저 선택(클릭)해주세요.'); return; }
+      var allIn = iparas.every(function (pp) { return pp.getAttribute('data-nb-indent') === '1'; });
+      histPush(); clearPages(); resetPlanStretch();
+      iparas.forEach(function (pp) {
+        if (allIn) { pp.style.textIndent = pp.getAttribute('data-nb-ti0') || ''; pp.removeAttribute('data-nb-indent'); pp.removeAttribute('data-nb-ti0'); }
+        else {
+          if (pp.getAttribute('data-nb-indent') !== '1') pp.setAttribute('data-nb-ti0', pp.style.textIndent || '');
+          pp.style.textIndent = '1em'; pp.setAttribute('data-nb-indent', '1');
+        }
+      });
+      schedulePaginate();
       return;
     }
     if (kind === 'line') {                    // 줄 간격은 문단 단위 (선택한 글자가 걸친 문단 전체)
@@ -2374,6 +2398,9 @@
   boldBtn.addEventListener('click', function () { applyStyle('bold'); });
   document.getElementById('nbColor').addEventListener('change', function () { applyStyle('color', this.value); });
 
+  var indentBtn = document.getElementById('nbIndent');
+  indentBtn.addEventListener('mousedown', function (e) { e.preventDefault(); });   // 눌러도 블록 지정이 풀리지 않게
+  indentBtn.addEventListener('click', function () { applyFormat('indent', '1'); });
   [['nbFont', 'font'], ['nbSize', 'size'], ['nbLine', 'line'], ['nbAlign', 'align']].forEach(function (pair) {
     document.getElementById(pair[0]).addEventListener('change', function () { applyFormat(pair[1], this.value); });
   });
