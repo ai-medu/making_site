@@ -70,6 +70,9 @@
   .color-jrobo { color: #dc3545; filter: drop-shadow(0 4px 8px rgba(220, 53, 69, 0.2)); }
   .bg-jrobo { background: linear-gradient(45deg, #dc3545, #bb2d3b); color: white; }
 
+  .color-cubo { color: #0dcaf0; filter: drop-shadow(0 4px 8px rgba(13, 202, 240, 0.25)); }
+  .bg-cubo { background: linear-gradient(45deg, #0dcaf0, #0aa2c0); color: white; }
+
   .color-levelup { color: #6f42c1; filter: drop-shadow(0 4px 8px rgba(111, 66, 193, 0.2)); }
   .bg-levelup { background: linear-gradient(45deg, #6f42c1, #5a32a3); color: white; }
 
@@ -85,6 +88,20 @@
   </div>
   
   <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4">
+    <!-- 단계업 안내 -->
+    <div class="col">
+      <div class="robot-card">
+        <div class="robot-icon-wrap">
+          <i class="bi bi-arrow-up-circle-fill color-levelup"></i>
+        </div>
+        <div class="robot-card-body">
+          <h5 class="robot-title">단계업 안내</h5>
+          <p class="robot-desc">로봇별 단계업 안내 문구를 확인하고 복사해 쓰는 안내 자료</p>
+          <a href="{% url 'robot_guide_list' %}" class="btn w-100 robot-btn bg-levelup">단계업 안내 보기</a>
+        </div>
+      </div>
+    </div>
+
     <!-- 올로AI -->
     <div class="col">
       <div class="robot-card">
@@ -127,6 +144,20 @@
       </div>
     </div>
 
+    <!-- 큐보 -->
+    <div class="col">
+      <div class="robot-card">
+        <div class="robot-icon-wrap">
+          <i class="bi bi-box color-cubo"></i>
+        </div>
+        <div class="robot-card-body">
+          <h5 class="robot-title">큐보</h5>
+          <p class="robot-desc">블록처럼 연결해 만드는 입문자용 로봇 코딩 학습 자료 (준비 중)</p>
+          <a href="{% url 'robot_cubo' %}" class="btn w-100 robot-btn bg-cubo">자료실 입장</a>
+        </div>
+      </div>
+    </div>
+
     <!-- 제이로보 -->
     <div class="col">
       <div class="robot-card">
@@ -141,19 +172,6 @@
       </div>
     </div>
 
-    <!-- 단계업 안내 -->
-    <div class="col">
-      <div class="robot-card">
-        <div class="robot-icon-wrap">
-          <i class="bi bi-arrow-up-circle-fill color-levelup"></i>
-        </div>
-        <div class="robot-card-body">
-          <h5 class="robot-title">단계업 안내</h5>
-          <p class="robot-desc">로봇별 단계업 안내 문구를 확인하고 복사해 쓰는 안내 자료</p>
-          <a href="{% url 'robot_guide_list' %}" class="btn w-100 robot-btn bg-levelup">단계업 안내 보기</a>
-        </div>
-      </div>
-    </div>
   </div>
 </div>
 {% endblock %}

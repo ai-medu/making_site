@@ -19,4 +19,5 @@ urlpatterns = [
     path('robot/probo/', views.robot_probo, name='robot_probo'),
     path('robot/xrobo/', views.robot_xrobo, name='robot_xrobo'),
     path('robot/jrobo/', views.robot_jrobo, name='robot_jrobo'),
+    path('robot/cubo/', views.robot_cubo, name='robot_cubo'),
 ]

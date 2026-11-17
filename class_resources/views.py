@@ -52,6 +52,11 @@ def robot_xrobo(request):
 def robot_jrobo(request):
     return render(request, "class_resources/robot/jrobo.html")
 
+@login_required
+@user_passes_test(is_staff_or_teacher)
+def robot_cubo(request):
+    return render(request, "class_resources/robot/cubo.html")
+
 # ---------------------------------------------------------------------------
 # 연간계획서 (PDF)
 # ---------------------------------------------------------------------------

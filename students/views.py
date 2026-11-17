@@ -582,6 +582,38 @@ def evaluation_page(request, institution_id):
     })
 
 
+_ROBOT_PREFIX = (("엑스로보", "xrobo"), ("올로AI", "olloai"), ("제이로보", "jrobo"), ("커넥트", "connect"), ("테크닉", "technic"), ("큐보", "cubo"))
+
+
+def _guide_key(material_name):
+    """교구명(예: '올로AI Lv4', '엑스로보 Lv4-2(SD)') → (로봇, 단계) 키. 안내 문구가 없는 교구면 None"""
+    name = (material_name or "").strip()
+    robot = next((key for prefix, key in _ROBOT_PREFIX if name.startswith(prefix)), None)
+    m = re.search(r"Lv\s*([0-9.]+)(?:-\d+)?\s*(?:\(([^)]+)\))?", name, re.I)
+    if not robot or not m:
+        return None
+    stage = (m.group(2) or m.group(1)).strip()
+    return robot, f"{stage}단계"
+
+
+def _current_guides(inst, students):
+    """학생별 '현재 단계' 안내 문구: 단계업 기록 중 가장 최근(년월 → 등록순) 교구의 단계 안내 문구"""
+    from robot_LvUP.models import RobotLevelUp, LevelUpGuide
+    guides = {(g.robot, g.stage): g.text for g in LevelUpGuide.objects.all()}
+    records = RobotLevelUp.objects.filter(institution=inst).select_related("material").order_by("year_month", "id")
+    latest, by_key = {}, {}
+    for r in records:                       # 나중 기록이 앞 기록을 덮어씀
+        if r.student_id:
+            latest[r.student_id] = r
+        by_key[(str(r.grade or ""), str(r.class_no or ""), str(r.student_no or ""), (r.student_name or "").strip())] = r
+    out = {}
+    for st in students:
+        rec = latest.get(st.id) or by_key.get((str(st.grade), str(st.class_name), str(st.number), st.name.strip()))
+        key = _guide_key(rec.material.name) if rec and rec.material_id else None
+        out[st.id] = guides.get(key, "") if key else ""
+    return out
+
+
 def _fmt_ymd(d):
     return f"{d.year}. {d.month}. {d.day}."
 
@@ -615,10 +647,12 @@ def evaluation_generate(request, institution_id):
     teacher = inst.teacher if (request.user.is_staff and inst.teacher_id and inst.teacher_id != request.user.id) else request.user
     teacher_name = (teacher.first_name or teacher.username).strip()
     period = f"{_fmt_ymd(start)} ~ {_fmt_ymd(end)}"
+    contents = _current_guides(inst, students)
     pages = [
         render_to_string('students/_eval_notice_page.html', {
             'year': year, 'semester': semester, 'period': period,
             'student_name': st.name, 'program': inst.program or '', 'teacher_name': teacher_name,
+            'content': contents.get(st.id, ''),
         })
         for st in students
     ]
