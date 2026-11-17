@@ -15,7 +15,8 @@
   .ev-main td.ctr:not(.rate) { font-size: 13.5px; padding: 2px 3px; word-break: normal; }
   .ev-t .lft { text-align: left; vertical-align: top; padding: 8px 10px; }
   .ev-t .lft.note { vertical-align: middle; }
-  .ev-t .rate { text-align: center; font-size: 17px; }
+  .ev-t .rate { text-align: center; font-size: 17px; cursor: pointer; }
+  .ev-t .rate:hover { background: #eef3ff; }
   .ev-t tr.r45 { height: 45px; } .ev-t tr.r41 { height: 41px; }
   .ev-t td:focus { background: #fffbe6; outline: none; }
   .ev-saved td, .ev-saved th { vertical-align: middle; }
@@ -38,7 +39,10 @@
 <div class="container mt-4 no-print">
   <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
     <h4 class="mb-0"><i class="bi bi-file-earmark-text me-2"></i>평가통지서 <small class="text-muted">· {{ institution.name }}</small></h4>
-    <a href="{% url 'students:evaluation_list' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> 학교 목록</a>
+    <div class="d-flex gap-2">
+      <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#evSavedModal"><i class="bi bi-folder2-open me-1"></i>저장된 평가통지서 <span class="badge text-bg-primary ms-1">{{ saved|length }}</span></button>
+      <a href="{% url 'students:evaluation_list' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> 학교 목록</a>
+    </div>
   </div>
 
   <div class="card shadow-sm mb-3">
@@ -83,7 +87,7 @@
             <button type="button" class="btn btn-outline-secondary btn-sm py-0" id="evSelNone">전체 해제</button>
           </div>
         </div>
-        <div style="max-height: 260px; overflow-y: auto;">
+        <div style="max-height: 72vh; min-height: 320px; overflow-y: auto;">
           <table class="table table-sm table-hover mb-0 align-middle">
             <thead class="table-light position-sticky top-0"><tr><th style="width:44px"></th><th>학년-반-번호</th><th>이름</th><th>부</th><th>현재 단계</th></tr></thead>
             <tbody>
@@ -117,31 +121,6 @@
     </div>
   </div>
 
-  <div class="card shadow-sm mb-3">
-    <div class="card-header py-2 fw-semibold"><i class="bi bi-folder2-open me-1"></i> 저장된 평가통지서</div>
-    <div class="card-body p-0">
-      {% if saved %}
-      <table class="table table-sm table-hover mb-0 ev-saved">
-        <thead class="table-light"><tr><th>저장 이름</th><th>수강기간</th><th class="text-center">학생 수</th><th>저장 시각</th><th class="text-end">관리</th></tr></thead>
-        <tbody>
-          {% for n in saved %}
-          <tr>
-            <td>{{ n.title }}</td><td class="small">{{ n.period|default:"-" }}</td><td class="text-center">{{ n.student_count }}</td>
-            <td class="small">{{ n.updated_at|date:"Y-m-d H:i" }}</td>
-            <td class="text-end text-nowrap">
-              <button type="button" class="btn btn-outline-primary btn-sm py-0 ev-load" data-id="{{ n.id }}">불러오기</button>
-              <button type="button" class="btn btn-outline-danger btn-sm py-0 ev-del" data-id="{{ n.id }}" title="삭제"><i class="bi bi-trash"></i></button>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      {% else %}
-      <div class="text-muted small p-3">저장된 평가통지서가 없습니다.</div>
-      {% endif %}
-    </div>
-  </div>
-
   <div id="evToolbar" class="d-none d-flex align-items-center flex-wrap gap-2 mb-3">
     <span id="evCurrent" class="fw-semibold small"></span>
     <div class="ms-auto d-flex gap-2">
@@ -152,6 +131,39 @@
 </div>
 
 <div class="ev-wrap"><div id="evalDoc"></div></div>
+
+<div class="modal fade no-print" id="evSavedModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="bi bi-folder2-open me-1"></i> 저장된 평가통지서 <small class="text-muted">· {{ institution.name }}</small></h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+      </div>
+      <div class="modal-body p-0">
+        {% if saved %}
+        <table class="table table-sm table-hover mb-0 ev-saved">
+          <thead class="table-light"><tr><th>저장 이름</th><th>수강기간</th><th class="text-center">학생 수</th><th>저장 시각</th><th class="text-end">관리</th></tr></thead>
+          <tbody>
+            {% for n in saved %}
+            <tr>
+              <td>{{ n.title }}</td><td class="small">{{ n.period|default:"-" }}</td><td class="text-center">{{ n.student_count }}</td>
+              <td class="small">{{ n.updated_at|date:"Y-m-d H:i" }}</td>
+              <td class="text-end text-nowrap">
+                <button type="button" class="btn btn-outline-primary btn-sm py-0 ev-load" data-id="{{ n.id }}">불러오기</button>
+                <button type="button" class="btn btn-outline-danger btn-sm py-0 ev-del" data-id="{{ n.id }}" title="삭제"><i class="bi bi-trash"></i></button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="text-muted small p-4 text-center">저장된 평가통지서가 없습니다.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
 
 <script>
 (function () {
@@ -174,6 +186,13 @@
   document.querySelectorAll('.ev-stu').forEach(function (c) { c.addEventListener('change', updSel); });
   document.getElementById('evSelAll').addEventListener('click', function () { document.querySelectorAll('.ev-stu').forEach(function (c) { c.checked = true; }); updSel(); });
   document.getElementById('evSelNone').addEventListener('click', function () { document.querySelectorAll('.ev-stu').forEach(function (c) { c.checked = false; }); updSel(); });
+  // 학습평가: 같은 줄의 다른 칸을 클릭하면 O가 클릭한 칸으로 옮겨감
+  doc.addEventListener('click', function (e) {
+    var td = e.target.closest && e.target.closest('td.rate');
+    if (!td) return;
+    Array.prototype.forEach.call(td.parentNode.querySelectorAll('td.rate'), function (c) { c.textContent = ''; });
+    td.textContent = 'O';
+  });
   document.querySelectorAll('.ev-grp').forEach(function (b) {      // 부(그룹)별 전체 선택/해제: 이 줄 아래부터 다음 부 제목 줄 전까지
     b.addEventListener('click', function () {
       var tr = b.closest('tr').nextElementSibling;
@@ -248,6 +267,8 @@
   document.querySelectorAll('.ev-load').forEach(function (b) {
     b.addEventListener('click', function () {
       if (doc.children.length && !confirm('지금 화면의 내용은 사라집니다. 불러올까요?')) return;
+      var md = document.getElementById('evSavedModal');
+      if (window.bootstrap && md) { var inst0 = bootstrap.Modal.getInstance(md); if (inst0) inst0.hide(); }
       loadNotice(b.dataset.id);
     });
   });
