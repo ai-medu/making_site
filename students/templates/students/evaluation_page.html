@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block extra_css %}
+<style>
+  .ev-wrap { overflow-x: auto; padding-bottom: 60px; }
+  #evalDoc { width: 794px; margin: 0 auto; }
+  .eval-page { width: 794px; height: 1122px; box-sizing: border-box; padding: 40px 56px 0; margin: 0 auto 24px; background: #fff;
+               box-shadow: 0 2px 12px rgba(0,0,0,.18); overflow: hidden; font-family: "Malgun Gothic", "맑은 고딕", sans-serif; color: #000; }
+  .ev-title { font-size: 24px; font-weight: 800; text-align: center; margin: 14px 0 22px; line-height: 1.3; outline: none; }
+  .ev-t { border-collapse: collapse; table-layout: fixed; width: 681px; margin: 0; }
+  .ev-t + .ev-t { margin-top: -1px; }
+  .ev-t th, .ev-t td { border: 1px solid #000; padding: 2px 6px; font-size: 14.5px; line-height: 1.35; font-weight: 400; vertical-align: middle; word-break: keep-all; }
+  .ev-t .lb { background: #dfe6f6; text-align: center; font-weight: 400; }
+  .ev-t .sm { font-size: 13px; line-height: 1.15; padding: 2px; }
+  .ev-t .ctr { text-align: center; }
+  .ev-main td.ctr:not(.rate) { font-size: 13.5px; padding: 2px 3px; word-break: normal; }
+  .ev-t .lft { text-align: left; vertical-align: top; padding: 8px 10px; }
+  .ev-t .lft.note { vertical-align: middle; }
+  .ev-t .rate { text-align: center; font-size: 17px; }
+  .ev-t tr.r45 { height: 45px; } .ev-t tr.r41 { height: 41px; }
+  .ev-t td:focus { background: #fffbe6; outline: none; }
+  .ev-saved td, .ev-saved th { vertical-align: middle; }
+  @media print {
+    @page { size: A4; margin: 0; }
+    html, body { background: #fff !important; }
+    nav, footer, .navbar, .no-print, .content > .mt-3 { display: none !important; }
+    .content { padding: 0 !important; margin: 0 !important; max-width: none !important; }
+    .ev-wrap { overflow: visible !important; padding: 0 !important; }
+    #evalDoc { width: auto; }
+    .eval-page { width: 210mm; height: 296mm; margin: 0; box-shadow: none; break-after: page; page-break-after: always; }
+    .eval-page:last-child { break-after: auto; page-break-after: auto; }
+    .ev-t td:focus { background: none; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4 no-print">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <h4 class="mb-0"><i class="bi bi-file-earmark-text me-2"></i>평가통지서 <small class="text-muted">· {{ institution.name }}</small></h4>
+    <a href="{% url 'students:evaluation_list' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> 학교 목록</a>
+  </div>
+
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <div class="row g-3 align-items-end">
+        <div class="col-6 col-md-2">
+          <label class="form-label small mb-1">학년도</label>
+          <input type="number" id="evYear" class="form-control form-control-sm" value="{{ default_year }}" min="2000" max="2100">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label small mb-1">학기</label>
+          <select id="evSem" class="form-select form-select-sm">
+            <option value="1" {% if default_sem == 1 %}selected{% endif %}>1학기</option>
+            <option value="2" {% if default_sem == 2 %}selected{% endif %}>2학기</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label small mb-1">수강기간 시작</label>
+          <input type="date" id="evStart" class="form-control form-control-sm">
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label small mb-1">수강기간 종료</label>
+          <input type="date" id="evEnd" class="form-control form-control-sm">
+        </div>
+        <div class="col-12 col-md-2 d-grid">
+          <button type="button" id="evGenerate" class="btn btn-primary btn-sm"><i class="bi bi-magic me-1"></i>평가통지서 생성</button>
+        </div>
+      </div>
+      <div class="small text-muted mt-2">이 학교에 등록된 학생 <b>{{ student_total }}</b>명 — 학생마다 1페이지씩 만들어집니다. 학습내용·학부모님 의견 등 각 칸은 클릭해서 직접 쓸 수 있습니다.</div>
+      <div id="evStatus" class="small mt-2 d-none"></div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-3">
+    <div class="card-header py-2 fw-semibold"><i class="bi bi-folder2-open me-1"></i> 저장된 평가통지서</div>
+    <div class="card-body p-0">
+      {% if saved %}
+      <table class="table table-sm table-hover mb-0 ev-saved">
+        <thead class="table-light"><tr><th>저장 이름</th><th>수강기간</th><th class="text-center">학생 수</th><th>저장 시각</th><th class="text-end">관리</th></tr></thead>
+        <tbody>
+          {% for n in saved %}
+          <tr>
+            <td>{{ n.title }}</td><td class="small">{{ n.period|default:"-" }}</td><td class="text-center">{{ n.student_count }}</td>
+            <td class="small">{{ n.updated_at|date:"Y-m-d H:i" }}</td>
+            <td class="text-end text-nowrap">
+              <button type="button" class="btn btn-outline-primary btn-sm py-0 ev-load" data-id="{{ n.id }}">불러오기</button>
+              <button type="button" class="btn btn-outline-danger btn-sm py-0 ev-del" data-id="{{ n.id }}" title="삭제"><i class="bi bi-trash"></i></button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="text-muted small p-3">저장된 평가통지서가 없습니다.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div id="evToolbar" class="d-none d-flex align-items-center flex-wrap gap-2 mb-3">
+    <span id="evCurrent" class="fw-semibold small"></span>
+    <div class="ms-auto d-flex gap-2">
+      <button type="button" id="evSave" class="btn btn-success btn-sm"><i class="bi bi-save me-1"></i>저장</button>
+      <button type="button" id="evPdf" class="btn btn-danger btn-sm"><i class="bi bi-file-earmark-pdf me-1"></i>PDF 저장</button>
+    </div>
+  </div>
+</div>
+
+<div class="ev-wrap"><div id="evalDoc"></div></div>
+
+<script>
+(function () {
+  var inst = {{ institution.id }};
+  var doc = document.getElementById('evalDoc');
+  var statusEl = document.getElementById('evStatus');
+  var toolbar = document.getElementById('evToolbar');
+  var cur = {id: null, year: null, semester: null, period: ''};
+
+  function csrf() { var m = document.cookie.match(/csrftoken=([^;]+)/); return m ? decodeURIComponent(m[1]) : ''; }
+  function status(msg, cls) { statusEl.className = 'small mt-2 ' + (cls || 'text-muted'); statusEl.textContent = msg; statusEl.classList.toggle('d-none', !msg); }
+  function sanitize(html) {
+    var t = document.createElement('template'); t.innerHTML = html;
+    t.content.querySelectorAll('script,iframe,object,embed,link,style,meta,form').forEach(function (e) { e.remove(); });
+    t.content.querySelectorAll('*').forEach(function (e) {
+      Array.prototype.slice.call(e.attributes).forEach(function (a) {
+        var n = a.name.toLowerCase(), v = (a.value || '').trim().toLowerCase();
+        if (n.indexOf('on') === 0 || ((n === 'href' || n === 'src') && v.indexOf('javascript:') === 0)) e.removeAttribute(a.name);
+      });
+    });
+    return t.innerHTML;
+  }
+  function show(html, meta) {
+    doc.innerHTML = sanitize(html);
+    cur = {id: meta.id || null, year: meta.year, semester: meta.semester, period: meta.period || ''};
+    document.getElementById('evCurrent').textContent = (meta.title || (meta.year + '학년도 ' + meta.semester + '학기 평가 통지서')) +
+      ' · ' + doc.querySelectorAll('.eval-page').length + '명' + (meta.id ? '' : ' (저장 전)');
+    toolbar.classList.remove('d-none');
+    doc.scrollIntoView({behavior: 'smooth', block: 'start'});
+  }
+
+  document.getElementById('evGenerate').addEventListener('click', function () {
+    var body = new URLSearchParams();
+    body.set('year', document.getElementById('evYear').value);
+    body.set('semester', document.getElementById('evSem').value);
+    body.set('start', document.getElementById('evStart').value);
+    body.set('end', document.getElementById('evEnd').value);
+    status('생성 중…');
+    fetch("{% url 'students:evaluation_generate' institution.id %}", {method: 'POST', credentials: 'same-origin', headers: {'X-CSRFToken': csrf()}, body: body})
+      .then(function (r) { return r.json(); }).then(function (j) {
+        if (!j.ok) { status(j.error || '생성하지 못했습니다.', 'text-danger'); return; }
+        status('학생 ' + j.count + '명의 평가통지서를 만들었습니다. 저장해야 보관됩니다.', 'text-success');
+        show(j.html, {year: +body.get('year'), semester: +body.get('semester'), period: j.period});
+      }).catch(function () { status('생성하지 못했습니다.', 'text-danger'); });
+  });
+
+  document.getElementById('evSave').addEventListener('click', function () {
+    var pages = doc.querySelectorAll('.eval-page');
+    if (!pages.length) return;
+    fetch("{% url 'students:evaluation_save' institution.id %}", {
+      method: 'POST', credentials: 'same-origin', headers: {'X-CSRFToken': csrf(), 'Content-Type': 'application/json'},
+      body: JSON.stringify({id: cur.id, year: cur.year, semester: cur.semester, period: cur.period,
+        title: cur.year + '학년도 ' + cur.semester + '학기 평가 통지서', html: doc.innerHTML})
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.ok) { alert(j.error || '저장하지 못했습니다.'); return; }
+      location.href = location.pathname + '?load=' + j.id;
+    }).catch(function () { alert('저장하지 못했습니다.'); });
+  });
+
+  function loadNotice(id) {
+    fetch("{% url 'students:evaluation_load' 0 %}".replace('/0/', '/' + id + '/'), {credentials: 'same-origin'})
+      .then(function (r) { return r.json(); }).then(function (j) {
+        if (!j.ok) { alert(j.error || '불러오지 못했습니다.'); return; }
+        show(j.html, j);
+        status('저장본(' + j.updated + ')을 불러왔습니다.', 'text-success');
+      }).catch(function () { alert('불러오지 못했습니다.'); });
+  }
+  document.querySelectorAll('.ev-load').forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (doc.children.length && !confirm('지금 화면의 내용은 사라집니다. 불러올까요?')) return;
+      loadNotice(b.dataset.id);
+    });
+  });
+  document.querySelectorAll('.ev-del').forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (!confirm('이 저장본을 삭제할까요?')) return;
+      fetch("{% url 'students:evaluation_delete' 0 %}".replace('/0/', '/' + b.dataset.id + '/'), {method: 'POST', credentials: 'same-origin', headers: {'X-CSRFToken': csrf()}})
+        .then(function (r) { return r.json(); }).then(function (j) { if (j.ok) location.href = location.pathname; else alert(j.error || '삭제하지 못했습니다.'); });
+    });
+  });
+
+  document.getElementById('evPdf').addEventListener('click', function () {
+    var old = document.title;
+    document.title = '평가통지서_{{ institution.name|escapejs }}';
+    var restore = function () { document.title = old; window.removeEventListener('afterprint', restore); };
+    window.addEventListener('afterprint', restore);
+    window.print();
+  });
+
+  var lid = '{{ load_id|escapejs }}';
+  if (/^\d+$/.test(lid)) loadNotice(lid);
+})();
+</script>
+{% endblock %}

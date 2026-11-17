@@ -2,6 +2,10 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    path('guides/', views.guide_list, name='robot_guide_list'),
+    path('guides/new/', views.guide_create, name='robot_guide_create'),
+    path('guides/<int:pk>/edit/', views.guide_update, name='robot_guide_update'),
+    path('guides/<int:pk>/delete/', views.guide_delete, name='robot_guide_delete'),
     path('', views.levelup_institution_list, name='levelup_institution_list'),
     path('<int:institution_id>/', views.levelup_by_institution, name='robot_levelup_by_institution'),
     path('<int:institution_id>/add/', views.levelup_create, name='robot_levelup_create'),

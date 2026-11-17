@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4 mb-5" style="max-width: 760px;">
+  <h4 class="mb-3"><i class="bi bi-arrow-up-circle me-2"></i>단계업 안내 {% if mode == 'edit' %}수정{% else %}추가{% endif %}</h4>
+
+  <form method="post" class="card shadow-sm p-4">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">{{ form.robot.label }}</label>
+        {{ form.robot }}
+        {% for e in form.robot.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">{{ form.stage.label }}</label>
+        {{ form.stage }}
+        {% for e in form.stage.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="col-12">
+        <label class="form-label d-flex justify-content-between"><span>{{ form.text.label }}</span><span class="small text-muted"><b id="guideCount">0</b>자 (권장 150자 이상)</span></label>
+        {{ form.text }}
+        {% for e in form.text.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">{{ form.order.label }}</label>
+        {{ form.order }}
+        <div class="form-text">{{ form.order.help_text }}</div>
+        {% for e in form.order.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+      </div>
+    </div>
+    <div class="d-flex justify-content-end gap-2 mt-4">
+      <a href="{% url 'robot_guide_list' %}" class="btn btn-outline-secondary">취소</a>
+      <button type="submit" class="btn btn-primary">저장</button>
+    </div>
+  </form>
+</div>
+<script>
+(function () {
+  var t = document.getElementById('guideText'), c = document.getElementById('guideCount');
+  function upd() { var n = t.value.length; c.textContent = n; c.className = n < 150 ? 'text-danger' : 'text-success'; }
+  t.addEventListener('input', upd); upd();
+})();
+</script>
+{% endblock %}

@@ -4,6 +4,7 @@ from django.contrib import messages
 from django.db.models import Count, Sum, F
 from django.db import transaction
 from django.utils import timezone
+from django.urls import reverse
 from datetime import date
 from .models import RobotLevelUp
 from .forms import RobotLevelUpForm
@@ -785,3 +786,75 @@ def levelup_dashboard(request):
         'monthly_data': monthly_data,
         'records': records,
     })
+
+
+
+# ======================================================================
+# 로봇별 단계업 안내 문구 관리 (수업자료 > 로봇 > 단계업안내)
+# ======================================================================
+from django.contrib.auth.decorators import user_passes_test
+from django.views.decorators.http import require_POST
+from .models import LevelUpGuide
+from .forms import LevelUpGuideForm
+
+
+def _can_view_guides(user):
+    if user.is_staff:
+        return True
+    profile = getattr(user, "profile", None)
+    return getattr(profile, "user_type", "") in ("teacher", "center_teacher")
+
+
+@login_required
+@user_passes_test(_can_view_guides)
+def guide_list(request):
+    robot = request.GET.get("robot", "")
+    qs = LevelUpGuide.objects.all()
+    if robot in dict(LevelUpGuide.ROBOTS):
+        qs = qs.filter(robot=robot)
+    else:
+        robot = ""
+    order = {key: i for i, (key, _) in enumerate(LevelUpGuide.ROBOTS)}
+    guides = sorted(qs, key=lambda g: (order.get(g.robot, 99), g.order, g.id))
+    counts = {r["robot"]: r["n"] for r in LevelUpGuide.objects.values("robot").annotate(n=Count("id"))}
+    return render(request, "robot_LvUP/guide_list.html", {
+        "guides": guides,
+        "robots": [(key, label, counts.get(key, 0)) for key, label in LevelUpGuide.ROBOTS],
+        "robot": robot,
+        "total": sum(counts.values()),
+    })
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def guide_create(request):
+    initial = {"robot": request.GET.get("robot", "")}
+    form = LevelUpGuideForm(request.POST or None, initial=initial)
+    if request.method == "POST" and form.is_valid():
+        guide = form.save()
+        messages.success(request, f"{guide} 안내 문구를 추가했습니다.")
+        return redirect(f"{reverse('robot_guide_list')}?robot={guide.robot}")
+    return render(request, "robot_LvUP/guide_form.html", {"form": form, "mode": "new"})
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def guide_update(request, pk):
+    guide = get_object_or_404(LevelUpGuide, pk=pk)
+    form = LevelUpGuideForm(request.POST or None, instance=guide)
+    if request.method == "POST" and form.is_valid():
+        guide = form.save()
+        messages.success(request, f"{guide} 안내 문구를 수정했습니다.")
+        return redirect(f"{reverse('robot_guide_list')}?robot={guide.robot}")
+    return render(request, "robot_LvUP/guide_form.html", {"form": form, "mode": "edit", "guide": guide})
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+@require_POST
+def guide_delete(request, pk):
+    guide = get_object_or_404(LevelUpGuide, pk=pk)
+    robot, label = guide.robot, str(guide)
+    guide.delete()
+    messages.success(request, f"{label} 안내 문구를 삭제했습니다.")
+    return redirect(f"{reverse('robot_guide_list')}?robot={robot}")

@@ -65,3 +65,30 @@ class RobotLevelUp(models.Model):
     def kit_name(self):
         return self.material.name if self.material else "-"
     kit_name.short_description = "교구명"
+
+
+
+class LevelUpGuide(models.Model):
+    """로봇별 단계업 안내 문구 (학부모·학생 안내용)"""
+    ROBOTS = (
+        ("xrobo", "엑스로보"),
+        ("olloai", "올로AI"),
+        ("jrobo", "제이로보"),
+        ("connect", "프로보 커넥트"),
+        ("technic", "프로보 테크닉"),
+        ("cubo", "큐보"),
+    )
+    robot = models.CharField("로봇", max_length=20, choices=ROBOTS)
+    stage = models.CharField("단계", max_length=20, help_text="예: 1단계, SD단계")
+    text = models.TextField("안내 문구")
+    order = models.PositiveIntegerField("정렬 순서", default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["robot", "order", "id"]
+        verbose_name = "단계업 안내"
+        verbose_name_plural = "단계업 안내"
+
+    def __str__(self):
+        return f"{self.get_robot_display()} {self.stage}"

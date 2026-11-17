@@ -52,3 +52,24 @@ class Student(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.grade} {self.class_name})"
+
+
+
+class EvaluationNotice(models.Model):
+    """늘봄학교 평가 통지서: 학교(출강장소)별로 생성해 저장해 두는 학생별 통지서 묶음"""
+    institution = models.ForeignKey(TeachingInstitution, on_delete=models.CASCADE, related_name='evaluation_notices')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    title = models.CharField("저장 이름", max_length=120)
+    year = models.PositiveIntegerField("학년도")
+    semester = models.PositiveSmallIntegerField("학기")
+    period = models.CharField("수강기간", max_length=60, blank=True)
+    student_count = models.PositiveIntegerField("학생 수", default=0)
+    html = models.TextField("통지서 내용")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at', '-id']
+
+    def __str__(self):
+        return f"{self.institution} {self.title}"

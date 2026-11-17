@@ -524,3 +524,151 @@ def medutech_sync_students(request, institution_id):
         f"출첵마스터 동기화 완료{month_label}: 신규 {created_count}명, 갱신 {updated_count}명, 삭제 {removed_count}명."
     )
     return redirect('students:student_detail', institution_id=institution.id)
+
+
+
+# ======================================================================
+# 늘봄학교 평가 통지서
+# ======================================================================
+import json
+import re
+from datetime import date
+
+from django.http import JsonResponse
+from django.template.loader import render_to_string
+from django.utils import timezone
+from django.views.decorators.http import require_POST
+
+from .models import EvaluationNotice
+
+
+def _eval_institution(request, institution_id):
+    inst = get_object_or_404(TeachingInstitution, id=institution_id)
+    if not request.user.is_staff and inst.teacher != request.user:
+        return None
+    return inst
+
+
+def _clean_eval_html(html):
+    """저장·불러오기 때 스크립트·이벤트 속성 제거"""
+    html = re.sub(r"(?is)<(script|iframe|object|embed|link|style|meta|form)\b.*?(</\1>|/>|>)", "", html or "")
+    html = re.sub(r"(?i)\son\w+\s*=\s*(\"[^\"]*\"|'[^']*'|[^\s>]+)", "", html)
+    html = re.sub(r"(?i)(href|src)\s*=\s*([\"']?)\s*javascript:", r"\1=\2#", html)
+    return html
+
+
+@login_required
+def evaluation_list(request):
+    """평가통지서를 작성할 출강장소(학교) 선택"""
+    institutions = _get_accessible_institutions(request.user)
+    return render(request, 'students/evaluation_list.html', {'institutions': institutions})
+
+
+@login_required
+def evaluation_page(request, institution_id):
+    inst = _eval_institution(request, institution_id)
+    if inst is None:
+        return HttpResponseForbidden("접근 권한이 없습니다.")
+    today = timezone.localdate()
+    default_year = today.year if today.month >= 3 else today.year - 1
+    default_sem = 1 if 3 <= today.month <= 8 else 2
+    return render(request, 'students/evaluation_page.html', {
+        'institution': inst,
+        'default_year': default_year,
+        'default_sem': default_sem,
+        'student_total': Student.objects.filter(division__institution=inst).count(),
+        'saved': EvaluationNotice.objects.filter(institution=inst),
+        'load_id': request.GET.get('load', ''),
+    })
+
+
+def _fmt_ymd(d):
+    return f"{d.year}. {d.month}. {d.day}."
+
+
+@login_required
+@require_POST
+def evaluation_generate(request, institution_id):
+    inst = _eval_institution(request, institution_id)
+    if inst is None:
+        return JsonResponse({"ok": False, "error": "접근 권한이 없습니다."}, status=403)
+    try:
+        year = int(request.POST.get('year'))
+        semester = int(request.POST.get('semester'))
+        start = date.fromisoformat(request.POST.get('start', ''))
+        end = date.fromisoformat(request.POST.get('end', ''))
+    except (TypeError, ValueError):
+        return JsonResponse({"ok": False, "error": "학년도·학기·수강기간을 모두 입력해주세요."}, status=400)
+    if semester not in (1, 2) or not (2000 <= year <= 2100):
+        return JsonResponse({"ok": False, "error": "학년도·학기가 올바르지 않습니다."}, status=400)
+    if end < start:
+        return JsonResponse({"ok": False, "error": "수강기간의 종료일이 시작일보다 빠릅니다."}, status=400)
+
+    students = list(
+        Student.objects.filter(division__institution=inst)
+        .annotate(grade_int=Cast('grade', IntegerField()), class_int=Cast('class_name', IntegerField()), number_int=Cast('number', IntegerField()))
+        .order_by('grade_int', 'class_int', 'number_int', 'name')
+    )
+    if not students:
+        return JsonResponse({"ok": False, "error": "이 학교에 등록된 학생이 없습니다. 먼저 학생관리에서 학생을 등록해주세요."}, status=400)
+
+    teacher = inst.teacher if (request.user.is_staff and inst.teacher_id and inst.teacher_id != request.user.id) else request.user
+    teacher_name = (teacher.first_name or teacher.username).strip()
+    period = f"{_fmt_ymd(start)} ~ {_fmt_ymd(end)}"
+    pages = [
+        render_to_string('students/_eval_notice_page.html', {
+            'year': year, 'semester': semester, 'period': period,
+            'student_name': st.name, 'program': inst.program or '', 'teacher_name': teacher_name,
+        })
+        for st in students
+    ]
+    return JsonResponse({"ok": True, "html": "".join(pages), "count": len(students), "period": period})
+
+
+@login_required
+@require_POST
+def evaluation_save(request, institution_id):
+    inst = _eval_institution(request, institution_id)
+    if inst is None:
+        return JsonResponse({"ok": False, "error": "접근 권한이 없습니다."}, status=403)
+    try:
+        payload = json.loads(request.body or b"{}")
+        year = int(payload.get('year'))
+        semester = int(payload.get('semester'))
+    except (ValueError, TypeError):
+        return JsonResponse({"ok": False, "error": "요청을 읽지 못했습니다."}, status=400)
+    html = _clean_eval_html(payload.get('html', ''))
+    if len(html) < 50:
+        return JsonResponse({"ok": False, "error": "저장할 내용이 없습니다."}, status=400)
+    title = (payload.get('title') or f"{year}학년도 {semester}학기 평가 통지서").strip()[:120]
+    fields = dict(title=title, year=year, semester=semester, period=str(payload.get('period', ''))[:60],
+                  student_count=html.count('eval-page'), html=html)
+    nid = payload.get('id')
+    notice = EvaluationNotice.objects.filter(pk=nid, institution=inst).first() if nid else None
+    if notice:
+        for k, v in fields.items():
+            setattr(notice, k, v)
+        notice.save()
+    else:
+        notice = EvaluationNotice.objects.create(institution=inst, created_by=request.user, **fields)
+    return JsonResponse({"ok": True, "id": notice.pk})
+
+
+@login_required
+def evaluation_load(request, pk):
+    notice = get_object_or_404(EvaluationNotice, pk=pk)
+    if not request.user.is_staff and notice.institution.teacher != request.user:
+        return JsonResponse({"ok": False, "error": "접근 권한이 없습니다."}, status=403)
+    return JsonResponse({"ok": True, "id": notice.pk, "title": notice.title, "year": notice.year, "semester": notice.semester,
+                         "period": notice.period, "html": _clean_eval_html(notice.html),
+                         "updated": timezone.localtime(notice.updated_at).strftime('%Y-%m-%d %H:%M')})
+
+
+@login_required
+@require_POST
+def evaluation_delete(request, pk):
+    notice = get_object_or_404(EvaluationNotice, pk=pk)
+    if not request.user.is_staff and notice.institution.teacher != request.user:
+        return JsonResponse({"ok": False, "error": "접근 권한이 없습니다."}, status=403)
+    notice.delete()
+    return JsonResponse({"ok": True})

@@ -70,6 +70,9 @@
   .color-jrobo { color: #dc3545; filter: drop-shadow(0 4px 8px rgba(220, 53, 69, 0.2)); }
   .bg-jrobo { background: linear-gradient(45deg, #dc3545, #bb2d3b); color: white; }
 
+  .color-levelup { color: #6f42c1; filter: drop-shadow(0 4px 8px rgba(111, 66, 193, 0.2)); }
+  .bg-levelup { background: linear-gradient(45deg, #6f42c1, #5a32a3); color: white; }
+
   @media (max-width: 768px) {
     .robot-icon-wrap { height: 100px; font-size: 2.8rem; }
   }
@@ -134,6 +137,20 @@
           <h5 class="robot-title">제이로보</h5>
           <p class="robot-desc">기초 메카닉부터 심화 피지컬 컴퓨팅까지 아우르는 맞춤형 실습 자료</p>
           <a href="{% url 'robot_jrobo' %}" class="btn w-100 robot-btn bg-jrobo">자료실 입장</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- 단계업 안내 -->
+    <div class="col">
+      <div class="robot-card">
+        <div class="robot-icon-wrap">
+          <i class="bi bi-arrow-up-circle-fill color-levelup"></i>
+        </div>
+        <div class="robot-card-body">
+          <h5 class="robot-title">단계업 안내</h5>
+          <p class="robot-desc">로봇별 단계업 안내 문구를 확인하고 복사해 쓰는 안내 자료</p>
+          <a href="{% url 'robot_guide_list' %}" class="btn w-100 robot-btn bg-levelup">단계업 안내 보기</a>
         </div>
       </div>
     </div>

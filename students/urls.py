@@ -9,6 +9,14 @@ urlpatterns = [
     path('upload/', views.student_upload, name='student_upload'),
     path('template/', views.student_template, name='student_template'),
     
+    # 늘봄학교 평가 통지서
+    path('evaluations/', views.evaluation_list, name='evaluation_list'),
+    path('evaluations/notice/<int:pk>/', views.evaluation_load, name='evaluation_load'),
+    path('evaluations/notice/<int:pk>/delete/', views.evaluation_delete, name='evaluation_delete'),
+    path('evaluations/<int:institution_id>/', views.evaluation_page, name='evaluation_page'),
+    path('evaluations/<int:institution_id>/generate/', views.evaluation_generate, name='evaluation_generate'),
+    path('evaluations/<int:institution_id>/save/', views.evaluation_save, name='evaluation_save'),
+
     # ✅ CRUD
     path('<int:institution_id>/add/', views.student_create, name='student_create'),
     path('edit/<int:student_id>/', views.student_update, name='student_update'),
