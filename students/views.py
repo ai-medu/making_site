@@ -576,7 +576,10 @@ def evaluation_page(request, institution_id):
         'institution': inst,
         'default_year': default_year,
         'default_sem': default_sem,
-        'student_total': Student.objects.filter(division__institution=inst).count(),
+        'months': list(range(1, 13)),
+        'default_start': 3 if default_sem == 1 else 9,
+        'default_end': 7 if default_sem == 1 else 12,
+        'student_rows': _eval_student_rows(inst),
         'saved': EvaluationNotice.objects.filter(institution=inst),
         'load_id': request.GET.get('load', ''),
     })
@@ -597,21 +600,49 @@ def _guide_key(material_name):
 
 
 def _current_guides(inst, students):
-    """학생별 '현재 단계' 안내 문구: 단계업 기록 중 가장 최근(년월 → 등록순) 교구의 단계 안내 문구"""
+    """학생별 '현재 단계': 단계업 기록 중 안내 문구가 있는 교구의 가장 최근(년월 → 등록순) 기록.
+    반환: {학생id: {"title": "커넥트 1단계", "text": 안내 문구}} (해당 없으면 키 없음)"""
     from robot_LvUP.models import RobotLevelUp, LevelUpGuide
     guides = {(g.robot, g.stage): g.text for g in LevelUpGuide.objects.all()}
     records = RobotLevelUp.objects.filter(institution=inst).select_related("material").order_by("year_month", "id")
     latest, by_key = {}, {}
-    for r in records:                       # 나중 기록이 앞 기록을 덮어씀
+    for r in records:                       # 나중 기록이 앞 기록을 덮어씀 (공구함처럼 안내 문구가 없는 교구는 건너뜀)
+        key = _guide_key(r.material.name) if r.material_id else None
+        if not key or key not in guides:
+            continue
+        label = next((p for p, k in _ROBOT_PREFIX if k == key[0]), key[0])
+        info = {"title": f"{label} {key[1]}", "text": guides[key]}
         if r.student_id:
-            latest[r.student_id] = r
-        by_key[(str(r.grade or ""), str(r.class_no or ""), str(r.student_no or ""), (r.student_name or "").strip())] = r
+            latest[r.student_id] = info
+        by_key[(str(r.grade or ""), str(r.class_no or ""), str(r.student_no or ""), (r.student_name or "").strip())] = info
     out = {}
     for st in students:
-        rec = latest.get(st.id) or by_key.get((str(st.grade), str(st.class_name), str(st.number), st.name.strip()))
-        key = _guide_key(rec.material.name) if rec and rec.material_id else None
-        out[st.id] = guides.get(key, "") if key else ""
+        info = latest.get(st.id) or by_key.get((str(st.grade), str(st.class_name), str(st.number), st.name.strip()))
+        if info:
+            out[st.id] = info
     return out
+
+
+def _school_year_of(year, month):
+    """학년도(3월~다음해 2월) 기준 달력 연도: 3~12월은 학년도 연도, 1~2월은 다음 해"""
+    return year if month >= 3 else year + 1
+
+
+def _eval_students(inst):
+    return list(
+        Student.objects.filter(division__institution=inst)
+        .annotate(grade_int=Cast('grade', IntegerField()), class_int=Cast('class_name', IntegerField()), number_int=Cast('number', IntegerField()))
+        .order_by('grade_int', 'class_int', 'number_int', 'name')
+    )
+
+
+def _eval_student_rows(inst):
+    """평가통지서 대상 선택 표: 학생 + 현재 단계 (단계업 기록이 없으면 기본으로 선택 해제)"""
+    students = _eval_students(inst)
+    cur = _current_guides(inst, students)
+    return [{"id": st.id, "grade": st.grade, "class_name": st.class_name, "number": st.number, "name": st.name,
+             "division": st.division.division, "stage": cur.get(st.id, {}).get("title", ""), "checked": st.id in cur}
+            for st in students]
 
 
 def _fmt_ymd(d):
@@ -627,32 +658,29 @@ def evaluation_generate(request, institution_id):
     try:
         year = int(request.POST.get('year'))
         semester = int(request.POST.get('semester'))
-        start = date.fromisoformat(request.POST.get('start', ''))
-        end = date.fromisoformat(request.POST.get('end', ''))
+        start_m = int(request.POST.get('start_month'))
+        end_m = int(request.POST.get('end_month'))
     except (TypeError, ValueError):
-        return JsonResponse({"ok": False, "error": "학년도·학기·수강기간을 모두 입력해주세요."}, status=400)
-    if semester not in (1, 2) or not (2000 <= year <= 2100):
-        return JsonResponse({"ok": False, "error": "학년도·학기가 올바르지 않습니다."}, status=400)
-    if end < start:
-        return JsonResponse({"ok": False, "error": "수강기간의 종료일이 시작일보다 빠릅니다."}, status=400)
+        return JsonResponse({"ok": False, "error": "학년도·학기·수강기간(월)을 모두 입력해주세요."}, status=400)
+    if semester not in (1, 2) or not (2000 <= year <= 2100) or not (1 <= start_m <= 12 and 1 <= end_m <= 12):
+        return JsonResponse({"ok": False, "error": "학년도·학기·수강기간이 올바르지 않습니다."}, status=400)
+    if (end_m - 3) % 12 < (start_m - 3) % 12:       # 학년도 순서(3월~다음해 2월)로 종료월이 시작월보다 앞서면 안 됨
+        return JsonResponse({"ok": False, "error": "수강기간의 종료월이 시작월보다 빠릅니다."}, status=400)
 
-    students = list(
-        Student.objects.filter(division__institution=inst)
-        .annotate(grade_int=Cast('grade', IntegerField()), class_int=Cast('class_name', IntegerField()), number_int=Cast('number', IntegerField()))
-        .order_by('grade_int', 'class_int', 'number_int', 'name')
-    )
+    ids = {int(x) for x in request.POST.getlist('students') if x.isdigit()}
+    students = [st for st in _eval_students(inst) if st.id in ids]
     if not students:
-        return JsonResponse({"ok": False, "error": "이 학교에 등록된 학생이 없습니다. 먼저 학생관리에서 학생을 등록해주세요."}, status=400)
+        return JsonResponse({"ok": False, "error": "평가통지서를 만들 학생을 한 명 이상 선택해주세요."}, status=400)
 
     teacher = inst.teacher if (request.user.is_staff and inst.teacher_id and inst.teacher_id != request.user.id) else request.user
     teacher_name = (teacher.first_name or teacher.username).strip()
-    period = f"{_fmt_ymd(start)} ~ {_fmt_ymd(end)}"
+    period = f"{_school_year_of(year, start_m)}. {start_m}. ~ {_school_year_of(year, end_m)}. {end_m}."
     contents = _current_guides(inst, students)
     pages = [
         render_to_string('students/_eval_notice_page.html', {
             'year': year, 'semester': semester, 'period': period,
             'student_name': st.name, 'program': inst.program or '', 'teacher_name': teacher_name,
-            'content': contents.get(st.id, ''),
+            'content_title': contents.get(st.id, {}).get('title', ''), 'content': contents.get(st.id, {}).get('text', ''),
         })
         for st in students
     ]

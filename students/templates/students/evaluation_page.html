@@ -56,18 +56,52 @@
           </select>
         </div>
         <div class="col-6 col-md-3">
-          <label class="form-label small mb-1">수강기간 시작</label>
-          <input type="date" id="evStart" class="form-control form-control-sm">
+          <label class="form-label small mb-1">수강기간 시작 (월)</label>
+          <select id="evStartM" class="form-select form-select-sm">
+            {% for m in months %}<option value="{{ m }}" {% if m == default_start %}selected{% endif %}>{{ m }}월</option>{% endfor %}
+          </select>
         </div>
         <div class="col-6 col-md-3">
-          <label class="form-label small mb-1">수강기간 종료</label>
-          <input type="date" id="evEnd" class="form-control form-control-sm">
+          <label class="form-label small mb-1">수강기간 종료 (월)</label>
+          <select id="evEndM" class="form-select form-select-sm">
+            {% for m in months %}<option value="{{ m }}" {% if m == default_end %}selected{% endif %}>{{ m }}월</option>{% endfor %}
+          </select>
         </div>
         <div class="col-12 col-md-2 d-grid">
           <button type="button" id="evGenerate" class="btn btn-primary btn-sm"><i class="bi bi-magic me-1"></i>평가통지서 생성</button>
         </div>
       </div>
-      <div class="small text-muted mt-2">이 학교에 등록된 학생 <b>{{ student_total }}</b>명 — 학생마다 1페이지씩 만들어집니다. 학습내용·학부모님 의견 등 각 칸은 클릭해서 직접 쓸 수 있습니다.</div>
+      <div class="small text-muted mt-2">수강기간의 연도는 학년도에 맞춰 자동으로 들어갑니다(예: 2026학년도 9월 → <b>2026. 9.</b>, 2월 → <b>2027. 2.</b>). 학습내용·학부모님 의견 등 각 칸은 생성 후 클릭해서 직접 쓸 수 있습니다.</div>
+      <div id="evPeriodPreview" class="small fw-semibold mt-1"></div>
+
+      <div class="border rounded mt-3">
+        <div class="d-flex align-items-center flex-wrap gap-2 px-3 py-2 bg-light border-bottom">
+          <b class="small">대상 학생 선택</b>
+          <span class="small text-muted">선택 <b id="evSelCount">0</b> / {{ student_rows|length }}명 · 미수강 학생은 체크를 해제하세요.</span>
+          <div class="ms-auto d-flex gap-1">
+            <button type="button" class="btn btn-outline-secondary btn-sm py-0" id="evSelAll">전체 선택</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm py-0" id="evSelNone">전체 해제</button>
+          </div>
+        </div>
+        <div style="max-height: 260px; overflow-y: auto;">
+          <table class="table table-sm table-hover mb-0 align-middle">
+            <thead class="table-light position-sticky top-0"><tr><th style="width:44px"></th><th>학년-반-번호</th><th>이름</th><th>부</th><th>현재 단계</th></tr></thead>
+            <tbody>
+              {% for s in student_rows %}
+              <tr>
+                <td class="text-center"><input type="checkbox" class="form-check-input ev-stu" value="{{ s.id }}" {% if s.checked %}checked{% endif %}></td>
+                <td class="small">{{ s.grade }}-{{ s.class_name }}-{{ s.number }}</td>
+                <td>{{ s.name }}</td>
+                <td class="small">{{ s.division }}</td>
+                <td class="small">{% if s.stage %}{{ s.stage }}{% else %}<span class="text-muted">단계업 기록 없음 (기본 해제)</span>{% endif %}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="5" class="text-center text-muted py-3">이 학교에 등록된 학생이 없습니다. 먼저 학생관리에서 학생을 등록해주세요.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
       <div id="evStatus" class="small mt-2 d-none"></div>
     </div>
   </div>
@@ -116,6 +150,21 @@
   var toolbar = document.getElementById('evToolbar');
   var cur = {id: null, year: null, semester: null, period: ''};
 
+  // 수강기간 미리보기 (연도는 학년도 기준: 3~12월은 학년도, 1~2월은 다음 해)
+  function schoolYear(y, m) { return m >= 3 ? y : y + 1; }
+  function updPeriod() {
+    var y = parseInt(document.getElementById('evYear').value, 10), sm = +document.getElementById('evStartM').value, em = +document.getElementById('evEndM').value;
+    var el = document.getElementById('evPeriodPreview');
+    if (!y) { el.textContent = ''; return; }
+    el.textContent = '수강기간: ' + schoolYear(y, sm) + '. ' + sm + '. ~ ' + schoolYear(y, em) + '. ' + em + '.';
+  }
+  ['evYear', 'evStartM', 'evEndM'].forEach(function (id) { document.getElementById(id).addEventListener('input', updPeriod); });
+  function updSel() { document.getElementById('evSelCount').textContent = document.querySelectorAll('.ev-stu:checked').length; }
+  document.querySelectorAll('.ev-stu').forEach(function (c) { c.addEventListener('change', updSel); });
+  document.getElementById('evSelAll').addEventListener('click', function () { document.querySelectorAll('.ev-stu').forEach(function (c) { c.checked = true; }); updSel(); });
+  document.getElementById('evSelNone').addEventListener('click', function () { document.querySelectorAll('.ev-stu').forEach(function (c) { c.checked = false; }); updSel(); });
+  updPeriod(); updSel();
+
   function csrf() { var m = document.cookie.match(/csrftoken=([^;]+)/); return m ? decodeURIComponent(m[1]) : ''; }
   function status(msg, cls) { statusEl.className = 'small mt-2 ' + (cls || 'text-muted'); statusEl.textContent = msg; statusEl.classList.toggle('d-none', !msg); }
   function sanitize(html) {
@@ -142,8 +191,9 @@
     var body = new URLSearchParams();
     body.set('year', document.getElementById('evYear').value);
     body.set('semester', document.getElementById('evSem').value);
-    body.set('start', document.getElementById('evStart').value);
-    body.set('end', document.getElementById('evEnd').value);
+    body.set('start_month', document.getElementById('evStartM').value);
+    body.set('end_month', document.getElementById('evEndM').value);
+    document.querySelectorAll('.ev-stu:checked').forEach(function (c) { body.append('students', c.value); });
     status('생성 중…');
     fetch("{% url 'students:evaluation_generate' institution.id %}", {method: 'POST', credentials: 'same-origin', headers: {'X-CSRFToken': csrf()}, body: body})
       .then(function (r) { return r.json(); }).then(function (j) {
