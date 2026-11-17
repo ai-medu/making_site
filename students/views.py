@@ -572,6 +572,7 @@ def evaluation_page(request, institution_id):
     today = timezone.localdate()
     default_year = today.year if today.month >= 3 else today.year - 1
     default_sem = 1 if 3 <= today.month <= 8 else 2
+    student_groups = _eval_student_rows(inst)
     return render(request, 'students/evaluation_page.html', {
         'institution': inst,
         'default_year': default_year,
@@ -579,7 +580,8 @@ def evaluation_page(request, institution_id):
         'months': list(range(1, 13)),
         'default_start': 3 if default_sem == 1 else 9,
         'default_end': 7 if default_sem == 1 else 12,
-        'student_rows': _eval_student_rows(inst),
+        'student_groups': student_groups,
+        'student_total': sum(len(g['rows']) for g in student_groups),
         'saved': EvaluationNotice.objects.filter(institution=inst),
         'load_id': request.GET.get('load', ''),
     })
@@ -629,10 +631,11 @@ def _school_year_of(year, month):
 
 
 def _eval_students(inst):
+    """평가통지서 대상: 현재 1부·2부·3부 학생만 ('미수강' 부서 학생은 제외)"""
     return list(
-        Student.objects.filter(division__institution=inst)
+        Student.objects.filter(division__institution=inst, division__division__in=['1부', '2부', '3부'])
         .annotate(grade_int=Cast('grade', IntegerField()), class_int=Cast('class_name', IntegerField()), number_int=Cast('number', IntegerField()))
-        .order_by('grade_int', 'class_int', 'number_int', 'name')
+        .order_by('division__division', 'grade_int', 'class_int', 'number_int', 'name')
     )
 
 
@@ -640,9 +643,12 @@ def _eval_student_rows(inst):
     """평가통지서 대상 선택 표: 학생 + 현재 단계 (단계업 기록이 없으면 기본으로 선택 해제)"""
     students = _eval_students(inst)
     cur = _current_guides(inst, students)
-    return [{"id": st.id, "grade": st.grade, "class_name": st.class_name, "number": st.number, "name": st.name,
-             "division": st.division.division, "stage": cur.get(st.id, {}).get("title", ""), "checked": st.id in cur}
-            for st in students]
+    groups = {}
+    for st in students:                     # 1부 → 2부 → 3부 순서로 묶음
+        groups.setdefault(st.division.division, []).append({
+            "id": st.id, "grade": st.grade, "class_name": st.class_name, "number": st.number, "name": st.name,
+            "stage": cur.get(st.id, {}).get("title", ""), "checked": st.id in cur})
+    return [{"division": d, "rows": groups[d]} for d in sorted(groups)]
 
 
 def _fmt_ymd(d):
