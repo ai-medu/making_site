@@ -75,6 +75,16 @@ def _build_layout_rows(layout, division):
 
 
 @login_required
+def seat_list(request):
+    """자리관리할 출강장소 선택"""
+    if request.user.is_staff:
+        institutions = TeachingInstitution.objects.all()
+    else:
+        institutions = TeachingInstitution.objects.filter(teacher=request.user)
+    return render(request, 'seating/seat_list.html', {'institutions': institutions})
+
+
+@login_required
 def seat_manage(request, institution_id):
     institution = get_object_or_404(TeachingInstitution, id=institution_id)
     if not _check_access(request, institution):

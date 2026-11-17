@@ -7,8 +7,8 @@
       <div class="seating-hero-eyebrow">🏫 자리 관리</div>
       <h4 class="mb-0">{{ institution.name }}</h4>
     </div>
-    <a href="{% url 'students:student_detail' institution.id %}" class="btn btn-light btn-sm seating-back-btn">
-      <i class="bi bi-arrow-left"></i> 학생 관리로
+    <a href="{% url 'seating:seat_list' %}" class="btn btn-light btn-sm seating-back-btn">
+      <i class="bi bi-arrow-left"></i> 자리관리 목록
     </a>
   </div>
 

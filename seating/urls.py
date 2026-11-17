@@ -5,6 +5,7 @@ from . import views
 app_name = 'seating'
 
 urlpatterns = [
+    path('', views.seat_list, name='seat_list'),
     path('<int:institution_id>/', views.seat_manage, name='seat_manage'),
     path('<int:institution_id>/<int:division_id>/fullscreen/', views.seat_fullscreen, name='seat_fullscreen'),
     path('<int:institution_id>/set-group-grid/', views.set_group_grid, name='set_group_grid'),
