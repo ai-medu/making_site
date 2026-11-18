@@ -581,6 +581,7 @@ def evaluation_page(request, institution_id):
         'default_start': 3 if default_sem == 1 else 9,
         'default_end': 7 if default_sem == 1 else 12,
         'student_groups': student_groups,
+        'guide_options': _guide_options(),
         'student_total': sum(len(g['rows']) for g in student_groups),
         'saved': EvaluationNotice.objects.filter(institution=inst),
         'load_id': request.GET.get('load', ''),
@@ -605,7 +606,7 @@ def _current_guides(inst, students):
     """학생별 '현재 단계': 단계업 기록 중 안내 문구가 있는 교구의 가장 최근(년월 → 등록순) 기록.
     반환: {학생id: {"title": "커넥트 1단계", "text": 안내 문구}} (해당 없으면 키 없음)"""
     from robot_LvUP.models import RobotLevelUp, LevelUpGuide
-    guides = {(g.robot, g.stage): g.text for g in LevelUpGuide.objects.all()}
+    guides = {(g.robot, g.stage): (g.id, g.text) for g in LevelUpGuide.objects.all()}
     records = RobotLevelUp.objects.filter(institution=inst).select_related("material").order_by("year_month", "id")
     latest, by_key = {}, {}
     for r in records:                       # 나중 기록이 앞 기록을 덮어씀 (공구함처럼 안내 문구가 없는 교구는 건너뜀)
@@ -613,7 +614,7 @@ def _current_guides(inst, students):
         if not key or key not in guides:
             continue
         label = next((p for p, k in _ROBOT_PREFIX if k == key[0]), key[0])
-        info = {"title": f"{label} {key[1]}", "text": guides[key]}
+        info = {"id": guides[key][0], "title": f"{label} {key[1]}", "text": guides[key][1]}
         if r.student_id:
             latest[r.student_id] = info
         by_key[(str(r.grade or ""), str(r.class_no or ""), str(r.student_no or ""), (r.student_name or "").strip())] = info
@@ -622,6 +623,23 @@ def _current_guides(inst, students):
         info = latest.get(st.id) or by_key.get((str(st.grade), str(st.class_name), str(st.number), st.name.strip()))
         if info:
             out[st.id] = info
+    return out
+
+
+def _guide_info(guide):
+    """LevelUpGuide → 학습내용 칸에 넣을 {"title", "text"}"""
+    label = next((p for p, k in _ROBOT_PREFIX if k == guide.robot), guide.get_robot_display())
+    return {"id": guide.id, "title": f"{label} {guide.stage}", "text": guide.text}
+
+
+def _guide_options():
+    """단계 선택 목록: [(로봇 이름, [(안내 id, 단계)])]"""
+    from robot_LvUP.models import LevelUpGuide
+    out = []
+    for key, label in LevelUpGuide.ROBOTS:
+        items = [(g.id, g.stage) for g in LevelUpGuide.objects.filter(robot=key).order_by('order', 'id')]
+        if items:
+            out.append((label, items))
     return out
 
 
@@ -647,7 +665,7 @@ def _eval_student_rows(inst):
     for st in students:                     # 1부 → 2부 → 3부 순서로 묶음
         groups.setdefault(st.division.division, []).append({
             "id": st.id, "grade": st.grade, "class_name": st.class_name, "number": st.number, "name": st.name,
-            "stage": cur.get(st.id, {}).get("title", ""), "checked": st.id in cur})
+            "stage": cur.get(st.id, {}).get("title", ""), "guide_id": cur.get(st.id, {}).get("id"), "checked": st.id in cur})
     return [{"division": d, "rows": groups[d]} for d in sorted(groups)]
 
 
@@ -682,6 +700,16 @@ def evaluation_generate(request, institution_id):
     teacher_name = (teacher.first_name or teacher.username).strip()
     period = f"{_school_year_of(year, start_m)}. {start_m}. ~ {_school_year_of(year, end_m)}. {end_m}."
     contents = _current_guides(inst, students)
+    # 화면에서 직접 고른 단계(stage_<학생id> = 안내 id)가 있으면 그 단계의 안내 문구를 사용
+    from robot_LvUP.models import LevelUpGuide
+    picked = {}
+    for st in students:
+        gid = request.POST.get(f'stage_{st.id}', '')
+        if gid.isdigit():
+            g = LevelUpGuide.objects.filter(pk=int(gid)).first()
+            if g:
+                picked[st.id] = _guide_info(g)
+    contents.update(picked)
     pages = [
         render_to_string('students/_eval_notice_page.html', {
             'year': year, 'semester': semester, 'period': period,

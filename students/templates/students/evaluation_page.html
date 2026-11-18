@@ -20,6 +20,8 @@
   .ev-t tr.r45 { height: 45px; } .ev-t tr.r41 { height: 41px; }
   .ev-t td:focus { background: #fffbe6; outline: none; }
   .ev-saved td, .ev-saved th { vertical-align: middle; }
+  .ev-toolbar { position: sticky; top: var(--ev-top, 70px); z-index: 30; width: 794px; max-width: 100%; margin: 0 auto 12px; padding: 8px 12px; background: #fff; border: 1px solid #dee2e6; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+  .ev-toolbar.d-none { display: none !important; }
   @media print {
     @page { size: A4; margin: 0; }
     html, body { background: #fff !important; }
@@ -87,50 +89,65 @@
             <button type="button" class="btn btn-outline-secondary btn-sm py-0" id="evSelNone">전체 해제</button>
           </div>
         </div>
-        <div style="max-height: 72vh; min-height: 320px; overflow-y: auto;">
-          <table class="table table-sm table-hover mb-0 align-middle">
-            <thead class="table-light position-sticky top-0"><tr><th style="width:44px"></th><th>학년-반-번호</th><th>이름</th><th>부</th><th>현재 단계</th></tr></thead>
-            <tbody>
-              {% for g in student_groups %}
-              <tr class="table-secondary">
-                <td colspan="5" class="small fw-semibold">
-                  {{ g.division }} <span class="text-muted fw-normal">({{ g.rows|length }}명)</span>
-                  <span class="ms-2">
-                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 ev-grp" data-on="1">이 부 전체 선택</button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 ev-grp" data-on="0">이 부 전체 해제</button>
-                  </span>
-                </td>
-              </tr>
-              {% for s in g.rows %}
-              <tr data-grp="{{ g.division }}">
-                <td class="text-center"><input type="checkbox" class="form-check-input ev-stu" value="{{ s.id }}" {% if s.checked %}checked{% endif %}></td>
-                <td class="small">{{ s.grade }}-{{ s.class_name }}-{{ s.number }}</td>
-                <td>{{ s.name }}</td>
-                <td class="small">{{ g.division }}</td>
-                <td class="small">{% if s.stage %}{{ s.stage }}{% else %}<span class="text-muted">단계업 기록 없음 (기본 해제)</span>{% endif %}</td>
-              </tr>
-              {% endfor %}
-              {% empty %}
-              <tr><td colspan="5" class="text-center text-muted py-3">이 학교에 등록된 학생이 없습니다. 먼저 학생관리에서 학생을 등록해주세요.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
+        {% if student_groups %}
+        <div class="d-flex flex-wrap gap-2 px-3 py-2 border-bottom" id="evTabs">
+          {% for g in student_groups %}
+          <button type="button" class="btn btn-sm {% if forloop.first %}btn-dark{% else %}btn-outline-dark{% endif %} ev-tab" data-grp="{{ g.division }}">{{ g.division }} <span class="small">(선택 <b class="ev-tab-sel">0</b>/{{ g.rows|length }})</span></button>
+          {% endfor %}
         </div>
+        {% endif %}
+        <table class="table table-sm table-hover mb-0 align-middle ev-stu-table">
+          <thead class="table-light"><tr><th style="width:44px"></th><th style="width:130px">학년-반-번호</th><th style="width:140px">이름</th><th>현재 단계 <span class="small fw-normal text-muted">(기록이 없으면 직접 선택)</span></th></tr></thead>
+          {% for g in student_groups %}
+          <tbody class="ev-grp-body" data-grp="{{ g.division }}" {% if not forloop.first %}hidden{% endif %}>
+            <tr class="table-secondary">
+              <td colspan="4" class="small fw-semibold">
+                {{ g.division }} <span class="text-muted fw-normal">({{ g.rows|length }}명)</span>
+                <span class="ms-2">
+                  <button type="button" class="btn btn-outline-secondary btn-sm py-0 ev-grp" data-on="1">이 부 전체 선택</button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm py-0 ev-grp" data-on="0">이 부 전체 해제</button>
+                </span>
+              </td>
+            </tr>
+            {% for s in g.rows %}
+            <tr>
+              <td class="text-center"><input type="checkbox" class="form-check-input ev-stu" value="{{ s.id }}" {% if s.checked %}checked{% endif %}></td>
+              <td class="small">{{ s.grade }}-{{ s.class_name }}-{{ s.number }}</td>
+              <td>{{ s.name }}</td>
+              <td>
+                <select class="form-select form-select-sm ev-stage" data-sid="{{ s.id }}" style="max-width:260px">
+                  <option value="">{% if s.stage %}(자동) {{ s.stage }}{% else %}단계 선택 (기록 없음){% endif %}</option>
+                  {% for label, items in guide_options %}
+                  <optgroup label="{{ label }}">
+                    {% for gid, stage in items %}<option value="{{ gid }}">{{ label }} {{ stage }}</option>{% endfor %}
+                  </optgroup>
+                  {% endfor %}
+                </select>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          {% empty %}
+          <tbody><tr><td colspan="4" class="text-center text-muted py-3">이 학교에 등록된 학생이 없습니다. 먼저 학생관리에서 학생을 등록해주세요.</td></tr></tbody>
+          {% endfor %}
+        </table>
       </div>
       <div id="evStatus" class="small mt-2 d-none"></div>
     </div>
   </div>
 
-  <div id="evToolbar" class="d-none d-flex align-items-center flex-wrap gap-2 mb-3">
+</div>
+
+<div id="evArea">
+  <div id="evToolbar" class="d-none d-flex align-items-center flex-wrap gap-2 ev-toolbar no-print">
     <span id="evCurrent" class="fw-semibold small"></span>
     <div class="ms-auto d-flex gap-2">
       <button type="button" id="evSave" class="btn btn-success btn-sm"><i class="bi bi-save me-1"></i>저장</button>
       <button type="button" id="evPdf" class="btn btn-danger btn-sm"><i class="bi bi-file-earmark-pdf me-1"></i>PDF 저장</button>
     </div>
   </div>
-</div>
-
 <div class="ev-wrap"><div id="evalDoc"></div></div>
+</div>
 
 <div class="modal fade no-print" id="evSavedModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
@@ -182,7 +199,28 @@
     el.textContent = '수강기간: ' + schoolYear(y, sm) + '. ' + sm + '. ~ ' + schoolYear(y, em) + '. ' + em + '.';
   }
   ['evYear', 'evStartM', 'evEndM'].forEach(function (id) { document.getElementById(id).addEventListener('input', updPeriod); });
-  function updSel() { document.getElementById('evSelCount').textContent = document.querySelectorAll('.ev-stu:checked').length; }
+  // 고정 툴바가 상단 메뉴 바로 아래에 붙도록 메뉴 높이를 잼
+  (function () { var nav = document.querySelector('nav.fixed-top'); document.documentElement.style.setProperty('--ev-top', ((nav ? nav.getBoundingClientRect().height : 64) + 6) + 'px'); })();
+  function updSel() {
+    document.getElementById('evSelCount').textContent = document.querySelectorAll('.ev-stu:checked').length;
+    document.querySelectorAll('.ev-tab').forEach(function (tab) {      // 부 탭마다 선택 인원 표시
+      var body = document.querySelector('.ev-grp-body[data-grp="' + tab.dataset.grp + '"]');
+      tab.querySelector('.ev-tab-sel').textContent = body ? body.querySelectorAll('.ev-stu:checked').length : 0;
+    });
+  }
+  document.querySelectorAll('.ev-tab').forEach(function (tab) {        // 부 탭: 누른 부의 학생만 보임
+    tab.addEventListener('click', function () {
+      document.querySelectorAll('.ev-tab').forEach(function (x) { x.classList.toggle('btn-dark', x === tab); x.classList.toggle('btn-outline-dark', x !== tab); });
+      document.querySelectorAll('.ev-grp-body').forEach(function (bd) { bd.hidden = bd.dataset.grp !== tab.dataset.grp; });
+    });
+  });
+  document.querySelectorAll('.ev-stage').forEach(function (sel) {      // 단계를 고르면 그 학생을 자동으로 선택
+    sel.addEventListener('change', function () {
+      if (!sel.value) return;
+      var c = sel.closest('tr').querySelector('.ev-stu'); if (c) c.checked = true;
+      updSel();
+    });
+  });
   document.querySelectorAll('.ev-stu').forEach(function (c) { c.addEventListener('change', updSel); });
   document.getElementById('evSelAll').addEventListener('click', function () { document.querySelectorAll('.ev-stu').forEach(function (c) { c.checked = true; }); updSel(); });
   document.getElementById('evSelNone').addEventListener('click', function () { document.querySelectorAll('.ev-stu').forEach(function (c) { c.checked = false; }); updSel(); });
@@ -195,11 +233,7 @@
   });
   document.querySelectorAll('.ev-grp').forEach(function (b) {      // 부(그룹)별 전체 선택/해제: 이 줄 아래부터 다음 부 제목 줄 전까지
     b.addEventListener('click', function () {
-      var tr = b.closest('tr').nextElementSibling;
-      while (tr && tr.hasAttribute('data-grp')) {
-        var c = tr.querySelector('.ev-stu'); if (c) c.checked = b.dataset.on === '1';
-        tr = tr.nextElementSibling;
-      }
+      b.closest('tbody').querySelectorAll('.ev-stu').forEach(function (c) { c.checked = b.dataset.on === '1'; });
       updSel();
     });
   });
@@ -233,7 +267,11 @@
     body.set('semester', document.getElementById('evSem').value);
     body.set('start_month', document.getElementById('evStartM').value);
     body.set('end_month', document.getElementById('evEndM').value);
-    document.querySelectorAll('.ev-stu:checked').forEach(function (c) { body.append('students', c.value); });
+    document.querySelectorAll('.ev-stu:checked').forEach(function (c) {
+      body.append('students', c.value);
+      var sel = c.closest('tr').querySelector('.ev-stage');             // 직접 고른 단계가 있으면 함께 보냄
+      if (sel && sel.value) body.append('stage_' + c.value, sel.value);
+    });
     status('생성 중…');
     fetch("{% url 'students:evaluation_generate' institution.id %}", {method: 'POST', credentials: 'same-origin', headers: {'X-CSRFToken': csrf()}, body: body})
       .then(function (r) { return r.json(); }).then(function (j) {
