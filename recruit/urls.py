@@ -32,6 +32,7 @@ urlpatterns = [
     path("instructor/cert-item/<int:pk>/api/", views.cert_item_api, name="cert_item_api"),
 
     # 지도사과정 모집 공고 관리
+    path("instructor/cert-info/", views.cert_public_info, name="cert_public_info"),
     path("instructor/", views.instructor_recruit, name="instructor_recruit"),
     path("instructor/add/", views.instructor_recruit_add, name="instructor_recruit_add"),
     path("instructor/<int:pk>/edit/", views.instructor_recruit_edit, name="instructor_recruit_edit"),

@@ -361,7 +361,7 @@ function submitApplication(recruitId) {
 // 자격증리스트 등 외부 페이지에서 ?open=<recruit_id>로 들어오면 해당 공고의 상세보기 모달을 자동으로 연다.
 document.addEventListener("DOMContentLoaded", function () {
     const params = new URLSearchParams(window.location.search);
-    const openId = params.get("open") || "{{ open_id|escapejs }}";
+    const openId = params.get("open");
     if (!openId) return;
 
     const detailModalEl = document.getElementById("detailModal" + openId);

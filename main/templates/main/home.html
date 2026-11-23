@@ -573,55 +573,117 @@
         <div class="row g-4">
             <!-- 로봇코딩지도사 -->
             <div class="col-lg-4 col-md-6">
-                <a href="{% url 'instructor_recruit' %}?course=로봇코딩지도사" class="text-decoration-none text-reset d-block h-100"><a href="{% url 'instructor_recruit' %}?course=3D펜지도사" class="text-decoration-none text-reset d-block h-100"><a href="{% url 'instructor_recruit' %}?course=창의수학지도사" class="text-decoration-none text-reset d-block h-100"><a href="{% url 'instructor_recruit' %}?course=생명과학지도사" class="text-decoration-none text-reset d-block h-100"><a href="{% url 'instructor_recruit' %}?course=융합과학지도사" class="text-decoration-none text-reset d-block h-100"><div class="card cert-card p-4">
+                <div class="card cert-card p-4 js-cert" role="button" tabindex="0" data-key="로봇코딩" data-name="로봇코딩지도사" style="cursor:pointer">
                     <div class="cert-icon"><i class="bi bi-robot"></i></div>
                     <h4>로봇코딩지도사</h4>
                     <p class="text-muted">다양한 피지컬 컴퓨팅 교구를 통한 논리 설계 및 하드웨어 제어 전문가 과정</p>
-                </div></a>
+                </div>
             </div>
             <!-- 3D펜지도사 -->
             <div class="col-lg-4 col-md-6">
-                <div class="card cert-card p-4">
+                <div class="card cert-card p-4 js-cert" role="button" tabindex="0" data-key="3D펜" data-name="3D펜지도사" style="cursor:pointer">
                     <div class="cert-icon"><i class="bi bi-pen"></i></div>
                     <h4>3D펜지도사</h4>
                     <p class="text-muted">공간 지각 능력을 키우는 3D 모델링 및 창의적 조형물 설계 전문가 과정</p>
-                </div></a>
+                </div>
             </div>
             <!-- 창의수학지도사 -->
             <div class="col-lg-4 col-md-6">
-                <div class="card cert-card p-4">
+                <div class="card cert-card p-4 js-cert" role="button" tabindex="0" data-key="창의수학" data-name="창의수학지도사" style="cursor:pointer">
                     <div class="cert-icon"><i class="bi bi-calculator"></i></div>
                     <h4>창의수학지도사</h4>
                     <p class="text-muted">놀이와 체험을 통해 수의 원리를 이해하는 사고력 수학 지도 과정</p>
-                </div></a>
+                </div>
             </div>
             <!-- 생명과학지도사 -->
             <div class="col-lg-4 col-md-6">
-                <div class="card cert-card p-4">
+                <div class="card cert-card p-4 js-cert" role="button" tabindex="0" data-key="생명" data-name="생명과학지도사" style="cursor:pointer">
                     <div class="cert-icon"><i class="bi bi-binoculars"></i></div>
                     <h4>생명과학지도사</h4>
                     <p class="text-muted">자연 생태와 생명의 신비를 실험으로 탐구하는 관찰 중심 지도 과정</p>
-                </div></a>
+                </div>
             </div>
             <!-- 융합과학지도사 -->
             <div class="col-lg-4 col-md-6">
-                <div class="card cert-card p-4">
+                <div class="card cert-card p-4 js-cert" role="button" tabindex="0" data-key="융합과학" data-name="융합과학지도사" style="cursor:pointer">
                     <div class="cert-icon"><i class="bi bi-lightbulb"></i></div>
                     <h4>융합과학지도사</h4>
                     <p class="text-muted">과학 이론을 실생활 도구 제작에 적용하는 STEAM 교육 전문가 과정</p>
-                </div></a>
+                </div>
             </div>
             <!-- 기타 과정 -->
             <div class="col-lg-4 col-md-6">
                 <div class="card cert-card p-4 bg-primary text-white">
                     <div class="cert-icon text-white"><i class="bi bi-mortarboard"></i></div>
                     <h4>추가 과정 문의</h4>
-                    <p>더 많은 전문 교육 과정은 별도 문의를 통해 확인하실 수 있습니다.</p>
-                    <a href="{% url 'notice_list' %}" class="btn btn-outline-light btn-sm mt-auto">공지사항 확인</a>
+                    <p>더 많은 전문 교육 과정은 <b>지도사교육과정 모집</b>에서 확인하실 수 있습니다.</p>
+                    <a href="{% url 'instructor_recruit' %}" class="btn btn-outline-light btn-sm mt-auto">지도사교육과정 모집 보기</a>
                 </div>
             </div>
         </div>
     </div>
 </section>
+
+<!-- 자격 상세 모달 -->
+<div class="modal fade" id="certModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h4 class="modal-title fw-bold text-primary" id="certTitle"></h4>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-4 pt-3" id="certBody"></div>
+      <div class="modal-footer border-0">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+        <a href="{% url 'instructor_recruit' %}" class="btn btn-primary">지도사교육과정 모집 보기</a>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var modalEl = document.getElementById('certModal');
+  if (!modalEl) return;
+  var esc = function (t) { var d = document.createElement('div'); d.textContent = t == null ? '' : t; return d.innerHTML; };
+  var won = function (n) { return Number(n || 0).toLocaleString() + '원'; };
+  var sec = function (icon, title, inner) { return '<div class="mb-4"><h6 class="fw-bold border-bottom pb-2"><i class="bi ' + icon + ' me-2 text-primary"></i>' + title + '</h6>' + inner + '</div>'; };
+  var row = function (a, b) { return '<li class="list-group-item d-flex justify-content-between px-0"><span class="text-muted">' + a + '</span><span class="fw-bold">' + b + '</span></li>'; };
+  function render(d) {
+    var h = '';
+    if (d.course_intro) h += sec('bi-info-circle', '과정 소개', '<p class="text-muted small mb-0" style="white-space:pre-line">' + esc(d.course_intro) + '</p>');
+    if (d.educational_goal) h += sec('bi-bullseye', '교육 목표', '<p class="text-muted small mb-0" style="white-space:pre-line">' + esc(d.educational_goal) + '</p>');
+    if (d.curriculum && d.curriculum.length) {
+      h += sec('bi-journal-text', '커리큘럼', '<div class="table-responsive"><table class="table table-sm table-bordered text-center align-middle mb-0" style="font-size:.9rem"><thead class="table-light"><tr><th style="width:20%">차시</th><th>내용</th><th style="width:20%">시간</th></tr></thead><tbody>' +
+        d.curriculum.map(function (c) { return '<tr><td>' + esc(c.session) + '</td><td class="text-start">' + esc(c.content) + '</td><td>' + esc(c.time) + '</td></tr>'; }).join('') + '</tbody></table></div>');
+    }
+    if (d.certificate_agency || d.certificate_type) {
+      h += sec('bi-award', '자격증 정보', '<ul class="list-group list-group-flush small">' + row('발급기관', esc(d.certificate_agency || '-')) + row('자격종류', esc(d.certificate_type || '-')) + '</ul>');
+    }
+    var total = (d.cost_education || 0) + (d.cost_certificate || 0) + (d.cost_material || 0);
+    if (total) {
+      h += sec('bi-wallet2', '비용 안내' + (d.cost_includes_all ? ' <span class="badge bg-primary ms-2 fw-normal">자격발급비, 교구비 포함</span>' : ''),
+        '<ul class="list-group list-group-flush small">' + row('교육비', won(d.cost_education)) +
+        (d.cost_includes_all ? '' : row('자격발급비', won(d.cost_certificate)) + row('교재/교구비', won(d.cost_material))) +
+        '<li class="list-group-item d-flex justify-content-between px-0 bg-light rounded mt-2"><span class="fw-bold">총 합계</span><span class="fw-bold text-primary">' + won(total) + '</span></li></ul>');
+    }
+    if (d.benefits) h += sec('bi-gift', '제공혜택', '<div class="p-3 bg-light rounded small" style="white-space:pre-line">' + esc(d.benefits) + '</div>');
+    return h || '<p class="text-muted">상세 내용이 아직 등록되지 않았습니다.</p>';
+  }
+  function openCert(card) {
+    var title = document.getElementById('certTitle'), body = document.getElementById('certBody');
+    title.textContent = card.dataset.name;
+    body.innerHTML = '<p class="text-muted">불러오는 중...</p>';
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    fetch("{% url 'cert_public_info' %}?key=" + encodeURIComponent(card.dataset.key))
+      .then(function (r) { return r.json(); })
+      .then(function (d) { body.innerHTML = d.found ? render(d) : '<p class="text-muted">상세 내용을 준비 중입니다. 지도사교육과정 모집에서 문의해 주세요.</p>'; })
+      .catch(function () { body.innerHTML = '<p class="text-danger">내용을 불러오지 못했습니다.</p>'; });
+  }
+  document.querySelectorAll('.js-cert').forEach(function (c) {
+    c.addEventListener('click', function () { openCert(c); });
+    c.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openCert(c); } });
+  });
+})();
+</script>
 
 {% endblock %}

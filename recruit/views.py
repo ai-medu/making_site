@@ -719,6 +719,42 @@ def cert_item_api(request, pk):
     })
 
 
+def cert_public_info(request):
+    """메인 화면 자격 취득 안내 카드용: ?key=<자격 키워드> -> 해당 자격 상세 내용(JSON).
+    공개 중인 모집공고(모집중 우선)를 먼저 찾고, 없으면 자격증 리스트에서 찾는다."""
+    from teachers.models import CertificateCatalogItem
+    key = (request.GET.get("key") or "").strip()
+    if not key:
+        return JsonResponse({"found": False})
+    types = dict(InstructorRecruit.CERT_TYPE_CHOICES)
+
+    def _out(name, intro, goal, curriculum, agency, ctype, edu, cert, mat, all_in, benefits):
+        return JsonResponse({
+            "found": True, "name": name, "course_intro": intro, "educational_goal": goal,
+            "curriculum": curriculum, "certificate_agency": agency,
+            "certificate_type": types.get(ctype, "") if ctype != "none" else "",
+            "cost_education": edu, "cost_certificate": cert, "cost_material": mat,
+            "cost_includes_all": all_in, "benefits": benefits,
+        })
+
+    recruits = InstructorRecruit.objects.exclude(status="hidden").select_related("course_type")
+    for r in sorted(recruits, key=lambda r: (r.status != "open", -r.id)):
+        names = [r.title or ""] + ([r.course_type.name] if r.course_type_id else [])
+        if any(key in n for n in names):
+            return _out(r.title, r.course_intro, r.educational_goal, r.curriculum, r.certificate_agency,
+                        r.certificate_type, r.cost_education, r.cost_certificate, r.cost_material,
+                        r.cost_includes_all, r.benefits)
+
+    item = CertificateCatalogItem.objects.filter(name__icontains=key).first()
+    if item:
+        curriculum = [{"session": str(i + 1), "content": line, "time": item.session_length or "1"}
+                      for i, line in enumerate(item.curriculum_list())]
+        return _out(item.name, _cert_item_course_intro(item), _cert_item_educational_goal(item), curriculum,
+                    item.issuer, _cert_auth_to_certificate_type(item.auth_type), _cert_parse_fee(item.education_fee),
+                    _cert_parse_fee(item.issue_fee), _cert_parse_material_fee(item.materials), False, "")
+    return JsonResponse({"found": False})
+
+
 def instructor_recruit(request):
     """지도사과정 모집 페이지"""
     from django.db.models import Case, When, Value, IntegerField
@@ -740,20 +776,9 @@ def instructor_recruit(request):
         )
     ).order_by("status_order", "-created_at")
 
-    # 메인 화면 자격 안내 등에서 ?course=<자격명>으로 들어오면 해당 과정(모집중 우선)의 상세보기를 자동으로 연다.
-    open_id = ""
-    course = (request.GET.get("course") or "").strip()
-    if course:
-        for r in recruits:
-            names = [r.title or ""] + ([r.course_type.name] if r.course_type_id else [])
-            if any(course in n or (n and n in course) for n in names):
-                open_id = str(r.id)
-                break
-
     return render(request, "recruit/instructor_recruit.html", {
         "recruits": recruits,
         "now": now,
-        "open_id": open_id,
     })
 
 @staff_member_required
