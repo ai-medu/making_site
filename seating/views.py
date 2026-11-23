@@ -78,10 +78,12 @@ def _build_layout_rows(layout, division):
 def seat_list(request):
     """자리관리할 출강장소 선택"""
     if request.user.is_staff:
-        institutions = TeachingInstitution.objects.all()
+        institutions = TeachingInstitution.objects.filter(is_closed=False)
     else:
-        institutions = TeachingInstitution.objects.filter(teacher=request.user)
-    return render(request, 'seating/seat_list.html', {'institutions': institutions})
+        institutions = TeachingInstitution.objects.filter(teacher=request.user, is_closed=False)
+    from students.views import apply_teacher_filter
+    institutions, teachers, sel_teacher = apply_teacher_filter(request, institutions)
+    return render(request, 'seating/seat_list.html', {'institutions': institutions, 'teachers': teachers, 'sel_teacher': sel_teacher})
 
 
 @login_required

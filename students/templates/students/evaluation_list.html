@@ -10,10 +10,12 @@
 
   <p class="text-muted small mb-3">평가통지서를 작성할 출강장소를 선택하세요.</p>
 
+  {% include "students/_teacher_filter.html" %}
+
   {% if institutions %}
     <div class="row mt-3">
       {% for inst in institutions %}
-        <div class="col-md-4 mb-3">
+        <div class="col-12 col-sm-6 col-lg-3 mb-3">
           <div class="card shadow-sm h-100 hover-shadow">
             <div class="card-body text-center">
               <h5 class="card-title mb-2">{{ inst.name }}</h5>

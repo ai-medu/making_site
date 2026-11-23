@@ -411,12 +411,14 @@ def auto_release_from_levelup(request, institution_id, year_month):
 def levelup_institution_list(request):
     """출강장소별 단계업 관리 - 출강장소 선택"""
     if request.user.is_staff:
-        institutions = TeachingInstitution.objects.all()
+        institutions = TeachingInstitution.objects.filter(is_closed=False)
     else:
-        institutions = TeachingInstitution.objects.filter(teacher=request.user)
+        institutions = TeachingInstitution.objects.filter(teacher=request.user, is_closed=False)
 
+    from students.views import apply_teacher_filter
+    institutions, teachers, sel_teacher = apply_teacher_filter(request, institutions)
     return render(request, 'robot_LvUP/levelup_institution_list.html', {
-        'institutions': institutions
+        'institutions': institutions, 'teachers': teachers, 'sel_teacher': sel_teacher,
     })
 
 from django.db.models import Count, Sum
@@ -535,7 +537,7 @@ def levelup_by_institution(request, institution_id):
     return render(request, "robot_LvUP/robot_levelup_list.html", {
         # 기본
         "institution": institution,
-        "institutions": TeachingInstitution.objects.all() if request.user.is_staff else TeachingInstitution.objects.filter(teacher=request.user),
+        "institutions": TeachingInstitution.objects.filter(is_closed=False) if request.user.is_staff else TeachingInstitution.objects.filter(teacher=request.user, is_closed=False),
         "records": records,
 
         # 전체 통계

@@ -17,18 +17,36 @@ from django.db.models import Count, Q, Prefetch
 
 
 def _get_accessible_institutions(user):
+    # 종료된 출강장소는 목록에 나오지 않음
     if user.is_staff:
-        return TeachingInstitution.objects.all()
-    return TeachingInstitution.objects.filter(teacher=user)
+        return TeachingInstitution.objects.filter(is_closed=False)
+    return TeachingInstitution.objects.filter(teacher=user, is_closed=False)
+
+
+def apply_teacher_filter(request, institutions):
+    """관리자 전용 강사 필터(?teacher=<id>): (필터 적용된 출강장소, 강사 목록, 선택된 강사 id)
+    강사 목록은 필터 적용 전 출강장소를 가진 강사들. 관리자가 아니면 필터 없음."""
+    if not request.user.is_staff:
+        return institutions, [], ""
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    teachers = list(User.objects.filter(id__in=institutions.values_list("teacher_id", flat=True)).order_by("first_name", "username"))
+    sel = request.GET.get("teacher", "")
+    if sel.isdigit() and any(t.id == int(sel) for t in teachers):
+        institutions = institutions.filter(teacher_id=int(sel))
+    else:
+        sel = ""
+    return institutions, teachers, sel
 
 
 @login_required
 def student_list(request):
     """출강장소별 학생 목록 보기"""
-    institutions = _get_accessible_institutions(request.user).prefetch_related('divisions__students')
+    institutions, teachers, sel_teacher = apply_teacher_filter(
+        request, _get_accessible_institutions(request.user).prefetch_related('divisions__students'))
 
     return render(request, 'students/student_list.html', {
-        'institutions': institutions
+        'institutions': institutions, 'teachers': teachers, 'sel_teacher': sel_teacher,
     })
 
 from django.db.models import Count, Prefetch, IntegerField
@@ -85,9 +103,9 @@ def student_detail(request, institution_id):
 def student_upload(request):
     """엑셀 업로드로 학생 일괄 등록"""
     if request.user.is_staff:
-        institutions = TeachingInstitution.objects.all()
+        institutions = TeachingInstitution.objects.filter(is_closed=False)
     else:
-        institutions = TeachingInstitution.objects.filter(teacher=request.user)
+        institutions = TeachingInstitution.objects.filter(teacher=request.user, is_closed=False)
 
     if request.method == 'POST':
         selected_id = request.POST.get('institution_id')
@@ -560,8 +578,8 @@ def _clean_eval_html(html):
 @login_required
 def evaluation_list(request):
     """평가통지서를 작성할 출강장소(학교) 선택"""
-    institutions = _get_accessible_institutions(request.user)
-    return render(request, 'students/evaluation_list.html', {'institutions': institutions})
+    institutions, teachers, sel_teacher = apply_teacher_filter(request, _get_accessible_institutions(request.user))
+    return render(request, 'students/evaluation_list.html', {'institutions': institutions, 'teachers': teachers, 'sel_teacher': sel_teacher})
 
 
 @login_required

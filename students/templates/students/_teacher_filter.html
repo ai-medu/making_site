@@ -1,0 +1,10 @@
+{% if request.user.is_staff and teachers %}
+<form method="get" class="d-flex align-items-center gap-2 mb-3">
+  <label for="teacherFilter" class="small text-muted mb-0"><i class="bi bi-person-badge me-1"></i>강사</label>
+  <select id="teacherFilter" name="teacher" class="form-select form-select-sm" style="width:auto; min-width:160px" onchange="this.form.submit()">
+    <option value="">전체 강사</option>
+    {% for t in teachers %}<option value="{{ t.id }}" {% if sel_teacher == t.id|stringformat:"s" %}selected{% endif %}>{{ t.first_name|default:t.username }}</option>{% endfor %}
+  </select>
+  {% if sel_teacher %}<a href="?" class="btn btn-outline-secondary btn-sm py-0">필터 해제</a>{% endif %}
+</form>
+{% endif %}
