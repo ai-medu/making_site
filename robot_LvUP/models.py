@@ -77,9 +77,14 @@ class LevelUpGuide(models.Model):
         ("connect", "프로보 커넥트"),
         ("technic", "프로보 테크닉"),
         ("cubo", "큐보"),
+        ("math", "창의수학"),
+        ("science", "과학"),
+        ("pen3d", "3D펜"),
+        ("coding", "코딩"),
+        ("drone", "항공드론"),
     )
-    robot = models.CharField("로봇", max_length=20, choices=ROBOTS)
-    stage = models.CharField("단계", max_length=20, help_text="예: 1단계, SD단계")
+    robot = models.CharField("분류", max_length=20, choices=ROBOTS)
+    stage = models.CharField("단계", max_length=30, help_text="예: 1단계, SD단계, 엔트리 스타터")
     text = models.TextField("안내 문구")
     order = models.PositiveIntegerField("정렬 순서", default=0)
     created_at = models.DateTimeField(auto_now_add=True)

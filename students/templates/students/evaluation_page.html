@@ -40,7 +40,7 @@
 {% block content %}
 <div class="container mt-4 no-print">
   <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-    <h4 class="mb-0"><i class="bi bi-file-earmark-text me-2"></i>평가통지서 <small class="text-muted">· {{ institution.name }}</small></h4>
+    <h4 class="mb-0"><i class="bi bi-file-earmark-text me-2"></i>평가통지서 <small class="text-muted">· {{ institution.name }}{% if institution.program %} · {{ institution.program }}{% endif %}</small></h4>
     <div class="d-flex gap-2">
       <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#evSavedModal"><i class="bi bi-folder2-open me-1"></i>저장된 평가통지서 <span class="badge text-bg-primary ms-1">{{ saved|length }}</span></button>
       <a href="{% url 'students:evaluation_list' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> 학교 목록</a>
@@ -153,7 +153,7 @@
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header py-2">
-        <h6 class="modal-title"><i class="bi bi-folder2-open me-1"></i> 저장된 평가통지서 <small class="text-muted">· {{ institution.name }}</small></h6>
+        <h6 class="modal-title"><i class="bi bi-folder2-open me-1"></i> 저장된 평가통지서 <small class="text-muted">· {{ institution.name }}{% if institution.program %} · {{ institution.program }}{% endif %}</small></h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
       </div>
       <div class="modal-body p-0">
@@ -320,7 +320,7 @@
 
   document.getElementById('evPdf').addEventListener('click', function () {
     var old = document.title;
-    document.title = '평가통지서_{{ institution.name|escapejs }}';
+    document.title = '평가통지서_{{ institution.name|escapejs }}{% if institution.program %}_{{ institution.program|escapejs }}{% endif %}';
     var restore = function () { document.title = old; window.removeEventListener('afterprint', restore); };
     window.addEventListener('afterprint', restore);
     window.print();

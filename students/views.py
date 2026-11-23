@@ -581,7 +581,7 @@ def evaluation_page(request, institution_id):
         'default_start': 3 if default_sem == 1 else 9,
         'default_end': 7 if default_sem == 1 else 12,
         'student_groups': student_groups,
-        'guide_options': _guide_options(),
+        'guide_options': _guide_options(inst.program),
         'student_total': sum(len(g['rows']) for g in student_groups),
         'saved': EvaluationNotice.objects.filter(institution=inst),
         'load_id': request.GET.get('load', ''),
@@ -632,15 +632,22 @@ def _guide_info(guide):
     return {"id": guide.id, "title": f"{label} {guide.stage}", "text": guide.text}
 
 
-def _guide_options():
-    """단계 선택 목록: [(로봇 이름, [(안내 id, 단계)])]"""
+_PROGRAM_HINTS = (("로봇", ("xrobo", "olloai", "jrobo", "connect", "technic", "cubo")), ("과학", ("science",)), ("수학", ("math",)),
+                  ("3d", ("pen3d",)), ("펜", ("pen3d",)), ("코딩", ("coding",)), ("드론", ("drone",)))
+
+
+def _guide_options(program=""):
+    """단계 선택 목록: [(분류 이름, [(안내 id, 단계)])] - 학교의 프로그램과 맞는 분류를 앞에 둠"""
     from robot_LvUP.models import LevelUpGuide
+    prog = (program or "").lower()
+    first = {k for hint, keys in _PROGRAM_HINTS if hint in prog for k in keys}
     out = []
     for key, label in LevelUpGuide.ROBOTS:
         items = [(g.id, g.stage) for g in LevelUpGuide.objects.filter(robot=key).order_by('order', 'id')]
         if items:
-            out.append((label, items))
-    return out
+            out.append((0 if key in first else 1, label, items))
+    out.sort(key=lambda x: x[0])           # 안정 정렬: 맞는 분류가 먼저, 나머지는 원래 순서
+    return [(label, items) for _, label, items in out]
 
 
 def _school_year_of(year, month):

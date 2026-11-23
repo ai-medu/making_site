@@ -12,7 +12,7 @@
     </div>
   </div>
 
-  <p class="text-muted small mb-3">로봇별 단계업 안내 문구입니다. 문구 옆 <b>복사</b> 버튼을 누르면 문구가 복사됩니다.</p>
+  <p class="text-muted small mb-3">로봇·과목별 단계업 안내 문구입니다. 평가통지서의 학습내용에도 쓰입니다. 문구 옆 <b>복사</b> 버튼을 누르면 문구가 복사됩니다.</p>
 
   <div class="d-flex flex-wrap gap-2 mb-4">
     <a href="{% url 'robot_guide_list' %}" class="btn btn-sm rounded-pill {% if not robot %}btn-dark{% else %}btn-outline-dark{% endif %}">전체 <span class="badge text-bg-light ms-1">{{ total }}</span></a>
@@ -25,7 +25,7 @@
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
-          <tr><th style="width:130px">로봇</th><th style="width:90px">단계</th><th style="min-width:320px">안내 문구</th><th style="width:70px" class="text-center">글자수</th><th style="width:170px" class="text-center">관리</th></tr>
+          <tr><th style="width:130px">분류</th><th style="width:90px">단계</th><th style="min-width:320px">안내 문구</th><th style="width:70px" class="text-center">글자수</th><th style="width:170px" class="text-center">관리</th></tr>
         </thead>
         <tbody>
           {% for g in guides %}
