@@ -740,9 +740,20 @@ def instructor_recruit(request):
         )
     ).order_by("status_order", "-created_at")
 
+    # 메인 화면 자격 안내 등에서 ?course=<자격명>으로 들어오면 해당 과정(모집중 우선)의 상세보기를 자동으로 연다.
+    open_id = ""
+    course = (request.GET.get("course") or "").strip()
+    if course:
+        for r in recruits:
+            names = [r.title or ""] + ([r.course_type.name] if r.course_type_id else [])
+            if any(course in n or (n and n in course) for n in names):
+                open_id = str(r.id)
+                break
+
     return render(request, "recruit/instructor_recruit.html", {
         "recruits": recruits,
         "now": now,
+        "open_id": open_id,
     })
 
 @staff_member_required
