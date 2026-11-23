@@ -57,6 +57,23 @@ def robot_jrobo(request):
 def robot_cubo(request):
     return render(request, "class_resources/robot/cubo.html")
 
+
+# (교구, 단계, 시작 학년, 끝 학년, 시작교구 가능, 전환 조건, 색)
+_ROADMAP = (
+    ("큐보", "1~4단계", 1, 4, True, "", "c-cubo"),
+    ("올로AI", "1~8단계", 2, 6, True, "큐보 4단계 마무리 후", "c-olloai"),
+    ("커넥트", "1~4단계", 2, 6, True, "큐보 4단계 마무리 후", "c-connect"),
+    ("엑스로보", "1, 2, 3, 4, XB, SD, X5, XW, X6", 3, 6, False, "올로AI 5단계 마무리 후, 커넥트 4단계 마무리 후", "c-xrobo"),
+    ("테크닉", "1~7단계", 4, 6, False, "엑스로보 마무리 후", "c-technic"),
+    ("큐보 메타", "1~6단계", 4, 6, False, "엑스로보 마무리 후", "c-meta"),
+)
+
+
+def robot_roadmap(request):
+    rows = [{"name": n, "stages": s, "from": a, "to": b, "to_end": b + 1, "start": st, "convert": cv, "color": c}
+            for n, s, a, b, st, cv, c in _ROADMAP]
+    return render(request, "class_resources/robot/roadmap.html", {"rows": rows})
+
 # ---------------------------------------------------------------------------
 # 연간계획서 (PDF)
 # ---------------------------------------------------------------------------

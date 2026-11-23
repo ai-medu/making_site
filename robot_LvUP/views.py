@@ -810,20 +810,28 @@ def _can_view_guides(user):
 @login_required
 @user_passes_test(_can_view_guides)
 def guide_list(request):
+    SUBJECTS = ("math", "science", "pen3d", "coding", "drone")
+    labels = dict(LevelUpGuide.ROBOTS)
+    robot_keys = [k for k, _ in LevelUpGuide.ROBOTS if k not in SUBJECTS]
     robot = request.GET.get("robot", "")
-    qs = LevelUpGuide.objects.all()
-    if robot in dict(LevelUpGuide.ROBOTS):
-        qs = qs.filter(robot=robot)
-    else:
+    # 분류 탭: 로봇(여러 교구) 또는 과목 하나. 기본은 로봇
+    group = "robot" if (robot in robot_keys or robot not in labels) else robot
+    keys = robot_keys if group == "robot" else [group]
+    if robot not in keys:
         robot = ""
+    qs = LevelUpGuide.objects.filter(robot__in=[robot] if robot else keys)
     order = {key: i for i, (key, _) in enumerate(LevelUpGuide.ROBOTS)}
     guides = sorted(qs, key=lambda g: (order.get(g.robot, 99), g.order, g.id))
     counts = {r["robot"]: r["n"] for r in LevelUpGuide.objects.values("robot").annotate(n=Count("id"))}
+    tabs = [("robot", "로봇", sum(counts.get(k, 0) for k in robot_keys))] + [(k, labels[k], counts.get(k, 0)) for k in SUBJECTS]
     return render(request, "robot_LvUP/guide_list.html", {
         "guides": guides,
-        "robots": [(key, label, counts.get(key, 0)) for key, label in LevelUpGuide.ROBOTS],
+        "tabs": tabs,
+        "group": group,
+        "robots": [(k, labels[k], counts.get(k, 0)) for k in robot_keys] if group == "robot" else [],
         "robot": robot,
-        "total": sum(counts.values()),
+        "total": sum(counts.get(k, 0) for k in keys),
+        "add_robot": robot or (group if group != "robot" else ""),
     })
 
 

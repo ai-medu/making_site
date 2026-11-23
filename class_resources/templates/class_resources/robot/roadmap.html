@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .rm-wrap { overflow-x: auto; }
+  .rm-board { min-width: 860px; }
+  .rm-row { display: grid; grid-template-columns: 210px repeat(6, 1fr) 250px; align-items: stretch; border-bottom: 1px solid #e9ecef; }
+  .rm-row > div { padding: .55rem .5rem; display: flex; align-items: center; }
+  .rm-head { background: #f1f3f5; font-weight: 700; border-radius: 10px 10px 0 0; text-align: center; }
+  .rm-head > div { justify-content: center; }
+  .rm-name { flex-direction: column; align-items: flex-start !important; justify-content: center; }
+  .rm-name b { font-size: 1.05rem; }
+  .rm-name small { color: #6c757d; }
+  .rm-grid { grid-column: 2 / 8; display: grid !important; grid-template-columns: repeat(6, 1fr); padding: .55rem 0 !important; background-image: linear-gradient(to right, transparent calc(100% - 1px), #eef0f2 0); background-size: calc(100% / 6) 100%; }
+  .rm-bar { height: 34px; border-radius: 17px; color: #fff; font-weight: 700; font-size: .85rem; display: flex; align-items: center; justify-content: center; margin: 0 4px; box-shadow: 0 3px 8px rgba(0,0,0,.12); white-space: nowrap; }
+  .rm-note { font-size: .82rem; color: #495057; flex-direction: column; align-items: flex-start !important; justify-content: center; gap: .25rem; }
+  .rm-badge { display: inline-block; border-radius: 6px; padding: .05rem .45rem; font-size: .75rem; font-weight: 700; }
+  .rm-start { background: #d1e7dd; color: #0f5132; }
+  .rm-conv { background: #fff3cd; color: #664d03; }
+  .c-cubo { background: linear-gradient(45deg,#0dcaf0,#0aa2c0); }
+  .c-olloai { background: linear-gradient(45deg,#0d6efd,#0b5ed7); }
+  .c-connect { background: linear-gradient(45deg,#20c997,#17a077); }
+  .c-xrobo { background: linear-gradient(45deg,#fd7e14,#e8710a); }
+  .c-technic { background: linear-gradient(45deg,#6f42c1,#5a32a3); }
+  .c-meta { background: linear-gradient(45deg,#d63384,#ab296a); }
+  @media (max-width: 768px) { .rm-board { min-width: 760px; } }
+</style>
+
+<div class="container py-5">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <h3 class="fw-bold mb-0"><i class="bi bi-signpost-split me-2" style="color:#198754"></i>로봇 로드맵</h3>
+    <a href="{% url 'resource_detail' 'robot' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> 로봇 수업자료</a>
+  </div>
+  <p class="text-muted mb-4">학년별 추천 교구와 단계 진행 순서입니다. 막대가 걸친 칸이 추천 학년입니다.</p>
+
+  <div class="rm-wrap">
+    <div class="rm-board">
+      <div class="rm-row rm-head">
+        <div>교구 / 단계</div>
+        <div>초1</div><div>초2</div><div>초3</div><div>초4</div><div>초5</div><div>초6</div>
+        <div>시작 · 전환</div>
+      </div>
+      {% for r in rows %}
+      <div class="rm-row">
+        <div class="rm-name"><b>{{ r.name }}</b><small>{{ r.stages }}</small></div>
+        <div class="rm-grid"><div class="rm-bar {{ r.color }}" style="grid-column: {{ r.from }} / {{ r.to_end }};">초{{ r.from }}~초{{ r.to }}</div></div>
+        <div class="rm-note">
+          {% if r.start %}<span class="rm-badge rm-start">시작교구 가능</span>{% endif %}
+          {% if r.convert %}<span><span class="rm-badge rm-conv">전환교구</span> {{ r.convert }}</span>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card shadow-sm mt-4">
+    <div class="card-body">
+      <h6 class="fw-bold mb-2"><i class="bi bi-diagram-3 me-1"></i>진행 순서</h6>
+      <ul class="small mb-0">
+        <li><b>큐보</b> 1~4단계 마무리 → <b>올로AI</b> 또는 <b>커넥트</b></li>
+        <li><b>올로AI</b> 5단계 마무리 또는 <b>커넥트</b> 4단계 마무리 → <b>엑스로보</b></li>
+        <li><b>엑스로보</b> 마무리 → <b>테크닉</b> 또는 <b>큐보 메타</b></li>
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}

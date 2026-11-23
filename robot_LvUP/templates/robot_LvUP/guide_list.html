@@ -7,19 +7,27 @@
     <div class="d-flex gap-2">
       <a href="{% url 'resource_detail' 'robot' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> 로봇 수업자료</a>
       {% if request.user.is_staff %}
-        <a href="{% url 'robot_guide_create' %}{% if robot %}?robot={{ robot }}{% endif %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>안내 문구 추가</a>
+        <a href="{% url 'robot_guide_create' %}{% if add_robot %}?robot={{ add_robot }}{% endif %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>안내 문구 추가</a>
       {% endif %}
     </div>
   </div>
 
   <p class="text-muted small mb-3">로봇·과목별 단계업 안내 문구입니다. 평가통지서의 학습내용에도 쓰입니다. 문구 옆 <b>복사</b> 버튼을 누르면 문구가 복사됩니다.</p>
 
+  <ul class="nav nav-tabs mb-3">
+    {% for key, label, n in tabs %}
+      <li class="nav-item"><a class="nav-link {% if group == key %}active fw-bold{% endif %}" href="?robot={{ key }}">{{ label }} <span class="badge text-bg-light ms-1">{{ n }}</span></a></li>
+    {% endfor %}
+  </ul>
+
+  {% if robots %}
   <div class="d-flex flex-wrap gap-2 mb-4">
-    <a href="{% url 'robot_guide_list' %}" class="btn btn-sm rounded-pill {% if not robot %}btn-dark{% else %}btn-outline-dark{% endif %}">전체 <span class="badge text-bg-light ms-1">{{ total }}</span></a>
+    <a href="?robot=robot" class="btn btn-sm rounded-pill {% if not robot %}btn-dark{% else %}btn-outline-dark{% endif %}">로봇 전체 <span class="badge text-bg-light ms-1">{{ total }}</span></a>
     {% for key, label, n in robots %}
       <a href="?robot={{ key }}" class="btn btn-sm rounded-pill {% if robot == key %}btn-dark{% else %}btn-outline-dark{% endif %}">{{ label }} <span class="badge text-bg-light ms-1">{{ n }}</span></a>
     {% endfor %}
   </div>
+  {% endif %}
 
   <div class="card shadow-sm">
     <div class="table-responsive">
